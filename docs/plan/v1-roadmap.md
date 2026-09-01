@@ -2,7 +2,12 @@
 
 ## 요약
 
-이 문서는 Windows 설치형 v1을 Phase별로 구현하는 진행 체크리스트다. 각 Step은 검증과 커밋까지 끝나야 완료로 표시하고, Phase 종료 시 사용자 확인 후 다음 Phase로 이동한다. quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 소유한다.
+- 목표: Codex·Claude Code의 quota와 로컬 토큰을 보여 주는 Windows 트레이 앱을 완성한다.
+- 완료 모습: CSWAP처럼 짧은 시선 이동으로 `5h`·`Weekly`를 읽을 수 있는 TUI형 팝오버와 설치 파일이 동작한다.
+- 핵심 접근: Phase별 기능 브랜치와 Step별 커밋을 유지하고, 현재 Phase 4에서 TUI형 화면 기준선을 먼저 고정한 뒤 상태·데이터를 점진적으로 연결한다.
+- 검증: 각 Step의 가까운 테스트와 Phase 관문, 실제 provider smoke, 패키지 설치·제거 검사를 통과한다.
+
+quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 소유한다. 여기서 TUI형은 실제 터미널 앱이 아니라 Electron renderer 안에서 고정폭 글꼴, 단순 테두리, 조밀한 행과 텍스트 진행 막대로 정보를 표현하는 시각 방향을 뜻한다.
 
 ## 진행 규칙
 
@@ -52,9 +57,20 @@
 ## Phase 4 — 갱신·stale·cache
 
 - [x] Step 4.1 — provider 격리·병렬 갱신·generation 보호를 구현한다.
-- [ ] Step 4.2 — 60초 polling과 `Retry-After`·상한 900초 backoff를 구현한다.
-- [ ] Step 4.3 — 민감정보가 없는 atomic stale cache를 구현한다.
-- [ ] Step 4.4 — CLI 소유 refresh와 앱 직접 쓰기 금지를 구분해 문서화한다.
+- [ ] Step 4.2 — CSWAP을 참고한 TUI형 화면 기준선을 구현한다.
+  - `5h`·`Weekly`를 provider별 첫 행에 두고 사용률, 남은 비율과 reset을 한 화면에서 읽게 한다.
+  - 고정폭 글꼴, 단순 테두리, 텍스트 진행 막대와 제한된 상태색을 사용하며 장식용 차트·그라데이션·애니메이션은 추가하지 않는다.
+  - 420×600에서 Codex·Claude의 핵심 quota가 가로로 잘리지 않고, 화면이 CSS 미적용 상태로 보이지 않음을 screenshot smoke로 확인한다.
+- [ ] Step 4.3 — 60초 polling과 `Retry-After`·상한 900초 backoff를 구현한다.
+- [ ] Step 4.4 — 민감정보가 없는 atomic stale cache를 구현한다.
+- [ ] Step 4.5 — CLI 소유 refresh와 앱 직접 쓰기 금지를 구분해 문서화한다.
+
+### Phase 4 관문
+
+- [ ] TUI형 팝오버에서 `5h`·`Weekly`와 reset이 첫 화면에 식별된다.
+- [ ] screenshot smoke와 420×600 overflow 검사를 통과한다.
+- [ ] 429·network·timeout·parser failure에서 마지막 정상값이 stale로 유지된다.
+- [ ] 재시작 시 sanitized cache를 복구하며 손상된 cache가 앱 시작을 막지 않는다.
 
 ## Phase 5 — 로컬 토큰
 
@@ -63,12 +79,14 @@
 - [ ] Step 5.3 — Claude 로컬 토큰 스캐너를 구현한다.
 - [ ] Step 5.4 — watch·reconcile·partial 상태를 UI에 연결한다.
 
-## Phase 6 — 제품 UI와 Windows 상주 동작
+## Phase 6 — TUI형 제품 UI 마감과 Windows 상주 동작
 
-- [ ] Step 6.1 — 420×600 quota 중심 카드를 완성한다.
-- [ ] Step 6.2 — stale·오류·로컬 토큰 상태를 완성한다.
+- [ ] Step 6.1 — Phase 4의 TUI형 정보 계층과 밀도를 실제 데이터 상태에 맞게 마감한다.
+- [ ] Step 6.2 — fresh·stale·오류·로컬 토큰을 텍스트와 제한된 상태색으로 구별한다.
 - [ ] Step 6.3 — 트레이 배치·숨김·refresh·자동 시작 opt-in·quit을 완성한다.
-- [ ] Step 6.4 — 다크·라이트·키보드·screen reader 접근성을 검증한다.
+- [ ] Step 6.4 — 다크·라이트·키보드·screen reader·Windows 100%·150% 배율을 검증한다.
+
+Phase 6은 새로운 시각 콘셉트로 다시 디자인하는 단계가 아니다. Phase 4에서 승인된 TUI형 기준선을 유지하고 실제 상태, 트레이 상호작용과 접근성을 완성한다.
 
 ## Phase 7 — Windows 설치형 v1
 
