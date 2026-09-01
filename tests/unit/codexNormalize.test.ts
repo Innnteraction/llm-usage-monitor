@@ -10,7 +10,11 @@ import {
 
 const fetchedAt = new Date("2026-09-01T03:00:00.000Z");
 const authenticated: CodexAccountResponse = {
-  account: { type: "chatgpt", planType: "example-plan" },
+  account: {
+    type: "chatgpt",
+    email: "codex.user@example.invalid",
+    planType: "example-plan",
+  },
   requiresOpenaiAuth: true,
 };
 
@@ -37,7 +41,7 @@ describe("Codex quota normalization", () => {
 
     expect(snapshot).toMatchObject({
       providerId: "codex",
-      accountLabel: "example-plan",
+      accountLabel: "codex.user@example.invalid",
       status: "fresh",
       fetchedAt: "2026-09-01T03:00:00.000Z",
       lastSuccessfulAt: "2026-09-01T03:00:00.000Z",
@@ -146,6 +150,46 @@ describe("Codex quota normalization", () => {
     );
     expect(additional.every(({ id, label }) => id.length <= 80 && label.length <= 80))
       .toBe(true);
+  });
+
+  it("promotes the named Codex weekly limit while preserving model limits", () => {
+    const snapshot = normalizeCodexSnapshot({
+      account: authenticated,
+      fetchedAt,
+      rateLimits: {
+        rateLimits: {
+          primary: { usedPercent: 41, windowDurationMins: 60 },
+        },
+        rateLimitsByLimitId: {
+          codex: {
+            limitId: "codex",
+            limitName: "codex",
+            primary: { usedPercent: 41, windowDurationMins: 10_080 },
+          },
+          spark: {
+            limitId: "spark",
+            limitName: "GPT-5.3-Codex-Spark",
+            primary: { usedPercent: 3, windowDurationMins: 300 },
+            secondary: { usedPercent: 7, windowDurationMins: 10_080 },
+          },
+        },
+      },
+    });
+
+    expect(snapshot.quotaWindows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "weekly",
+          label: "Weekly",
+          usedPercent: 41,
+        }),
+        expect.objectContaining({
+          kind: "model_weekly",
+          label: "GPT-5.3-Codex-Spark Weekly",
+          usedPercent: 7,
+        }),
+      ]),
+    );
   });
 
   it("reports authentication as unavailable without requesting recovery", () => {

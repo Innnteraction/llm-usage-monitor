@@ -53,21 +53,24 @@ describe("Codex App Server public protocol contract", () => {
     ).toThrow();
   });
 
-  it("discards account identifiers from parsed responses", () => {
+  it("retains only the account identifier needed by the renderer", () => {
     const response = codexAccountResponseSchema.parse({
       account: {
         type: "chatgpt",
-        email: "not-retained@example.invalid",
+        email: "viewer@example.invalid",
         planType: "example-plan",
       },
       requiresOpenaiAuth: false,
     });
 
     expect(response).toEqual({
-      account: { type: "chatgpt", planType: "example-plan" },
+      account: {
+        type: "chatgpt",
+        email: "viewer@example.invalid",
+        planType: "example-plan",
+      },
       requiresOpenaiAuth: false,
     });
-    expect(JSON.stringify(response)).not.toContain("not-retained");
   });
 
   it("rejects malformed quota percentages", () => {

@@ -56,8 +56,12 @@ export function normalizeCodexSnapshot({
   const quotaWindows = normalizeRateLimits(rateLimits);
   return providerSnapshotSchema.parse({
     providerId: "codex",
-    ...(account.account?.planType
-      ? { accountLabel: truncate(account.account.planType) }
+    ...(account.account?.email || account.account?.planType
+      ? {
+          accountLabel: truncate(
+            account.account.email ?? account.account.planType ?? "",
+          ),
+        }
       : {}),
     status: "fresh",
     fetchedAt: timestamp,
@@ -141,22 +145,27 @@ function normalizeRateLimits(
   response: CodexRateLimitsResponse,
 ): QuotaWindow[] {
   const baseWindows = normalizeBaseWindows(response.rateLimits);
-  const fiveHour =
-    baseWindows.find(({ kind }) => kind === "five_hour") ??
-    unavailableWindow("five_hour");
-  const weekly =
-    baseWindows.find(({ kind }) => kind === "weekly") ??
-    unavailableWindow("weekly");
-  const otherBase = baseWindows.filter(
-    ({ kind }) => kind !== "five_hour" && kind !== "weekly",
+  const confirmedBaseWeekly = baseWindows.find(
+    ({ kind }) => kind === "weekly",
   );
   const additional = Object.entries(response.rateLimitsByLimitId ?? {})
     .sort(([left], [right]) => left.localeCompare(right))
     .flatMap(([recordKey, snapshot]) =>
-      normalizeAdditionalWindows(recordKey, snapshot),
+      normalizeAdditionalWindows(recordKey, snapshot, !confirmedBaseWeekly),
     );
+  const fiveHour =
+    baseWindows.find(({ kind }) => kind === "five_hour") ??
+    unavailableWindow("five_hour");
+  const weekly =
+    confirmedBaseWeekly ??
+    additional.find(({ kind }) => kind === "weekly") ??
+    unavailableWindow("weekly");
+  const selectedIds = new Set([fiveHour.id, weekly.id]);
+  const remaining = [...baseWindows, ...additional].filter(
+    ({ id }) => !selectedIds.has(id),
+  );
 
-  return [fiveHour, weekly, ...otherBase, ...additional];
+  return [fiveHour, weekly, ...remaining];
 }
 
 function normalizeBaseWindows(snapshot: CodexRateLimitSnapshot): QuotaWindow[] {
@@ -199,23 +208,33 @@ function normalizeBaseWindows(snapshot: CodexRateLimitSnapshot): QuotaWindow[] {
 function normalizeAdditionalWindows(
   recordKey: string,
   snapshot: CodexRateLimitSnapshot,
+  allowAccountWeekly: boolean,
 ): QuotaWindow[] {
   const identity = snapshot.limitId ?? recordKey;
   const label = snapshot.limitName ?? snapshot.limitId ?? recordKey;
+  const isAccountLimit =
+    allowAccountWeekly &&
+    [recordKey, snapshot.limitId, snapshot.limitName]
+      .filter((value): value is string => Boolean(value))
+      .some((value) => value.trim().toLowerCase() === "codex");
   return (["primary", "secondary"] as const).flatMap((slot) => {
     const window = snapshot[slot];
     if (!window) {
       return [];
     }
     const kind: QuotaKind =
-      window.windowDurationMins === WEEKLY_MINUTES ? "model_weekly" : "other";
+      isAccountLimit && window.windowDurationMins === WEEKLY_MINUTES
+        ? "weekly"
+        : window.windowDurationMins === WEEKLY_MINUTES
+          ? "model_weekly"
+          : "other";
     const suffix = kind === "model_weekly" ? "Weekly" : titleCase(slot);
     return [
       normalizeWindow(
         window,
         kind,
         stableAdditionalId(recordKey, identity, slot),
-        truncate(`${label} ${suffix}`),
+        kind === "weekly" ? "Weekly" : truncate(`${label} ${suffix}`),
       ),
     ];
   });

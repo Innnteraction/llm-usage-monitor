@@ -62,7 +62,8 @@ quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 �
   - 고정폭 글꼴, 평면 목록, 얇은 진행 막대와 제한된 상태색을 사용하며 장식용 차트·그라데이션·애니메이션은 추가하지 않는다.
   - 420×320에서 Codex·Claude의 핵심 quota가 잘리지 않고, 화면이 CSS 미적용 상태로 보이지 않음을 screenshot smoke로 확인한다.
   - 트레이 재도입 전에는 일반 Windows 창으로 시작하고 닫을 때 종료한다. Vite 개발 CSS는 CSP nonce로 허용하며 packaged CSP의 script·style 출처 제한을 유지한다.
-  - 본문에는 `5h`·`Weekly`만 렌더링하고 모델별·기타 quota는 개수 요약으로 접어 실제 provider가 추가 창을 반환해도 레이아웃을 유지한다.
+  - Codex는 계정 `7d`를 기본 표시하고 Spark `5h`·`7d`는 후속 옵션용으로 보존·접는다. Claude는 `5h`·`7d`와 Fable 주간 창을 표시한다.
+  - provider 이름 옆에 현재 구독 계정을 표시하고 갱신 시각은 AM/PM 형식으로 통일한다. 계정 식별자는 로그·오류·stale cache에 저장하지 않는다.
 - [ ] Step 4.3 — 60초 polling과 `Retry-After`·상한 900초 backoff를 구현한다.
 - [ ] Step 4.4 — 민감정보가 없는 atomic stale cache를 구현한다.
 - [ ] Step 4.5 — CLI 소유 refresh와 앱 직접 쓰기 금지를 구분해 문서화한다.

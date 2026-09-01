@@ -49,6 +49,56 @@ const usageTone = (usedPercent?: number): "low" | "medium" | "high" => {
   return "low";
 };
 
+const formatUpdatedAt = (value: string): string =>
+  new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(value));
+
+const selectDisplayWindows = (
+  provider: ProviderSnapshot,
+): QuotaWindow[] => {
+  const find = (kind: QuotaWindow["kind"]) =>
+    provider.quotaWindows.find((window) => window.kind === kind);
+
+  if (provider.providerId === "codex") {
+    const weekly = find("weekly");
+    return weekly ? [weekly] : [];
+  }
+
+  const primary = [find("five_hour"), find("weekly")].filter(
+    (window): window is QuotaWindow => Boolean(window),
+  );
+  if (provider.providerId !== "claude") {
+    return primary;
+  }
+  const fable = provider.quotaWindows.find(
+    (window) =>
+      window.kind === "model_weekly" && /\bfable\b/i.test(window.label),
+  );
+  return fable ? [...primary, fable] : primary;
+};
+
+const countOptionalWindows = (
+  provider: ProviderSnapshot,
+  displayed: QuotaWindow[],
+): number => {
+  const displayedIds = new Set(displayed.map(({ id }) => id));
+  return provider.quotaWindows.filter((window) => {
+    if (displayedIds.has(window.id) || window.status === "unavailable") {
+      return false;
+    }
+    if (provider.providerId !== "codex") {
+      return true;
+    }
+    return (
+      window.kind === "model_weekly" ||
+      (window.kind === "other" && window.id.startsWith("codex-limit-"))
+    );
+  }).length;
+};
+
 const Quota = ({
   providerId,
   window,
@@ -59,7 +109,12 @@ const Quota = ({
   const used = window.usedPercent;
   const remaining = used === undefined ? undefined : 100 - used;
   const tone = usageTone(used);
-  const label = window.kind === "weekly" ? "7d" : window.label;
+  const label =
+    window.kind === "weekly"
+      ? "7d"
+      : window.kind === "model_weekly"
+        ? window.label.replace(/\s+Weekly$/i, "")
+        : window.label;
 
   return (
     <section className="quota">
@@ -96,22 +151,24 @@ const ProviderCard = ({
   const sources = [
     ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
   ];
-  const primaryWindows = (["five_hour", "weekly"] as const).flatMap(
-    (kind) => {
-      const window = provider.quotaWindows.find(
-        (candidate) => candidate.kind === kind,
-      );
-      return window ? [window] : [];
-    },
+  const primaryWindows = selectDisplayWindows(provider);
+  const additionalWindowCount = countOptionalWindows(
+    provider,
+    primaryWindows,
   );
-  const additionalWindowCount =
-    provider.quotaWindows.length - primaryWindows.length;
 
   return (
     <article className="provider-card">
       <header>
         <span className="provider-index">{index + 1}</span>
-        <h2>{providerNames[provider.providerId]}</h2>
+        <div className="provider-title">
+          <h2>{providerNames[provider.providerId]}</h2>
+          {provider.accountLabel ? (
+            <span className="account-label" title={provider.accountLabel}>
+              {provider.accountLabel}
+            </span>
+          ) : null}
+        </div>
         <span className={`status status-${provider.status}`}>
           <span aria-hidden="true">●</span> {provider.status}
         </span>
@@ -138,7 +195,7 @@ const ProviderCard = ({
       <footer>
         <span>source {sources.join(", ")}</span>
         <span>
-          updated {new Date(provider.fetchedAt).toLocaleTimeString("ko-KR")}
+          updated {formatUpdatedAt(provider.fetchedAt)}
         </span>
       </footer>
     </article>

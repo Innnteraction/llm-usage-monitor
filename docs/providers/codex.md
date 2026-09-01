@@ -13,10 +13,12 @@
 
 앱은 quota 표시에 필요한 다음 읽기 메서드만 사용한다.
 
-- `account/read`: 인증 요구 조건과 비식별 계정 종류를 확인한다. `requiresOpenaiAuth`만으로 현재 미인증을 뜻한다고 가정하지 않고, 계정 객체가 함께 없는 경우에만 로그인이 필요하다고 판정한다. 요청의 `refreshToken`은 생략하거나 `false`만 허용한다.
+- `account/read`: 인증 요구 조건과 화면에 표시할 계정 이메일을 확인한다. `requiresOpenaiAuth`만으로 현재 미인증을 뜻한다고 가정하지 않고, 계정 객체가 함께 없는 경우에만 로그인이 필요하다고 판정한다. 요청의 `refreshToken`은 생략하거나 `false`만 허용한다.
 - `account/rateLimits/read`: 기본 rate-limit snapshot과 선택적인 limit별 snapshot을 읽는다.
 
-응답에서는 `primary`, `secondary`, `rateLimitsByLimitId`의 사용률·reset Unix 시각·window 분 단위 길이와 비식별 limit 메타데이터만 유지한다. 계정 이메일, credential, 원본 응답과 quota 실제 값은 로그·fixture·문서에 남기지 않는다.
+응답에서는 `primary`, `secondary`, `rateLimitsByLimitId`의 사용률·reset Unix 시각·window 분 단위 길이와 limit 메타데이터를 유지한다. 계정 이메일은 현재 구독 계정을 구분하기 위한 `accountLabel`로 renderer에만 전달하며 로그·오류·stale cache에는 저장하지 않는다. credential, 원본 응답과 실제 계정·quota 값은 fixture·문서에 남기지 않는다.
+
+`rateLimitsByLimitId`에서 identity가 정확히 `codex`이고 7일 길이로 확인된 창은 계정 `weekly`로 승격한다. Spark의 5시간·7일 창은 모델별 추가 한도로 보존하되 기본 화면에서는 접어 두어 이후 표시 옵션으로 확장할 수 있게 한다.
 
 ## 인증 경계
 

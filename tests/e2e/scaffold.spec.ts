@@ -27,6 +27,9 @@ test("standalone window refresh, layout and close flow", async () => {
     await expect(
       page.getByRole("heading", { name: "Claude Code" }),
     ).toBeVisible();
+    await expect(page.getByText("codex.user@example.com")).toBeVisible();
+    await expect(page.getByText("claude.user@example.com")).toBeVisible();
+    await expect(page.getByText("Fable", { exact: true })).toBeVisible();
 
     const layout = await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
@@ -53,6 +56,7 @@ test("standalone window refresh, layout and close flow", async () => {
     expect(layout.viewportHeight).toBeLessThanOrEqual(360);
     expect(layout.scrollHeight).toBe(layout.viewportHeight);
     await expect(page.getByText("+2 additional limits")).toBeVisible();
+    await expect(page.getByText(/updated \d{1,2}:\d{2} (AM|PM)/).first()).toBeVisible();
     await page.screenshot({
       path: test.info().outputPath("tui-quota-overview.png"),
     });
@@ -73,10 +77,10 @@ test("standalone window refresh, layout and close flow", async () => {
       processType: "undefined",
       requireType: "undefined",
     });
-    const fiveHour = page.getByTestId("codex-five_hour-value");
-    await expect(fiveHour).toHaveText("42%");
+    const weekly = page.getByTestId("codex-weekly-value");
+    await expect(weekly).toHaveText("63%");
     await page.getByRole("button", { name: "refresh" }).click();
-    await expect(fiveHour).toHaveText("43%");
+    await expect(weekly).toHaveText("64%");
 
     const closed = page.waitForEvent("close");
     await electronApp.evaluate(({ BrowserWindow }) => {

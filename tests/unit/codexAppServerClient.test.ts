@@ -87,7 +87,7 @@ describe("CodexAppServerClient", () => {
           result: {
             account: {
               type: "chatgpt",
-              email: "discarded@example.invalid",
+              email: "viewer@example.invalid",
               planType: "example-plan",
             },
             requiresOpenaiAuth: false,
@@ -114,7 +114,11 @@ describe("CodexAppServerClient", () => {
     await client.close();
 
     expect(account).toEqual({
-      account: { type: "chatgpt", planType: "example-plan" },
+      account: {
+        type: "chatgpt",
+        email: "viewer@example.invalid",
+        planType: "example-plan",
+      },
       requiresOpenaiAuth: false,
     });
     expect(limits.rateLimits.primary?.usedPercent).toBe(12);

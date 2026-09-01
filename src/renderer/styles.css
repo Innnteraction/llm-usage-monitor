@@ -93,10 +93,27 @@ h2 {
 
 .provider-card > header {
   display: grid;
-  grid-template-columns: 24px auto 1fr;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
   align-items: baseline;
   gap: 8px;
   margin-bottom: 5px;
+}
+
+.provider-title {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.account-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .provider-index {
@@ -107,7 +124,6 @@ h2 {
 }
 
 .status {
-  margin-left: 8px;
   color: var(--medium);
   font-size: 0.68rem;
   font-weight: 700;

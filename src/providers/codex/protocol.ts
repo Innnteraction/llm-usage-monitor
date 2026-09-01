@@ -11,6 +11,7 @@ export const codexRateLimitsReadParamsSchema = z.object({}).strict();
 const rawCodexAccountSchema = z
   .object({
     type: z.string().min(1),
+    email: z.string().email().max(80).nullable().optional(),
     planType: z.string().min(1).nullable().optional(),
   })
   .passthrough();
@@ -23,6 +24,7 @@ const rawCodexAccountResponseSchema = z.object({
 export const codexAccountSummarySchema = z
   .object({
     type: z.string().min(1),
+    email: z.string().email().max(80).optional(),
     planType: z.string().min(1).optional(),
   })
   .strict();
@@ -34,6 +36,7 @@ export const codexAccountResponseSchema = rawCodexAccountResponseSchema.transfor
         ? null
         : codexAccountSummarySchema.parse({
             type: account.type,
+            ...(account.email == null ? {} : { email: account.email }),
             ...(account.planType == null ? {} : { planType: account.planType }),
           }),
     requiresOpenaiAuth,

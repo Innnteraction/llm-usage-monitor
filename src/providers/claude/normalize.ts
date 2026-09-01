@@ -10,6 +10,7 @@ import type { ClaudeParsedQuotaWindow } from "./usageParser";
 export function normalizeClaudeSnapshot(
   result: ClaudePtyProbeResult,
   fetchedAt: Date,
+  accountLabel?: string,
 ): ProviderSnapshot {
   const timestamp = fetchedAt.toISOString();
   if (result.status !== "supported") {
@@ -35,6 +36,7 @@ export function normalizeClaudeSnapshot(
   }
   return providerSnapshotSchema.parse({
     providerId: "claude",
+    ...(accountLabel ? { accountLabel } : {}),
     status: "fresh",
     fetchedAt: timestamp,
     lastSuccessfulAt: timestamp,

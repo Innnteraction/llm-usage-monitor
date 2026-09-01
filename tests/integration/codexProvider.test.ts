@@ -76,7 +76,7 @@ describe("Codex provider integration", () => {
         current.respond(message.id, {
           account: {
             type: "chatgpt",
-            email: "discarded@example.invalid",
+            email: "codex.user@example.invalid",
             planType: "example-plan",
           },
           requiresOpenaiAuth: true,
@@ -117,13 +117,13 @@ describe("Codex provider integration", () => {
     ).toEqual({});
     expect(store.getState().providers[0]).toMatchObject({
       providerId: "codex",
+      accountLabel: "codex.user@example.invalid",
       status: "fresh",
       quotaWindows: [
         { kind: "five_hour", usedPercent: 21 },
         { kind: "weekly", usedPercent: 34 },
       ],
     });
-    expect(JSON.stringify(store.getState())).not.toContain("discarded@");
     expect(store.getState().refreshing).toEqual([]);
     expect(server.killed).toBe(false);
   });

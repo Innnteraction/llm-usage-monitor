@@ -9,7 +9,7 @@
 
 probe는 `%LOCALAPPDATA%\LLM Usage Monitor\claude-probe`라는 고정된 앱 전용 작업 디렉터리를 사용한다. Claude Code의 project 지침·hooks·plugins·skills·MCP를 safe mode로 비활성화하고 restricted mode와 빈 tool set도 적용한다. quota 화면을 받을 준비가 확인된 경우에만 PTY에 `/usage`를 입력하고, 결과를 읽은 뒤 `Escape`로 패널을 닫아 `/exit`한다. 일반 prompt는 보내지 않는다.
 
-결과에는 5시간·주간 창 신호, quota 상세 신호, 종료 방식과 비식별 오류 코드만 남긴다. raw 화면, quota 수치, reset 값, 계정 식별자와 credential 관련 문자열은 출력·fixture·문서에 저장하지 않는다.
+결과에는 5시간·주간·Fable 창 신호, quota 상세 신호, 종료 방식과 비식별 오류 코드만 남긴다. 계정 표시는 별도의 읽기 전용 `claude auth status --json` 결과에서 이메일만 검증해 `accountLabel`로 전달한다. raw 화면, quota 수치, reset 값, 실제 계정 식별자와 credential 관련 문자열은 로그·오류·stale cache·fixture·문서에 저장하지 않는다.
 
 로그인·workspace trust 같은 예기치 않은 prompt가 나타나면 선택지를 입력하지 않고 프로세스를 종료한다. 안정적인 quota 화면을 얻지 못해도 OAuth 직접 호출로 자동 전환하지 않는다.
 
