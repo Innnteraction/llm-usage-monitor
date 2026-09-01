@@ -21,4 +21,4 @@ LLM Usage Monitor는 Codex와 Claude Code 구독 계정의 5시간·주간 quota
 
 ## 현재 범위
 
-현재 Electron 기반 트레이 앱과 Codex·Claude quota provider를 단계적으로 구현하고 있다. 진행 상태와 다음 작업은 [v1 로드맵](docs/plan/v1-roadmap.md)을 따른다.
+현재 Electron 기반 앱과 Codex·Claude quota provider를 단계적으로 구현하고 있다. 개발 중에는 일반 Windows 창으로 실행하며 트레이 상주 동작은 후속 Phase에서 다시 연결한다. 진행 상태와 다음 작업은 [v1 로드맵](docs/plan/v1-roadmap.md)을 따른다.

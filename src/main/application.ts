@@ -2,10 +2,6 @@ import {
   app,
   BrowserWindow,
   ipcMain,
-  Menu,
-  screen,
-  Tray,
-  type Rectangle,
 } from "electron";
 import path from "node:path";
 import {
@@ -17,34 +13,8 @@ import {
 import { createUsageStore } from "../usage/index";
 import { registerIpcHandlers } from "./index";
 import { createFakeUsageStore } from "./fakeUsage";
-import { createTrayIcon } from "./trayIcon";
 
 const WINDOW_SIZE = { width: 420, height: 320 };
-
-const positionNearTray = (
-  window: BrowserWindow,
-  trayBounds?: Rectangle,
-): void => {
-  const cursor = screen.getCursorScreenPoint();
-  const display = screen.getDisplayNearestPoint(
-    trayBounds
-      ? {
-          x: trayBounds.x + Math.round(trayBounds.width / 2),
-          y: trayBounds.y + Math.round(trayBounds.height / 2),
-        }
-      : cursor,
-  );
-  const workArea = display.workArea;
-  const anchorX = trayBounds
-    ? trayBounds.x + Math.round(trayBounds.width / 2)
-    : cursor.x;
-  const x = Math.min(
-    Math.max(anchorX - Math.round(WINDOW_SIZE.width / 2), workArea.x),
-    workArea.x + workArea.width - WINDOW_SIZE.width,
-  );
-  const y = workArea.y + workArea.height - WINDOW_SIZE.height;
-  window.setPosition(x, y, false);
-};
 
 const loadRenderer = (window: BrowserWindow): void => {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -61,9 +31,12 @@ const loadRenderer = (window: BrowserWindow): void => {
 };
 
 export const startApplication = (): void => {
-  let isQuitting = false;
   let mainWindow: BrowserWindow | undefined;
-  let tray: Tray | undefined;
+
+  const e2eUserData = process.env.LLM_USAGE_MONITOR_E2E_USER_DATA;
+  if (process.env.LLM_USAGE_MONITOR_E2E === "1" && e2eUserData) {
+    app.setPath("userData", path.resolve(e2eUserData));
+  }
 
   if (!app.requestSingleInstanceLock()) {
     app.quit();
@@ -74,24 +47,20 @@ export const startApplication = (): void => {
     if (!mainWindow) {
       return;
     }
-    positionNearTray(mainWindow, tray?.getBounds());
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
     mainWindow.show();
     mainWindow.focus();
   };
 
   app.on("second-instance", showWindow);
-  app.on("before-quit", () => {
-    isQuitting = true;
-  });
   app.on("window-all-closed", () => {
-    // The tray owns the Windows application lifecycle.
+    app.quit();
   });
 
   void app.whenReady().then(() => {
     const useFakeProviders = process.env.LLM_USAGE_MONITOR_E2E === "1";
-    const showWindowForTest =
-      useFakeProviders ||
-      process.env.LLM_USAGE_MONITOR_CLAUDE_PACKAGED_SMOKE === "1";
     const initialTime = new Date();
     const store = useFakeProviders
       ? createFakeUsageStore()
@@ -104,12 +73,14 @@ export const startApplication = (): void => {
         });
     mainWindow = new BrowserWindow({
       ...WINDOW_SIZE,
+      useContentSize: true,
       show: false,
-      frame: false,
+      frame: true,
       resizable: false,
       maximizable: false,
       fullscreenable: false,
-      skipTaskbar: true,
+      skipTaskbar: false,
+      title: "LLM Usage Monitor",
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
@@ -126,18 +97,6 @@ export const startApplication = (): void => {
     mainWindow.webContents.session.setPermissionRequestHandler(
       (_webContents, _permission, callback) => callback(false),
     );
-    mainWindow.on("close", (event) => {
-      if (!isQuitting) {
-        event.preventDefault();
-        mainWindow?.hide();
-      }
-    });
-    mainWindow.on("blur", () => {
-      if (!showWindowForTest) {
-        mainWindow?.hide();
-      }
-    });
-
     const ipcController = registerIpcHandlers(ipcMain, mainWindow, {
       getState: async () => store.getState(),
       refresh: async (providerId) => store.refresh(providerId),
@@ -154,34 +113,8 @@ export const startApplication = (): void => {
       void store.refresh();
     }
 
-    tray = new Tray(createTrayIcon());
-    tray.setToolTip("LLM Usage Monitor");
-    tray.setContextMenu(
-      Menu.buildFromTemplate([
-        { label: "열기", click: showWindow },
-        { label: "새로고침", click: () => void store.refresh() },
-        { type: "separator" },
-        {
-          label: "종료",
-          click: () => {
-            isQuitting = true;
-            app.quit();
-          },
-        },
-      ]),
-    );
-    tray.on("click", () => {
-      if (mainWindow?.isVisible()) {
-        mainWindow.hide();
-      } else {
-        showWindow();
-      }
-    });
-
     mainWindow.once("ready-to-show", () => {
-      if (showWindowForTest) {
-        showWindow();
-      }
+      showWindow();
     });
     mainWindow.on("closed", () => {
       unsubscribe();

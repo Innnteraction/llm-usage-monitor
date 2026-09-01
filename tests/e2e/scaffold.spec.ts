@@ -8,12 +8,13 @@ const appPath = path.resolve(
   "app.asar",
 );
 
-test("tray popover refresh, layout, hide and quit flow", async () => {
+test("standalone window refresh, layout and close flow", async () => {
   const electronApp = await electron.launch({
     args: [appPath],
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
+      LLM_USAGE_MONITOR_E2E_USER_DATA: test.info().outputPath("user-data"),
     },
   });
 
@@ -34,15 +35,20 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
       scrollHeight: document.documentElement.scrollHeight,
       providerCards: document.querySelectorAll(".provider-card").length,
       textMeters: document.querySelectorAll(".quota-meter").length,
+      stylesheets: document.styleSheets.length,
+      background: getComputedStyle(document.body).backgroundColor,
     }));
-    expect(layout).toEqual({
+    expect(layout).toMatchObject({
       viewportWidth: 420,
-      viewportHeight: 320,
       scrollWidth: 420,
-      scrollHeight: 320,
       providerCards: 2,
       textMeters: 4,
+      stylesheets: 1,
+      background: "rgb(16, 16, 16)",
     });
+    expect(layout.viewportHeight).toBeGreaterThanOrEqual(320);
+    expect(layout.viewportHeight).toBeLessThanOrEqual(360);
+    expect(layout.scrollHeight).toBe(layout.viewportHeight);
     await page.screenshot({
       path: test.info().outputPath("tui-quota-overview.png"),
     });
@@ -68,26 +74,10 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
     await page.getByRole("button", { name: "refresh" }).click();
     await expect(fiveHour).toHaveText("43%");
 
+    const closed = page.waitForEvent("close");
     await electronApp.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]?.close();
     });
-    await expect
-      .poll(() =>
-        electronApp.evaluate(({ BrowserWindow }) =>
-          BrowserWindow.getAllWindows()[0]?.isVisible(),
-        ),
-      )
-      .toBe(false);
-
-    await electronApp.evaluate(({ BrowserWindow }) => {
-      BrowserWindow.getAllWindows()[0]?.show();
-    });
-    await expect(
-      page.getByRole("button", { name: "refresh" }),
-    ).toBeVisible();
-
-    const closed = page.waitForEvent("close");
-    await electronApp.evaluate(({ app }) => app.quit());
     await closed;
   } finally {
     await electronApp.close().catch(() => undefined);
