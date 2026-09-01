@@ -8,12 +8,16 @@ import {
   type UserPreferences,
 } from "./contracts";
 
+export const claudeSetupActionSchema = z.enum(["login", "trust_probe"]);
+export type ClaudeSetupAction = z.infer<typeof claudeSetupActionSchema>;
+
 export const IPC_CHANNELS = {
   getState: "usage-monitor:get-state",
   refresh: "usage-monitor:refresh",
   stateChanged: "usage-monitor:state-changed",
   getPreferences: "usage-monitor:get-preferences",
   setLaunchAtLogin: "usage-monitor:set-launch-at-login",
+  openClaudeSetup: "usage-monitor:open-claude-setup",
 } as const;
 
 export const noPayloadSchema = z.tuple([]);
@@ -27,6 +31,12 @@ export const setLaunchAtLoginPayloadSchema = z
     enabled: z.boolean(),
   })
   .strict();
+export const openClaudeSetupPayloadSchema = z
+  .object({ action: claudeSetupActionSchema })
+  .strict();
+export const openClaudeSetupResultSchema = z
+  .object({ opened: z.boolean() })
+  .strict();
 
 export const refreshResultSchema = z.void();
 export { appSnapshotSchema, userPreferencesSchema };
@@ -37,4 +47,5 @@ export interface UsageMonitorAPI {
   subscribe(listener: (state: AppSnapshot) => void): () => void;
   getPreferences(): Promise<UserPreferences>;
   setLaunchAtLogin(enabled: boolean): Promise<UserPreferences>;
+  openClaudeSetup(action: ClaudeSetupAction): Promise<{ opened: boolean }>;
 }

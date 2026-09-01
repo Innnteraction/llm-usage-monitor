@@ -6,6 +6,8 @@ import {
 import {
   IPC_CHANNELS,
   appSnapshotSchema,
+  openClaudeSetupPayloadSchema,
+  openClaudeSetupResultSchema,
   refreshPayloadSchema,
   refreshResultSchema,
   setLaunchAtLoginPayloadSchema,
@@ -46,6 +48,12 @@ const api: UsageMonitorAPI = {
     const payload = setLaunchAtLoginPayloadSchema.parse({ enabled });
     return userPreferencesSchema.parse(
       await ipcRenderer.invoke(IPC_CHANNELS.setLaunchAtLogin, payload),
+    );
+  },
+  async openClaudeSetup(action) {
+    const payload = openClaudeSetupPayloadSchema.parse({ action });
+    return openClaudeSetupResultSchema.parse(
+      await ipcRenderer.invoke(IPC_CHANNELS.openClaudeSetup, payload),
     );
   },
 };

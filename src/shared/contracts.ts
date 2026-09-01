@@ -21,6 +21,14 @@ export const snapshotStatusSchema = z.enum([
 ]);
 export type SnapshotStatus = z.infer<typeof snapshotStatusSchema>;
 
+export const providerAuthKindSchema = z.enum([
+  "subscription",
+  "api_key",
+  "enterprise",
+  "unknown",
+]);
+export type ProviderAuthKind = z.infer<typeof providerAuthKindSchema>;
+
 export const providerSourceSchema = z.enum([
   "codex_app_server",
   "claude_cli",
@@ -33,6 +41,7 @@ export const providerErrorSchema = z
     code: z.enum([
       "not_installed",
       "not_authenticated",
+      "workspace_trust_required",
       "unsupported_output",
       "rate_limited",
       "network",
@@ -79,6 +88,7 @@ export const providerSnapshotSchema = z
   .object({
     providerId: providerIdSchema,
     accountLabel: z.string().min(1).max(80).optional(),
+    authKind: providerAuthKindSchema.optional(),
     status: snapshotStatusSchema,
     fetchedAt: timestampSchema,
     lastSuccessfulAt: timestampSchema.optional(),

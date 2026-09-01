@@ -45,6 +45,7 @@ const createHarness = () => {
     setLaunchAtLogin: vi.fn(async (enabled: boolean) => ({
       launchAtLogin: enabled,
     })),
+    openClaudeSetup: vi.fn(async () => ({ opened: true })),
   };
 
   const controller = registerIpcHandlers(ipcMain, window, dependencies);
@@ -79,6 +80,19 @@ describe("restricted IPC handlers", () => {
       handler?.(trustedEvent, { providerId: "unknown" }),
     ).rejects.toThrow();
     expect(dependencies.refresh).not.toHaveBeenCalled();
+  });
+
+  it("allows only fixed Claude setup actions", async () => {
+    const { dependencies, handlers, trustedEvent } = createHarness();
+    const handler = handlers.get(IPC_CHANNELS.openClaudeSetup);
+
+    await expect(
+      handler?.(trustedEvent, { action: "login" }),
+    ).resolves.toEqual({ opened: true });
+    await expect(
+      handler?.(trustedEvent, { action: "arbitrary-command" }),
+    ).rejects.toThrow();
+    expect(dependencies.openClaudeSetup).toHaveBeenCalledTimes(1);
   });
 
   it("publishes only schema-valid state and removes handlers", () => {

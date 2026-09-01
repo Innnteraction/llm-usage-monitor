@@ -1,9 +1,17 @@
 import { useEffect, useState } from "react";
 import type {
   AppSnapshot,
+  ClaudeSetupAction,
   ProviderSnapshot,
   QuotaWindow,
 } from "../shared/index";
+
+const authKindNames = {
+  subscription: "subscription",
+  api_key: "API key",
+  enterprise: "enterprise",
+  unknown: "unknown auth",
+} as const;
 
 const providerNames: Record<ProviderSnapshot["providerId"], string> = {
   codex: "Codex",
@@ -144,9 +152,11 @@ const Quota = ({
 const ProviderCard = ({
   provider,
   index,
+  onOpenClaudeSetup,
 }: {
   provider: ProviderSnapshot;
   index: number;
+  onOpenClaudeSetup(action: ClaudeSetupAction): void;
 }) => {
   const sources = [
     ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
@@ -156,6 +166,14 @@ const ProviderCard = ({
     provider,
     primaryWindows,
   );
+  const setupAction =
+    provider.providerId !== "claude"
+      ? undefined
+      : provider.error?.code === "not_authenticated"
+        ? "login"
+        : provider.error?.code === "workspace_trust_required"
+          ? "trust_probe"
+          : undefined;
 
   return (
     <article className="provider-card">
@@ -168,15 +186,29 @@ const ProviderCard = ({
               {provider.accountLabel}
             </span>
           ) : null}
+          {provider.providerId === "claude" && provider.authKind ? (
+            <span className="account-client">
+              CLI/{authKindNames[provider.authKind]}
+            </span>
+          ) : null}
         </div>
         <span className={`status status-${provider.status}`}>
           <span aria-hidden="true">●</span> {provider.status}
         </span>
       </header>
       {provider.error ? (
-        <p className="provider-error" role="status">
-          {provider.error.message}
-        </p>
+        <div className="provider-error-row" role="status">
+          <p className="provider-error">{provider.error.message}</p>
+          {setupAction ? (
+            <button
+              type="button"
+              className="setup-action"
+              onClick={() => onOpenClaudeSetup(setupAction)}
+            >
+              {setupAction === "login" ? "sign in" : "prepare folder"}
+            </button>
+          ) : null}
+        </div>
       ) : null}
       <div className="quota-grid">
         {primaryWindows.map((window) => (
@@ -242,6 +274,18 @@ export const App = () => {
     void window.usageMonitor.refresh().catch(() => setError(true));
   };
 
+  const openClaudeSetup = (action: ClaudeSetupAction): void => {
+    setError(false);
+    void window.usageMonitor
+      .openClaudeSetup(action)
+      .then(({ opened }) => {
+        if (!opened) {
+          setError(true);
+        }
+      })
+      .catch(() => setError(true));
+  };
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -268,6 +312,7 @@ export const App = () => {
               key={provider.providerId}
               provider={provider}
               index={index}
+              onOpenClaudeSetup={openClaudeSetup}
             />
           ))
         ) : (
@@ -276,7 +321,8 @@ export const App = () => {
       </section>
 
       <p className="scope-note">
-        quota: account scope · tokens: this PC only
+        <span>quota: account · tokens: this PC</span>
+        <span>Claude Desktop: not inspected</span>
       </p>
     </main>
   );

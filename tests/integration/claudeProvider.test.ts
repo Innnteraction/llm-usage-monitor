@@ -19,7 +19,10 @@ describe("Claude provider integration", () => {
       providers: [
         new ClaudeQuotaProvider({
           probe: async () => result,
-          accountLabelReader: async () => "claude.user@example.invalid",
+          accountReader: async () => ({
+            accountLabel: "claude.user@example.invalid",
+            authKind: "subscription",
+          }),
           clock,
         }),
       ],
@@ -32,6 +35,7 @@ describe("Claude provider integration", () => {
     expect(store.getState().providers[0]).toMatchObject({
       providerId: "claude",
       accountLabel: "claude.user@example.invalid",
+      authKind: "subscription",
       status: "fresh",
       quotaWindows: [{ usedPercent: 18 }, { usedPercent: 29 }],
     });
@@ -42,7 +46,7 @@ describe("Claude provider integration", () => {
       probe: async () => {
         throw new Error("private raw output");
       },
-      accountLabelReader: async () => undefined,
+      accountReader: async () => undefined,
       clock,
     });
 

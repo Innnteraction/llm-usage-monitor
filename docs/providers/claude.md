@@ -17,6 +17,8 @@ probe는 `%LOCALAPPDATA%\LLM Usage Monitor\claude-probe`라는 고정된 앱 전
 
 로그인·workspace trust 같은 예기치 않은 prompt가 나타나면 선택지를 입력하지 않고 프로세스를 종료한다. 안정적인 quota 화면을 얻지 못해도 OAuth 직접 호출로 자동 전환하지 않는다.
 
+미리보기 앱은 `claude auth status --json`을 메모리에서 즉시 파싱해 CLI 계정 이메일과 `subscription`·`api_key`·`enterprise`·`unknown` 중 하나의 인증 종류만 UI에 전달한다. 원본 status 응답과 조직 식별자는 전달하거나 저장하지 않는다. Claude Desktop의 로그인 상태는 지원되는 읽기 전용 상태 인터페이스가 없어 검사하지 않는다.
+
 ## 2026-09-01 게이트 결과
 
 새 작업 디렉터리에서는 workspace trust 확인이 먼저 나타난다. 앱은 이를 `blocked_prompt`로 분류하고 `/usage`, `/exit`, 선택지와 모델 prompt를 하나도 보내지 않은 채 종료한다. 사용자가 고정 probe 폴더를 대상으로 보이는 Claude CLI를 열어 최초 1회 직접 승인한 뒤에만 백그라운드 probe를 실행한다. 앱은 trust 선택지를 자동 입력하거나 Claude 설정 파일을 직접 수정하지 않는다.
@@ -34,6 +36,8 @@ CodexBar의 고정 probe 폴더와 빈 tool set은 채택한다. trust·telemetr
 `pnpm test:smoke:claude-pty`는 사용자가 명시적으로 실행하는 읽기 전용 검사다. 성공 조건은 `/usage`만으로 5시간·주간 quota 신호를 얻고 `/exit`로 정상 종료하며 모델 prompt를 전혀 보내지 않는 것이다. trust가 준비되지 않았으면 정제된 결과가 `blocked_prompt`, `sentUsageCommand: false`, `sentModelPrompt: false`로 실패한다.
 
 최초 준비는 고정 probe 폴더에서 위의 실행 인자로 Claude를 직접 열고 해당 빈 폴더만 trust한 뒤 `/exit`하는 과정이다. 이 작업은 설치·최초 실행 UI에서 사용자 동작으로 제공하며 백그라운드에서 대신 승인하지 않는다.
+
+UI의 `sign in`은 보이는 Windows Terminal에서 `claude auth login --claudeai`를 실행하고, `prepare folder`는 같은 고정 probe 폴더와 safe/restricted 인자로 대화형 Claude를 연다. renderer는 이 두 action만 요청할 수 있으며 명령, 인자와 경로를 지정할 수 없다.
 
 2026-09-01 실제 로그인된 Claude Code 2.1.252에서 최초 trust 이후 smoke가 통과했다. 5시간·주간·quota 상세 신호를 얻었고 모델 prompt를 보내지 않았으며 `Escape`로 usage 패널을 닫은 뒤 `/exit`로 정상 종료했다. 실제 quota 수치와 raw 화면은 출력하거나 저장하지 않았다.
 

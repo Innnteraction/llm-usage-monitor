@@ -20,6 +20,7 @@ const buildProvider = (
     accountLabel: isCodex
       ? "codex.user@example.com"
       : "claude.user@example.com",
+    ...(isCodex ? {} : { authKind: "subscription" as const }),
     status: "fresh",
     fetchedAt: now.toISOString(),
     lastSuccessfulAt: now.toISOString(),

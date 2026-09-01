@@ -1,6 +1,9 @@
 import { execFile } from "node:child_process";
 import { z } from "zod";
-import type { ProviderSnapshot } from "../../shared/index";
+import type {
+  ProviderAuthKind,
+  ProviderSnapshot,
+} from "../../shared/index";
 import {
   createClaudeUnexpectedSnapshot,
   normalizeClaudeSnapshot,
@@ -9,31 +12,68 @@ import { runClaudeUsageProbe, type ClaudePtyProbeResult } from "./ptyProbe";
 
 export interface ClaudeQuotaProviderOptions {
   probe?: () => Promise<ClaudePtyProbeResult>;
-  accountLabelReader?: () => Promise<string | undefined>;
+  accountReader?: () => Promise<ClaudeAccountContext | undefined>;
   clock?: () => Date;
+}
+
+export interface ClaudeAccountContext {
+  accountLabel?: string;
+  authKind: ProviderAuthKind;
 }
 
 const claudeAuthStatusSchema = z
   .object({
     loggedIn: z.boolean(),
     email: z.string().email().max(80).nullable().optional(),
+    authMethod: z.string().max(80).nullable().optional(),
+    apiProvider: z.string().max(80).nullable().optional(),
+    subscriptionType: z.string().max(80).nullable().optional(),
   })
   .passthrough();
 
-export function parseClaudeAuthStatusAccountLabel(
+export function parseClaudeAuthStatus(
   raw: string,
-): string | undefined {
+): ClaudeAccountContext | undefined {
   try {
     const status = claudeAuthStatusSchema.parse(JSON.parse(raw));
-    return status.loggedIn ? (status.email ?? undefined) : undefined;
+    if (!status.loggedIn) {
+      return undefined;
+    }
+    return {
+      ...(status.email ? { accountLabel: status.email } : {}),
+      authKind: classifyClaudeAuthKind(status),
+    };
   } catch {
     return undefined;
   }
 }
 
-export function readClaudeAccountLabel(
+const classifyClaudeAuthKind = (
+  status: z.infer<typeof claudeAuthStatusSchema>,
+): ProviderAuthKind => {
+  const signal = [
+    status.authMethod,
+    status.apiProvider,
+    status.subscriptionType,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toLowerCase();
+  if (/bedrock|vertex|foundry|enterprise|sso/.test(signal)) {
+    return "enterprise";
+  }
+  if (/api.?key|console|payg/.test(signal)) {
+    return "api_key";
+  }
+  if (/oauth|claude.?ai|subscription|pro|max|team/.test(signal)) {
+    return "subscription";
+  }
+  return "unknown";
+};
+
+export function readClaudeAccountContext(
   command = process.platform === "win32" ? "claude.exe" : "claude",
-): Promise<string | undefined> {
+): Promise<ClaudeAccountContext | undefined> {
   return new Promise((resolve) => {
     execFile(
       command,
@@ -41,7 +81,7 @@ export function readClaudeAccountLabel(
       { windowsHide: true, timeout: 5_000, maxBuffer: 64 * 1024 },
       (error, stdout) => {
         resolve(
-          error ? undefined : parseClaudeAuthStatusAccountLabel(stdout),
+          error ? undefined : parseClaudeAuthStatus(stdout),
         );
       },
     );
@@ -51,23 +91,25 @@ export function readClaudeAccountLabel(
 export class ClaudeQuotaProvider {
   readonly id = "claude" as const;
   private readonly probe: () => Promise<ClaudePtyProbeResult>;
-  private readonly accountLabelReader: () => Promise<string | undefined>;
+  private readonly accountReader: () => Promise<
+    ClaudeAccountContext | undefined
+  >;
   private readonly clock: () => Date;
 
   constructor(options: ClaudeQuotaProviderOptions = {}) {
     this.probe = options.probe ?? (() => runClaudeUsageProbe());
-    this.accountLabelReader =
-      options.accountLabelReader ?? (() => readClaudeAccountLabel());
+    this.accountReader =
+      options.accountReader ?? (() => readClaudeAccountContext());
     this.clock = options.clock ?? (() => new Date());
   }
 
   async fetchQuota(): Promise<ProviderSnapshot> {
     try {
-      const [result, accountLabel] = await Promise.all([
+      const [result, account] = await Promise.all([
         this.probe(),
-        this.accountLabelReader().catch(() => undefined),
+        this.accountReader().catch(() => undefined),
       ]);
-      return normalizeClaudeSnapshot(result, this.clock(), accountLabel);
+      return normalizeClaudeSnapshot(result, this.clock(), account);
     } catch {
       return createClaudeUnexpectedSnapshot(this.clock());
     }

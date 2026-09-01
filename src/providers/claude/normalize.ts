@@ -6,11 +6,12 @@ import {
 } from "../../shared/index";
 import type { ClaudePtyProbeResult, ClaudePtyProbeStatus } from "./ptyProbe";
 import type { ClaudeParsedQuotaWindow } from "./usageParser";
+import type { ClaudeAccountContext } from "./provider";
 
 export function normalizeClaudeSnapshot(
   result: ClaudePtyProbeResult,
   fetchedAt: Date,
-  accountLabel?: string,
+  account?: ClaudeAccountContext,
 ): ProviderSnapshot {
   const timestamp = fetchedAt.toISOString();
   if (result.status !== "supported") {
@@ -36,7 +37,8 @@ export function normalizeClaudeSnapshot(
   }
   return providerSnapshotSchema.parse({
     providerId: "claude",
-    ...(accountLabel ? { accountLabel } : {}),
+    ...(account?.accountLabel ? { accountLabel: account.accountLabel } : {}),
+    ...(account ? { authKind: account.authKind } : {}),
     status: "fresh",
     fetchedAt: timestamp,
     lastSuccessfulAt: timestamp,
@@ -100,7 +102,7 @@ function mapClaudeError(status: ClaudePtyProbeStatus): ProviderError {
     supported: { code: "unexpected", message: "Claude quota normalization failed unexpectedly." },
     not_installed: { code: "not_installed", message: "Install the Claude CLI to view quota." },
     not_authenticated: { code: "not_authenticated", message: "Sign in with the Claude CLI to view quota." },
-    blocked_prompt: { code: "unavailable", message: "Approve the dedicated Claude probe folder to view quota." },
+    blocked_prompt: { code: "workspace_trust_required", message: "Approve the dedicated Claude probe folder to view quota." },
     unsupported_output: { code: "unsupported_output", message: "The installed Claude CLI returned an unsupported usage screen." },
     timeout: { code: "timeout", message: "Claude quota refresh timed out." },
     process_failed: { code: "process_failed", message: "Claude CLI stopped during quota refresh." },

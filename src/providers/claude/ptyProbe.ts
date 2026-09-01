@@ -17,6 +17,15 @@ const PANEL_CLOSE_DELAY_MS = 150;
 const EXIT_TIMEOUT_MS = 2_000;
 const PROBE_TIMEOUT_MS = 20_000;
 
+export const CLAUDE_SAFE_SESSION_ARGS = [
+  "--safe-mode",
+  "--ax-screen-reader",
+  "--restricted",
+  "--strict-mcp-config",
+  "--tools",
+  "",
+] as const;
+
 export type ClaudePtyProbeStatus =
   | "supported"
   | "not_installed"
@@ -224,14 +233,7 @@ export async function runClaudeUsageProbe(
     try {
       terminal = spawn(
         options.command ?? (process.platform === "win32" ? "claude.exe" : "claude"),
-        [
-          "--safe-mode",
-          "--ax-screen-reader",
-          "--restricted",
-          "--strict-mcp-config",
-          "--tools",
-          "",
-        ],
+        [...CLAUDE_SAFE_SESSION_ARGS],
         {
           cols: 120,
           rows: 40,

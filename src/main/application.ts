@@ -18,6 +18,7 @@ import {
 import { createUsagePoller, createUsageStore } from "../usage/index";
 import {
   mergeCachedSnapshots,
+  openClaudeSetup,
   registerIpcHandlers,
   SNAPSHOT_CACHE_FILENAME,
   SnapshotCache,
@@ -209,6 +210,7 @@ export const startApplication = (): void => {
         app.setLoginItemSettings({ openAtLogin: enabled });
         return { launchAtLogin: app.getLoginItemSettings().openAtLogin };
       },
+      openClaudeSetup,
     });
     const unsubscribe = store.subscribe(ipcController.publishState);
     const unsubscribeCache = snapshotCache

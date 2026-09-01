@@ -70,6 +70,7 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
       methods: [
         "getPreferences",
         "getState",
+        "openClaudeSetup",
         "refresh",
         "setLaunchAtLogin",
         "subscribe",

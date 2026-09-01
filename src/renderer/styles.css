@@ -116,6 +116,13 @@ h2 {
   white-space: nowrap;
 }
 
+.account-client {
+  flex: none;
+  color: #626262;
+  font-size: 0.54rem;
+  white-space: nowrap;
+}
+
 .provider-index {
   color: #d4d4d4;
   font-size: 0.82rem;
@@ -232,11 +239,24 @@ h2 {
   font-size: 0.58rem;
 }
 
-.provider-error {
+.provider-error-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   margin: 5px 0 5px 32px;
+}
+
+.provider-error {
+  margin: 0;
   color: var(--high);
   font-size: 0.62rem;
   line-height: 1.4;
+}
+
+.setup-action {
+  flex: none;
+  color: var(--medium);
 }
 
 .scope-note,
@@ -246,6 +266,13 @@ h2 {
   color: #626262;
   font-size: 0.58rem;
   line-height: 1.4;
+}
+
+.scope-note {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-left: 0;
 }
 
 .error-banner {

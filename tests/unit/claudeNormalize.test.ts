@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeClaudeSnapshot,
-  parseClaudeAuthStatusAccountLabel,
+  parseClaudeAuthStatus,
   type ClaudePtyProbeResult,
 } from "../../src/providers/index";
 
@@ -26,10 +26,14 @@ describe("Claude quota normalization", () => {
     expect(normalizeClaudeSnapshot(
       base,
       new Date("2026-09-01T03:00:00Z"),
-      "claude.user@example.invalid",
+      {
+        accountLabel: "claude.user@example.invalid",
+        authKind: "subscription",
+      },
     )).toMatchObject({
       providerId: "claude",
       accountLabel: "claude.user@example.invalid",
+      authKind: "subscription",
       status: "fresh",
       quotaWindows: [
         { id: "claude-five-hour", kind: "five_hour", usedPercent: 12 },
@@ -40,17 +44,21 @@ describe("Claude quota normalization", () => {
 
   it("extracts only a valid logged-in account label", () => {
     expect(
-      parseClaudeAuthStatusAccountLabel(
+      parseClaudeAuthStatus(
         JSON.stringify({
           loggedIn: true,
           email: "claude.user@example.invalid",
+          authMethod: "claudeAiOauth",
           futureField: "ignored",
         }),
       ),
-    ).toBe("claude.user@example.invalid");
-    expect(parseClaudeAuthStatusAccountLabel("private malformed output")).toBeUndefined();
+    ).toEqual({
+      accountLabel: "claude.user@example.invalid",
+      authKind: "subscription",
+    });
+    expect(parseClaudeAuthStatus("private malformed output")).toBeUndefined();
     expect(
-      parseClaudeAuthStatusAccountLabel(
+      parseClaudeAuthStatus(
         JSON.stringify({ loggedIn: false, email: "hidden@example.invalid" }),
       ),
     ).toBeUndefined();
@@ -61,7 +69,7 @@ describe("Claude quota normalization", () => {
       { ...base, status: "blocked_prompt", quotaWindows: [] },
       new Date("2026-09-01T03:00:00Z"),
     );
-    expect(snapshot).toMatchObject({ status: "unavailable", error: { code: "unavailable" } });
+    expect(snapshot).toMatchObject({ status: "unavailable", error: { code: "workspace_trust_required" } });
     expect(JSON.stringify(snapshot)).not.toContain("workspace output");
   });
 });

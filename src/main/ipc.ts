@@ -7,11 +7,14 @@ import {
   IPC_CHANNELS,
   appSnapshotSchema,
   noPayloadSchema,
+  openClaudeSetupPayloadSchema,
+  openClaudeSetupResultSchema,
   refreshPayloadSchema,
   refreshResultSchema,
   setLaunchAtLoginPayloadSchema,
   userPreferencesSchema,
   type AppSnapshot,
+  type ClaudeSetupAction,
   type ProviderId,
   type UserPreferences,
 } from "../shared/index";
@@ -21,6 +24,7 @@ export interface IpcDependencies {
   refresh(providerId?: ProviderId): Promise<void>;
   getPreferences(): Promise<UserPreferences>;
   setLaunchAtLogin(enabled: boolean): Promise<UserPreferences>;
+  openClaudeSetup(action: ClaudeSetupAction): Promise<{ opened: boolean }>;
 }
 
 const assertTrustedSender = (
@@ -77,6 +81,14 @@ export const registerIpcHandlers = (
     );
   });
 
+  ipcMain.handle(IPC_CHANNELS.openClaudeSetup, async (event, ...args) => {
+    assertTrustedSender(event, window);
+    const { action } = singlePayload(openClaudeSetupPayloadSchema, args);
+    return openClaudeSetupResultSchema.parse(
+      await dependencies.openClaudeSetup(action),
+    );
+  });
+
   return {
     publishState(snapshot: AppSnapshot): void {
       const safeSnapshot = appSnapshotSchema.parse(snapshot);
@@ -89,6 +101,7 @@ export const registerIpcHandlers = (
       ipcMain.removeHandler(IPC_CHANNELS.refresh);
       ipcMain.removeHandler(IPC_CHANNELS.getPreferences);
       ipcMain.removeHandler(IPC_CHANNELS.setLaunchAtLogin);
+      ipcMain.removeHandler(IPC_CHANNELS.openClaudeSetup);
     },
   };
 };
