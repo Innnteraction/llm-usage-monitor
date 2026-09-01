@@ -1,0 +1,56 @@
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+!.env.sample
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+credentials.json
+oauth_creds.json
+auth.json
+service-account*.json
+secrets/
+
+# Local vendor and agent state
+.codex/
+.claude/
+.gemini/
+
+# Dependencies and package-manager state
+node_modules/
+.pnpm-store/
+
+# Logs, caches, tests and temporary output
+*.log
+.cache/
+.eslintcache
+coverage/
+.nyc_output/
+tmp/
+temp/
+
+# Electron build and packaging output
+dist/
+out/
+build/
+release/
+*.asar
+*.blockmap
+*.exe
+*.msi
+*.msix
+*.vsix
+
+# Local OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/settings.json
+
+# Secret scanner reports
+gitleaks-report*.json
