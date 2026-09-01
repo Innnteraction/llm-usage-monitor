@@ -41,6 +41,32 @@ const buildProvider = (
         source: "local_fixture",
         status: "fresh",
       },
+      ...(isCodex
+        ? [
+            {
+              id: "codex-example-model-primary",
+              kind: "other" as const,
+              label: "Example Codex model with a deliberately long primary label",
+              usedPercent: Math.min(17 + generation, 100),
+              resetsAt: new Date(
+                now.getTime() + 5 * 60 * 60 * 1000,
+              ).toISOString(),
+              source: "local_fixture" as const,
+              status: "fresh" as const,
+            },
+            {
+              id: "codex-example-model-weekly",
+              kind: "model_weekly" as const,
+              label: "Example Codex model with a deliberately long weekly label",
+              usedPercent: Math.min(31 + generation, 100),
+              resetsAt: new Date(
+                now.getTime() + 7 * 24 * 60 * 60 * 1000,
+              ).toISOString(),
+              source: "local_fixture" as const,
+              status: "fresh" as const,
+            },
+          ]
+        : []),
     ],
   };
 };

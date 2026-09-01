@@ -96,6 +96,16 @@ const ProviderCard = ({
   const sources = [
     ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
   ];
+  const primaryWindows = (["five_hour", "weekly"] as const).flatMap(
+    (kind) => {
+      const window = provider.quotaWindows.find(
+        (candidate) => candidate.kind === kind,
+      );
+      return window ? [window] : [];
+    },
+  );
+  const additionalWindowCount =
+    provider.quotaWindows.length - primaryWindows.length;
 
   return (
     <article className="provider-card">
@@ -112,7 +122,7 @@ const ProviderCard = ({
         </p>
       ) : null}
       <div className="quota-grid">
-        {provider.quotaWindows.map((window) => (
+        {primaryWindows.map((window) => (
           <Quota
             key={window.id}
             providerId={provider.providerId}
@@ -120,6 +130,11 @@ const ProviderCard = ({
           />
         ))}
       </div>
+      {additionalWindowCount > 0 ? (
+        <p className="additional-limits">
+          +{additionalWindowCount} additional limits
+        </p>
+      ) : null}
       <footer>
         <span>source {sources.join(", ")}</span>
         <span>

@@ -35,6 +35,8 @@ test("standalone window refresh, layout and close flow", async () => {
       scrollHeight: document.documentElement.scrollHeight,
       providerCards: document.querySelectorAll(".provider-card").length,
       textMeters: document.querySelectorAll(".quota-meter").length,
+      additionalSummaries:
+        document.querySelectorAll(".additional-limits").length,
       stylesheets: document.styleSheets.length,
       background: getComputedStyle(document.body).backgroundColor,
     }));
@@ -43,12 +45,14 @@ test("standalone window refresh, layout and close flow", async () => {
       scrollWidth: 420,
       providerCards: 2,
       textMeters: 4,
+      additionalSummaries: 1,
       stylesheets: 1,
       background: "rgb(16, 16, 16)",
     });
     expect(layout.viewportHeight).toBeGreaterThanOrEqual(320);
     expect(layout.viewportHeight).toBeLessThanOrEqual(360);
     expect(layout.scrollHeight).toBe(layout.viewportHeight);
+    await expect(page.getByText("+2 additional limits")).toBeVisible();
     await page.screenshot({
       path: test.info().outputPath("tui-quota-overview.png"),
     });

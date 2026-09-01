@@ -210,6 +210,12 @@ h2 {
   font-size: 0.54rem;
 }
 
+.additional-limits {
+  margin: 5px 0 0 32px;
+  color: #626262;
+  font-size: 0.58rem;
+}
+
 .provider-error {
   margin: 5px 0 5px 32px;
   color: var(--high);
