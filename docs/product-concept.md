@@ -78,7 +78,7 @@ interface QuotaWindow {
 
 interface LocalTokenUsage {
   scope: "local_device";
-  scannedPaths: string[];
+  scannedFileCount: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens?: number;
@@ -103,6 +103,8 @@ interface ProviderError {
 ```
 
 `usedPercent`는 0부터 100 사이의 사용률이다. 벤더가 수치를 주지 않으면 필드를 비우고 추정하지 않는다. 남은 비율은 표시 계층에서 `100 - usedPercent`로 계산하되 입력값을 0부터 100 사이로 검증한 뒤에만 표시한다.
+
+실제 스캔 경로는 main process 내부에만 유지한다. renderer로 전달하는 공개 계약에는 경로 대신 파일 개수만 포함한다.
 
 ## Provider 수집 경계
 
