@@ -22,7 +22,7 @@
 ## Phase 1 — Electron 기반과 수직 슬라이스
 
 - [x] Step 1.1 — Node 24·pnpm 9·Electron Forge·Vite·React 단일 패키지를 생성한다.
-- [ ] Step 1.2 — 모듈 경계 초안을 검토받고 Architecture Guard를 활성화한다.
+- [x] Step 1.2 — 모듈 경계 초안을 검토받고 Architecture Guard를 활성화한다.
 - [ ] Step 1.3 — 공통 snapshot 계약과 제한된 IPC를 구현한다.
 - [ ] Step 1.4 — fake snapshot으로 트레이 팝오버 수직 슬라이스를 완성한다.
 
