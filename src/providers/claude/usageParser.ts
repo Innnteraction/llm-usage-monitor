@@ -107,12 +107,12 @@ function parseReset(lines: string[], now: Date): string | undefined {
     }
     return candidate.toISOString();
   }
-  let parsed = Date.parse(normalized);
-  if (Number.isNaN(parsed) && !/\b\d{4}\b/.test(normalized)) {
-    parsed = Date.parse(`${normalized} ${now.getFullYear()}`);
-  }
+  const hasExplicitYear = /\b\d{4}\b/.test(normalized);
+  let parsed = Date.parse(
+    hasExplicitYear ? normalized : `${normalized} ${now.getFullYear()}`,
+  );
   if (Number.isNaN(parsed)) return undefined;
-  if (parsed < now.getTime() - 86_400_000 && !/\b\d{4}\b/.test(normalized)) {
+  if (parsed < now.getTime() - 86_400_000 && !hasExplicitYear) {
     parsed = Date.parse(`${normalized} ${now.getFullYear() + 1}`);
   }
   return Number.isNaN(parsed) ? undefined : new Date(parsed).toISOString();

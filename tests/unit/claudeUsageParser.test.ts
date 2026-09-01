@@ -47,7 +47,25 @@ describe("Claude usage parser", () => {
       now,
     );
 
-    expect(windows[0]?.resetsAt).toBeDefined();
+    const reset = new Date(windows[0]?.resetsAt ?? Number.NaN);
+    expect(reset.getFullYear()).toBe(2026);
+    expect(reset.getMonth()).toBe(8);
+    expect(reset.getDate()).toBe(5);
+    expect(reset.getHours()).toBe(17);
+  });
+
+  it("rolls a yearless dated reset into the next year only after it has passed", () => {
+    const yearEnd = new Date(2026, 11, 31, 12);
+    const windows = parseClaudeUsageScreen(
+      "Current week (all models)\n41% used\nResets Jan 2, 5pm (Asia/Seoul)",
+      yearEnd,
+    );
+
+    const reset = new Date(windows[0]?.resetsAt ?? Number.NaN);
+    expect(reset.getFullYear()).toBe(2027);
+    expect(reset.getMonth()).toBe(0);
+    expect(reset.getDate()).toBe(2);
+    expect(reset.getHours()).toBe(17);
   });
 
   it("collapses redraw frames and keeps the frame with reset metadata", () => {
