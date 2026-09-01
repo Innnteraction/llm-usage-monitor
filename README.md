@@ -21,4 +21,23 @@ LLM Usage Monitor는 Codex와 Claude Code 구독 계정의 5시간·주간 quota
 
 ## 현재 범위
 
-현재 Electron 기반 앱과 Codex·Claude quota provider를 단계적으로 구현하고 있다. 개발 중에는 일반 Windows 창으로 실행하며 트레이 상주 동작은 후속 Phase에서 다시 연결한다. 진행 상태와 다음 작업은 [v1 로드맵](docs/plan/v1-roadmap.md)을 따른다.
+현재 미리보기 버전은 Codex·Claude quota를 읽어 Windows 트레이의 420×320 TUI형 팝오버에 표시한다. 첫 실행 또는 Claude 준비가 끝나지 않은 동안에는 팝오버를 열고, Claude quota를 한 번 정상 수집한 뒤부터는 트레이에서 조용히 시작한다. 진행 상태와 다음 작업은 [v1 로드맵](docs/plan/v1-roadmap.md)을 따른다.
+
+## 미리보기 실행
+
+Node.js 24와 Codex·Claude Code CLI가 필요하다. 저장소에서 다음 명령으로 개발 앱을 실행한다.
+
+```powershell
+corepack pnpm install
+corepack pnpm dev
+```
+
+Claude가 로그인되지 않았으면 `sign in`, 전용 probe 폴더 승인이 필요하면 `prepare folder`를 누른다. 앱은 보이는 Windows Terminal만 열며 로그인과 폴더 trust 선택은 사용자가 Claude CLI에서 직접 완료한다. 완료 후 트레이 팝오버를 다시 열어 `refresh`를 누른다.
+
+unsigned Windows x64 설치 파일은 다음 명령으로 만든다.
+
+```powershell
+corepack pnpm make
+```
+
+산출물은 `out/make/squirrel.windows/x64/LLM-Usage-Monitor-Setup.exe`에 생성된다. 코드 서명이 없어 Windows SmartScreen 경고가 나타날 수 있다. 제거는 Windows의 설치된 앱 목록에서 **LLM Usage Monitor**를 선택한다.

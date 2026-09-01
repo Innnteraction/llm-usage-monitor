@@ -91,16 +91,16 @@ Phase 5에 앞서 실제 Windows 환경에서 먼저 사용해 볼 수 있는 �
 - [x] Step 4.5.2 — 현재 TUI renderer를 트레이 팝오버 수명주기에 다시 연결한다.
 - [x] Step 4.5.3 — Claude CLI 로그인과 전용 probe 폴더 준비를 사용자 주도 흐름으로 안내한다.
 - [x] Step 4.5.4 — quota bar 기반 아이콘과 unsigned Windows x64 Squirrel 설치 파일을 만든다.
-- [ ] Step 4.5.5 — 트레이 화면, provider smoke와 설치·실행·제거 관문을 검증한다.
+- [x] Step 4.5.5 — 트레이 화면, provider smoke와 설치·실행·제거 관문을 검증한다.
 
 ### Phase 4.5 관문
 
-- [ ] 첫 설정 이후 앱이 트레이에서 조용히 시작하고 클릭 시 420×320 팝오버를 표시한다.
-- [ ] Claude 로그인·workspace trust 선택은 보이는 Claude CLI에서만 사용자가 직접 수행한다.
-- [ ] Claude Code CLI 계정과 인증 종류만 표시하며 Claude Desktop credential은 검사하지 않는다.
-- [ ] 전용 아이콘이 실행 파일·트레이·Setup.exe에 적용된다.
-- [ ] fake 계정 스크린샷과 실제 provider 읽기 전용 smoke가 민감정보 없이 통과한다.
-- [ ] unsigned x64 설치 파일의 설치·실행·제거와 SHA-256 산출이 재현된다.
+- [x] 첫 설정 이후 앱이 트레이에서 조용히 시작하고 클릭 시 420×320 팝오버를 표시한다.
+- [x] Claude 로그인·workspace trust 선택은 보이는 Claude CLI에서만 사용자가 직접 수행한다.
+- [x] Claude Code CLI 계정과 인증 종류만 표시하며 Claude Desktop credential은 검사하지 않는다.
+- [x] 전용 아이콘이 실행 파일·트레이·Setup.exe에 적용된다.
+- [x] fake 계정 스크린샷과 실제 provider 읽기 전용 smoke가 민감정보 없이 통과한다.
+- [x] unsigned x64 설치 파일의 설치·실행·제거와 SHA-256 산출이 재현된다.
 
 ## Phase 5 — 로컬 토큰
 

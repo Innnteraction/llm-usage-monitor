@@ -1,4 +1,5 @@
 import { _electron as electron, expect, test } from "@playwright/test";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const appPath = path.resolve(
@@ -102,6 +103,80 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
     const closed = page.waitForEvent("close");
     await electronApp.evaluate(({ app }) => app.quit());
     await closed;
+  } finally {
+    await electronApp.close().catch(() => undefined);
+  }
+});
+
+test("starts hidden after Claude setup has succeeded once", async (_fixtures, testInfo) => {
+  const userData = testInfo.outputPath("ready-user-data");
+  await mkdir(userData, { recursive: true });
+  await writeFile(
+    path.join(userData, "claude-setup-ready-v1"),
+    "ready\n",
+    "utf8",
+  );
+  const electronApp = await electron.launch({
+    args: [appPath],
+    env: {
+      ...process.env,
+      LLM_USAGE_MONITOR_E2E: "1",
+      LLM_USAGE_MONITOR_E2E_KEEP_VISIBLE: "0",
+      LLM_USAGE_MONITOR_E2E_USER_DATA: userData,
+    },
+  });
+
+  try {
+    await expect
+      .poll(() =>
+        electronApp.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().length,
+        ),
+      )
+      .toBe(1);
+    await expect
+      .poll(() =>
+        electronApp.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0]?.isVisible(),
+        ),
+      )
+      .toBe(false);
+  } finally {
+    await electronApp.close().catch(() => undefined);
+  }
+});
+
+test("keeps the TUI inside the popover at 150 percent scale", async (_fixtures, testInfo) => {
+  const electronApp = await electron.launch({
+    args: [appPath, "--force-device-scale-factor=1.5"],
+    env: {
+      ...process.env,
+      LLM_USAGE_MONITOR_E2E: "1",
+      LLM_USAGE_MONITOR_E2E_USER_DATA: testInfo.outputPath("scaled-user-data"),
+    },
+  });
+
+  try {
+    const page = await electronApp.firstWindow();
+    await expect(
+      page.getByRole("heading", { name: "watching quota providers" }),
+    ).toBeVisible();
+    const layout = await page.evaluate(() => ({
+      width: window.innerWidth,
+      height: window.innerHeight,
+      scrollWidth: document.documentElement.scrollWidth,
+      scrollHeight: document.documentElement.scrollHeight,
+      scale: window.devicePixelRatio,
+    }));
+    expect(layout.width).toBe(420);
+    expect(layout.height).toBeGreaterThanOrEqual(320);
+    expect(layout.height).toBeLessThanOrEqual(324);
+    expect(layout.scrollWidth).toBe(layout.width);
+    expect(layout.scrollHeight).toBe(layout.height);
+    expect(layout.scale).toBeGreaterThanOrEqual(1.4);
+    await page.screenshot({
+      path: testInfo.outputPath("tui-quota-overview-150.png"),
+    });
   } finally {
     await electronApp.close().catch(() => undefined);
   }

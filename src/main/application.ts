@@ -8,6 +8,7 @@ import {
   type Rectangle,
 } from "electron";
 import { access, mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   ClaudeQuotaProvider,
@@ -89,8 +90,17 @@ export const startApplication = (): void => {
   let mainWindow: BrowserWindow | undefined;
   let tray: Tray | undefined;
 
-  const e2eUserData = process.env.LLM_USAGE_MONITOR_E2E_USER_DATA;
-  if (process.env.LLM_USAGE_MONITOR_E2E === "1" && e2eUserData) {
+  const packagedSmoke =
+    process.env.LLM_USAGE_MONITOR_CLAUDE_PACKAGED_SMOKE === "1";
+  const e2eUserData =
+    process.env.LLM_USAGE_MONITOR_E2E_USER_DATA ??
+    (packagedSmoke
+      ? path.join(tmpdir(), `llm-usage-monitor-smoke-${process.pid}`)
+      : undefined);
+  const usesIsolatedTestData =
+    process.env.LLM_USAGE_MONITOR_E2E === "1" ||
+    packagedSmoke;
+  if (usesIsolatedTestData && e2eUserData) {
     app.setPath("userData", path.resolve(e2eUserData));
   }
 

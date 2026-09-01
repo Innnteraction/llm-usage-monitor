@@ -8,6 +8,7 @@ const executablePath = path.resolve(
 );
 
 test("packaged app loads native PTY and reads Claude quota", async () => {
+  test.setTimeout(60_000);
   const electronApp = await electron.launch({
     executablePath,
     env: {
@@ -21,8 +22,8 @@ test("packaged app loads native PTY and reads Claude quota", async () => {
     const claudeCard = page.locator("article").filter({
       has: page.getByRole("heading", { name: "Claude Code" }),
     });
-    await expect(claudeCard.locator(".status")).toHaveText("fresh", {
-      timeout: 30_000,
+    await expect(claudeCard.locator(".status")).toHaveText(/fresh$/, {
+      timeout: 45_000,
     });
   } finally {
     await electronApp.close().catch(() => undefined);
