@@ -27,9 +27,12 @@ node_modules/
 # Logs, caches, tests and temporary output
 *.log
 .cache/
+.vite/
 .eslintcache
 coverage/
 .nyc_output/
+playwright-report/
+test-results/
 tmp/
 temp/
 
