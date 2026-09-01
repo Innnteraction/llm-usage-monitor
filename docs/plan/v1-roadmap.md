@@ -36,7 +36,7 @@
 ## Phase 2 — Codex quota
 
 - [x] Step 2.1 — App Server schema와 필요 JSON-RPC 계약을 확정한다.
-- [ ] Step 2.2 — Codex App Server 프로세스 어댑터를 구현한다.
+- [x] Step 2.2 — Codex App Server 프로세스 어댑터를 구현한다.
 - [ ] Step 2.3 — quota 창과 오류를 공통 snapshot으로 정규화한다.
 - [ ] Step 2.4 — UI 연결·fake 통합·실제 읽기 전용 smoke를 검증한다.
 
