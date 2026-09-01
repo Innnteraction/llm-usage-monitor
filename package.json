@@ -3,6 +3,10 @@
   "productName": "LLM Usage Monitor",
   "version": "0.1.0",
   "description": "Windows tray monitor for Codex and Claude Code usage quotas",
+  "author": {
+    "name": "Innnteraction",
+    "email": "innnteractive@gmail.com"
+  },
   "private": true,
   "main": ".vite/build/main.js",
   "packageManager": "pnpm@9.15.9",
@@ -23,6 +27,7 @@
     "make": "electron-forge make"
   },
   "dependencies": {
+    "electron-squirrel-startup": "1.0.1",
     "node-pty": "1.1.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -35,6 +40,7 @@
     "@electron-forge/shared-types": "7.11.2",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.62.1",
+    "@types/electron-squirrel-startup": "1.0.2",
     "@types/node": "26.4.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",

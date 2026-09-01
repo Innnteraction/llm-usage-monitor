@@ -34,6 +34,7 @@ const config: ForgeConfig = {
     onlyModules: [],
   },
   packagerConfig: {
+    icon: path.resolve("assets", "icons", "app-icon.ico"),
     asar: {
       unpack: "**/node_modules/node-pty/**/*",
     },
@@ -52,7 +53,15 @@ const config: ForgeConfig = {
       );
     },
   },
-  makers: [new MakerSquirrel({})],
+  makers: [
+    new MakerSquirrel({
+      name: "llm_usage_monitor",
+      exe: "LLM Usage Monitor.exe",
+      setupExe: "LLM-Usage-Monitor-Setup.exe",
+      setupIcon: path.resolve("assets", "icons", "app-icon.ico"),
+      noMsi: true,
+    }),
+  ],
   plugins: [
     new VitePlugin({
       build: [

@@ -90,7 +90,7 @@ Phase 5에 앞서 실제 Windows 환경에서 먼저 사용해 볼 수 있는 �
 - [x] Step 4.5.1 — Phase 4 기준선을 `main`에 병합하고 미리보기 브랜치·Guard 계획을 고정한다.
 - [x] Step 4.5.2 — 현재 TUI renderer를 트레이 팝오버 수명주기에 다시 연결한다.
 - [x] Step 4.5.3 — Claude CLI 로그인과 전용 probe 폴더 준비를 사용자 주도 흐름으로 안내한다.
-- [ ] Step 4.5.4 — quota bar 기반 아이콘과 unsigned Windows x64 Squirrel 설치 파일을 만든다.
+- [x] Step 4.5.4 — quota bar 기반 아이콘과 unsigned Windows x64 Squirrel 설치 파일을 만든다.
 - [ ] Step 4.5.5 — 트레이 화면, provider smoke와 설치·실행·제거 관문을 검증한다.
 
 ### Phase 4.5 관문
