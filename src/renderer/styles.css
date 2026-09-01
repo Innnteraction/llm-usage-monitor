@@ -103,6 +103,16 @@ h2 {
   font-weight: 800;
 }
 
+.status-unavailable {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.status-stale {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
 .quota-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -151,6 +161,13 @@ progress {
   color: #65738a;
   font-size: 0.72rem;
   line-height: 1.55;
+}
+
+.provider-error {
+  margin: 10px 0 0;
+  color: #9a3412;
+  font-size: 0.7rem;
+  line-height: 1.4;
 }
 
 .error-banner {

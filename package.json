@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:smoke:codex": "vitest run --config vitest.smoke.config.mts",
     "test:e2e": "pnpm package && playwright test",
     "package": "electron-forge package",
     "make": "electron-forge make"

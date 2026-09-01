@@ -8,11 +8,43 @@ import {
   type Rectangle,
 } from "electron";
 import path from "node:path";
+import {
+  CodexQuotaProvider,
+  createCodexInitialSnapshot,
+} from "../providers/index";
+import type { ProviderSnapshot } from "../shared/index";
+import { createUsageStore } from "../usage/index";
 import { registerIpcHandlers } from "./index";
 import { createFakeUsageStore } from "./fakeUsage";
 import { createTrayIcon } from "./trayIcon";
 
 const WINDOW_SIZE = { width: 420, height: 600 };
+
+const createClaudePlaceholder = (fetchedAt: Date): ProviderSnapshot => ({
+  providerId: "claude",
+  status: "unavailable",
+  fetchedAt: fetchedAt.toISOString(),
+  quotaWindows: [
+    {
+      id: "claude-five-hour",
+      kind: "five_hour",
+      label: "5h",
+      source: "claude_cli",
+      status: "unavailable",
+    },
+    {
+      id: "claude-weekly",
+      kind: "weekly",
+      label: "Weekly",
+      source: "claude_cli",
+      status: "unavailable",
+    },
+  ],
+  error: {
+    code: "unavailable",
+    message: "Claude Code quota integration is planned for Phase 3.",
+  },
+});
 
 const positionNearTray = (
   window: BrowserWindow,
@@ -81,7 +113,17 @@ export const startApplication = (): void => {
   });
 
   void app.whenReady().then(() => {
-    const store = createFakeUsageStore();
+    const useFakeProviders = process.env.LLM_USAGE_MONITOR_E2E === "1";
+    const initialTime = new Date();
+    const store = useFakeProviders
+      ? createFakeUsageStore()
+      : createUsageStore({
+          providers: [new CodexQuotaProvider()],
+          initialSnapshots: [
+            createCodexInitialSnapshot(initialTime),
+            createClaudePlaceholder(initialTime),
+          ],
+        });
     mainWindow = new BrowserWindow({
       ...WINDOW_SIZE,
       show: false,
@@ -130,6 +172,9 @@ export const startApplication = (): void => {
       },
     });
     const unsubscribe = store.subscribe(ipcController.publishState);
+    if (!useFakeProviders) {
+      void store.refresh("codex");
+    }
 
     tray = new Tray(createTrayIcon());
     tray.setToolTip("LLM Usage Monitor");

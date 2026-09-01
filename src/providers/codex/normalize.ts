@@ -37,7 +37,7 @@ export function normalizeCodexSnapshot({
   fetchedAt,
 }: NormalizeCodexSnapshotInput): ProviderSnapshot {
   const timestamp = fetchedAt.toISOString();
-  if (account.requiresOpenaiAuth) {
+  if (account.requiresOpenaiAuth && account.account === null) {
     return providerSnapshotSchema.parse({
       providerId: "codex",
       status: "unavailable",
@@ -76,6 +76,15 @@ export function createCodexErrorSnapshot(
     fetchedAt: fetchedAt.toISOString(),
     quotaWindows: expectedUnavailableWindows(),
     error: mapCodexProviderError(error),
+  });
+}
+
+export function createCodexInitialSnapshot(fetchedAt: Date): ProviderSnapshot {
+  return providerSnapshotSchema.parse({
+    providerId: "codex",
+    status: "unavailable",
+    fetchedAt: fetchedAt.toISOString(),
+    quotaWindows: expectedUnavailableWindows(),
   });
 }
 

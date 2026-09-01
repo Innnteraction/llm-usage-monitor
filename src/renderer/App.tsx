@@ -11,6 +11,12 @@ const providerNames: Record<ProviderSnapshot["providerId"], string> = {
   gemini: "Gemini",
 };
 
+const sourceNames: Record<QuotaWindow["source"], string> = {
+  codex_app_server: "Codex App Server",
+  claude_cli: "Claude CLI",
+  local_fixture: "Local fixture",
+};
+
 const formatReset = (resetsAt?: string): string =>
   resetsAt
     ? new Intl.DateTimeFormat("ko-KR", {
@@ -42,7 +48,7 @@ const Quota = ({
           {used === undefined ? "미제공" : `${used}%`}
         </span>
       </div>
-      <progress max={100} value={used ?? 0} aria-label={`${window.label} 사용률`} />
+      <progress max={100} value={used} aria-label={`${window.label} 사용률`} />
       <div className="quota-meta">
         <span>
           {remaining === undefined ? "남은 비율 미제공" : `${remaining}% 남음`}
@@ -53,28 +59,43 @@ const Quota = ({
   );
 };
 
-const ProviderCard = ({ provider }: { provider: ProviderSnapshot }) => (
-  <article className="provider-card">
-    <header>
-      <div>
-        <p className="provider-label">Provider</p>
-        <h2>{providerNames[provider.providerId]}</h2>
+const ProviderCard = ({ provider }: { provider: ProviderSnapshot }) => {
+  const sources = [
+    ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
+  ];
+
+  return (
+    <article className="provider-card">
+      <header>
+        <div>
+          <p className="provider-label">Provider</p>
+          <h2>{providerNames[provider.providerId]}</h2>
+        </div>
+        <span className={`status status-${provider.status}`}>
+          {provider.status}
+        </span>
+      </header>
+      {provider.error ? (
+        <p className="provider-error" role="status">
+          {provider.error.message}
+        </p>
+      ) : null}
+      <div className="quota-grid">
+        {provider.quotaWindows.map((window) => (
+          <Quota
+            key={window.id}
+            providerId={provider.providerId}
+            window={window}
+          />
+        ))}
       </div>
-      <span className={`status status-${provider.status}`}>
-        {provider.status}
-      </span>
-    </header>
-    <div className="quota-grid">
-      {provider.quotaWindows.map((window) => (
-        <Quota key={window.id} providerId={provider.providerId} window={window} />
-      ))}
-    </div>
-    <footer>
-      <span>source: local fixture</span>
-      <span>{new Date(provider.fetchedAt).toLocaleTimeString("ko-KR")}</span>
-    </footer>
-  </article>
-);
+      <footer>
+        <span>source: {sources.join(", ")}</span>
+        <span>{new Date(provider.fetchedAt).toLocaleTimeString("ko-KR")}</span>
+      </footer>
+    </article>
+  );
+};
 
 export const App = () => {
   const [snapshot, setSnapshot] = useState<AppSnapshot>();

@@ -11,7 +11,7 @@ import {
 const fetchedAt = new Date("2026-09-01T03:00:00.000Z");
 const authenticated: CodexAccountResponse = {
   account: { type: "chatgpt", planType: "example-plan" },
-  requiresOpenaiAuth: false,
+  requiresOpenaiAuth: true,
 };
 
 describe("Codex quota normalization", () => {
