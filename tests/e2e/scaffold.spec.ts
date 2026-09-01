@@ -8,7 +8,7 @@ const appPath = path.resolve(
   "app.asar",
 );
 
-test("standalone window refresh, layout and close flow", async () => {
+test("tray popover refresh, layout, hide and quit flow", async () => {
   const electronApp = await electron.launch({
     args: [appPath],
     env: {
@@ -82,10 +82,24 @@ test("standalone window refresh, layout and close flow", async () => {
     await page.getByRole("button", { name: "refresh" }).click();
     await expect(weekly).toHaveText("64%");
 
-    const closed = page.waitForEvent("close");
     await electronApp.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]?.close();
     });
+    await expect
+      .poll(() =>
+        electronApp.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0]?.isVisible(),
+        ),
+      )
+      .toBe(false);
+
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.show();
+    });
+    await expect(page.getByRole("button", { name: "refresh" })).toBeVisible();
+
+    const closed = page.waitForEvent("close");
+    await electronApp.evaluate(({ app }) => app.quit());
     await closed;
   } finally {
     await electronApp.close().catch(() => undefined);

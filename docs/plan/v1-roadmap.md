@@ -88,7 +88,7 @@ quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 �
 Phase 5에 앞서 실제 Windows 환경에서 먼저 사용해 볼 수 있는 미리보기 관문이다. Phase 6의 상주 동작과 Phase 7의 설치 검증 일부를 앞당겨 확인하지만, 해당 Phase 전체를 완료한 것으로 간주하지 않는다.
 
 - [x] Step 4.5.1 — Phase 4 기준선을 `main`에 병합하고 미리보기 브랜치·Guard 계획을 고정한다.
-- [ ] Step 4.5.2 — 현재 TUI renderer를 트레이 팝오버 수명주기에 다시 연결한다.
+- [x] Step 4.5.2 — 현재 TUI renderer를 트레이 팝오버 수명주기에 다시 연결한다.
 - [ ] Step 4.5.3 — Claude CLI 로그인과 전용 probe 폴더 준비를 사용자 주도 흐름으로 안내한다.
 - [ ] Step 4.5.4 — quota bar 기반 아이콘과 unsigned Windows x64 Squirrel 설치 파일을 만든다.
 - [ ] Step 4.5.5 — 트레이 화면, provider smoke와 설치·실행·제거 관문을 검증한다.
