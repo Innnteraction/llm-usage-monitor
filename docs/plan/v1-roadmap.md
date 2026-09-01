@@ -51,7 +51,7 @@
 
 ## Phase 4 — 갱신·stale·cache
 
-- [ ] Step 4.1 — provider 격리·병렬 갱신·generation 보호를 구현한다.
+- [x] Step 4.1 — provider 격리·병렬 갱신·generation 보호를 구현한다.
 - [ ] Step 4.2 — 60초 polling과 `Retry-After`·상한 900초 backoff를 구현한다.
 - [ ] Step 4.3 — 민감정보가 없는 atomic stale cache를 구현한다.
 - [ ] Step 4.4 — CLI 소유 refresh와 앱 직접 쓰기 금지를 구분해 문서화한다.
