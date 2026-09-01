@@ -38,6 +38,7 @@ describe("UsageStore refresh coordination", () => {
     const store = createUsageStore({
       providers,
       initialSnapshots: [initialSnapshot("codex"), initialSnapshot("claude")],
+      clock: () => new Date("2026-09-01T03:02:00.000Z"),
     });
 
     const refresh = store.refresh();
@@ -47,7 +48,14 @@ describe("UsageStore refresh coordination", () => {
     await refresh;
 
     expect(store.getState().providers).toEqual([
-      initialSnapshot("codex"),
+      {
+        ...initialSnapshot("codex"),
+        fetchedAt: "2026-09-01T03:02:00.000Z",
+        error: {
+          code: "unexpected",
+          message: "Usage refresh failed unexpectedly.",
+        },
+      },
       freshSnapshot("claude"),
     ]);
     expect(store.getState().refreshing).toEqual([]);
@@ -99,5 +107,56 @@ describe("UsageStore refresh coordination", () => {
     claude.resolve(freshSnapshot("claude"));
     await claudeRefresh;
     expect(store.getState().refreshing).toEqual([]);
+  });
+
+  it("retains the last successful value as stale after a provider failure", async () => {
+    const failure: ProviderSnapshot = {
+      providerId: "codex",
+      status: "unavailable",
+      fetchedAt: "2026-09-01T03:02:00.000Z",
+      quotaWindows: [],
+      error: { code: "timeout", message: "Codex refresh timed out." },
+    };
+    const fetchQuota = vi
+      .fn<() => Promise<ProviderSnapshot>>()
+      .mockResolvedValueOnce(freshSnapshot("codex"))
+      .mockResolvedValueOnce(failure);
+    const store = createUsageStore({
+      providers: [{ id: "codex", fetchQuota }],
+      initialSnapshots: [initialSnapshot("codex")],
+    });
+
+    await store.refresh("codex");
+    await store.refresh("codex");
+
+    expect(store.getState().providers[0]).toMatchObject({
+      providerId: "codex",
+      status: "stale",
+      fetchedAt: failure.fetchedAt,
+      lastSuccessfulAt: "2026-09-01T03:01:00.000Z",
+      error: { code: "timeout" },
+    });
+  });
+
+  it("marks the last successful value stale after an unexpected throw", async () => {
+    const fetchQuota = vi
+      .fn<() => Promise<ProviderSnapshot>>()
+      .mockResolvedValueOnce(freshSnapshot("claude"))
+      .mockRejectedValueOnce(new Error("private provider output"));
+    const store = createUsageStore({
+      providers: [{ id: "claude", fetchQuota }],
+      initialSnapshots: [initialSnapshot("claude")],
+      clock: () => new Date("2026-09-01T03:03:00.000Z"),
+    });
+
+    await store.refresh("claude");
+    await store.refresh("claude");
+
+    expect(store.getState().providers[0]).toMatchObject({
+      status: "stale",
+      fetchedAt: "2026-09-01T03:03:00.000Z",
+      error: { code: "unexpected" },
+    });
+    expect(JSON.stringify(store.getState())).not.toContain("private provider");
   });
 });

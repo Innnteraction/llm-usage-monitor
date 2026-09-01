@@ -68,7 +68,10 @@ quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 �
   - provider별 timer를 독립적으로 유지하고 성공 시 60초로 복귀한다.
   - 실패 시 60·120·240·480·900초로 늘리며 미래의 `retryAt`이 있으면 그 시각을 우선한다.
   - 진행 중인 provider에 반복 refresh가 들어오면 현재 요청 뒤의 후속 실행 한 번으로 합친다.
-- [ ] Step 4.4 — 민감정보가 없는 atomic stale cache를 구현한다.
+- [x] Step 4.4 — 민감정보가 없는 atomic stale cache를 구현한다.
+  - 마지막 정상 quota를 실패 시 stale로 유지하고 재시작 시 앱 전용 userData에서 복구한다.
+  - cache는 schema version을 검증하고 임시 파일을 완전히 쓴 뒤 rename한다.
+  - 계정 식별자와 과거 오류 메시지는 저장하지 않으며 손상·구버전 cache는 앱 시작을 막지 않고 폐기한다.
 - [ ] Step 4.5 — CLI 소유 refresh와 앱 직접 쓰기 금지를 구분해 문서화한다.
 
 ### Phase 4 관문

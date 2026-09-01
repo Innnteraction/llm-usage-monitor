@@ -11,7 +11,12 @@ import {
   createCodexInitialSnapshot,
 } from "../providers/index";
 import { createUsagePoller, createUsageStore } from "../usage/index";
-import { registerIpcHandlers } from "./index";
+import {
+  mergeCachedSnapshots,
+  registerIpcHandlers,
+  SNAPSHOT_CACHE_FILENAME,
+  SnapshotCache,
+} from "./index";
 import { createFakeUsageStore } from "./fakeUsage";
 
 const WINDOW_SIZE = { width: 420, height: 320 };
@@ -59,18 +64,28 @@ export const startApplication = (): void => {
     app.quit();
   });
 
-  void app.whenReady().then(() => {
+  void app.whenReady().then(async () => {
     const useFakeProviders = process.env.LLM_USAGE_MONITOR_E2E === "1";
     const initialTime = new Date();
     const providers = [new CodexQuotaProvider(), new ClaudeQuotaProvider()];
+    const defaultSnapshots = [
+      createCodexInitialSnapshot(initialTime),
+      createClaudeInitialSnapshot(initialTime),
+    ];
+    const snapshotCache = useFakeProviders
+      ? undefined
+      : new SnapshotCache(
+          path.join(app.getPath("userData"), SNAPSHOT_CACHE_FILENAME),
+        );
+    const cachedSnapshots = (await snapshotCache?.load()) ?? [];
     const store = useFakeProviders
       ? createFakeUsageStore()
       : createUsageStore({
           providers,
-          initialSnapshots: [
-            createCodexInitialSnapshot(initialTime),
-            createClaudeInitialSnapshot(initialTime),
-          ],
+          initialSnapshots: mergeCachedSnapshots(
+            defaultSnapshots,
+            cachedSnapshots,
+          ),
         });
     const poller = useFakeProviders
       ? undefined
@@ -117,6 +132,11 @@ export const startApplication = (): void => {
       },
     });
     const unsubscribe = store.subscribe(ipcController.publishState);
+    const unsubscribeCache = snapshotCache
+      ? store.subscribe((state) => {
+          void snapshotCache.save(state);
+        })
+      : () => undefined;
     void poller?.start();
 
     mainWindow.once("ready-to-show", () => {
@@ -125,6 +145,7 @@ export const startApplication = (): void => {
     mainWindow.on("closed", () => {
       poller?.stop();
       unsubscribe();
+      unsubscribeCache();
       ipcController.dispose();
       mainWindow = undefined;
     });

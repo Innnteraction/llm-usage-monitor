@@ -3,6 +3,7 @@ import {
   type AppSnapshot,
   type ProviderId,
   type ProviderSnapshot,
+  providerSnapshotSchema,
 } from "../shared/index";
 
 export interface QuotaProvider {
@@ -17,6 +18,26 @@ export interface UsageStoreOptions {
 }
 
 type SnapshotListener = (snapshot: AppSnapshot) => void;
+
+const retainLastSuccessfulSnapshot = (
+  current: ProviderSnapshot,
+  failure: ProviderSnapshot,
+): ProviderSnapshot => {
+  if (!current.lastSuccessfulAt) {
+    return failure;
+  }
+
+  return providerSnapshotSchema.parse({
+    ...current,
+    status: "stale",
+    fetchedAt: failure.fetchedAt,
+    quotaWindows: current.quotaWindows.map((window) => ({
+      ...window,
+      status: window.status === "unavailable" ? "unavailable" : "stale",
+    })),
+    ...(failure.error ? { error: failure.error } : {}),
+  });
+};
 
 export function createUsageStore({
   providers,
@@ -74,14 +95,37 @@ export function createUsageStore({
           ...snapshot,
           providers: snapshot.providers.map((currentSnapshot) =>
             currentSnapshot.providerId === provider.id
-              ? providerSnapshot
+              ? providerSnapshot.status === "unavailable"
+                ? retainLastSuccessfulSnapshot(
+                    currentSnapshot,
+                    providerSnapshot,
+                  )
+                : providerSnapshot
               : currentSnapshot,
           ),
           updatedAt: clock().toISOString(),
         });
       })
       .catch(() => {
-        // Providers publish sanitized failures; unexpected throws retain the last snapshot.
+        const failure = providerSnapshotSchema.parse({
+          providerId: provider.id,
+          status: "unavailable",
+          fetchedAt: clock().toISOString(),
+          quotaWindows: [],
+          error: {
+            code: "unexpected",
+            message: "Usage refresh failed unexpectedly.",
+          },
+        });
+        snapshot = appSnapshotSchema.parse({
+          ...snapshot,
+          providers: snapshot.providers.map((currentSnapshot) =>
+            currentSnapshot.providerId === provider.id
+              ? retainLastSuccessfulSnapshot(currentSnapshot, failure)
+              : currentSnapshot,
+          ),
+          updatedAt: clock().toISOString(),
+        });
       })
       .then(() => {
         if (inFlight.get(provider.id)?.generation !== generation) {

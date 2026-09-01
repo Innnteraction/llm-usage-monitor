@@ -195,7 +195,12 @@ const ProviderCard = ({
       <footer>
         <span>source {sources.join(", ")}</span>
         <span>
-          updated {formatUpdatedAt(provider.fetchedAt)}
+          updated{" "}
+          {formatUpdatedAt(
+            provider.status === "stale"
+              ? (provider.lastSuccessfulAt ?? provider.fetchedAt)
+              : provider.fetchedAt,
+          )}
         </span>
       </footer>
     </article>
