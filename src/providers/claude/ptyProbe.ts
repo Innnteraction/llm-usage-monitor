@@ -1,13 +1,15 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { spawn, type IPty } from "node-pty";
 
-const TEMP_PREFIX = "llm-usage-monitor-claude-";
+const APP_DIRECTORY_NAME = "LLM Usage Monitor";
+const PROBE_DIRECTORY_NAME = "claude-probe";
 const MAX_CAPTURE_CHARS = 512 * 1024;
 const STARTUP_IDLE_MS = 5_000;
 const RESPONSE_IDLE_MS = 1_500;
+const PANEL_CLOSE_DELAY_MS = 150;
 const EXIT_TIMEOUT_MS = 2_000;
 const PROBE_TIMEOUT_MS = 20_000;
 
@@ -37,7 +39,19 @@ export interface ClaudePtyProbeResult extends ClaudeUsageScreenSignals {
 
 export interface ClaudePtyProbeOptions {
   command?: string;
+  workingDirectory?: string;
   timeoutMs?: number;
+}
+
+export function resolveClaudeProbeDirectory(
+  localAppData = process.env.LOCALAPPDATA,
+): string {
+  const baseDirectory = localAppData?.trim() || tmpdir();
+  return path.resolve(
+    baseDirectory,
+    APP_DIRECTORY_NAME,
+    PROBE_DIRECTORY_NAME,
+  );
 }
 
 export function classifyClaudeUsageScreen(
@@ -64,8 +78,10 @@ export function classifyClaudeUsageScreen(
 export async function runClaudeUsageProbe(
   options: ClaudePtyProbeOptions = {},
 ): Promise<ClaudePtyProbeResult> {
-  const tempBase = path.resolve(tmpdir());
-  const workingDirectory = await mkdtemp(path.join(tempBase, TEMP_PREFIX));
+  const workingDirectory = path.resolve(
+    options.workingDirectory ?? resolveClaudeProbeDirectory(),
+  );
+  await mkdir(workingDirectory, { recursive: true });
   const emptySignals = classifyClaudeUsageScreen("");
   let terminal: IPty | undefined;
   let startupScreen = "";
@@ -76,6 +92,7 @@ export async function runClaudeUsageProbe(
   let settled = false;
   let startupIdleTimer: ReturnType<typeof setTimeout> | undefined;
   let responseIdleTimer: ReturnType<typeof setTimeout> | undefined;
+  let exitCommandTimer: ReturnType<typeof setTimeout> | undefined;
   let exitTimer: ReturnType<typeof setTimeout> | undefined;
   let probeTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -84,6 +101,7 @@ export async function runClaudeUsageProbe(
       for (const timer of [
         startupIdleTimer,
         responseIdleTimer,
+        exitCommandTimer,
         exitTimer,
         probeTimer,
       ]) {
@@ -119,13 +137,7 @@ export async function runClaudeUsageProbe(
         sentUsageCommand,
         sentModelPrompt: false,
       };
-      void removeProbeDirectory(tempBase, workingDirectory)
-        .then(() => {
-          resolve(result);
-        })
-        .catch(() => {
-          resolve(result);
-        });
+      resolve(result);
     };
 
     const beginExit = (status: ClaudePtyProbeStatus): void => {
@@ -135,12 +147,22 @@ export async function runClaudeUsageProbe(
       pendingStatus = status;
       phase = "exiting";
       try {
-        terminal?.write("/exit\r");
+        terminal?.write("\x1b");
       } catch {
         finish(status, false);
         return;
       }
-      exitTimer = setTimeout(() => finish(status, false), EXIT_TIMEOUT_MS);
+      exitCommandTimer = setTimeout(() => {
+        try {
+          terminal?.write("/exit\r");
+        } catch {
+          finish(status, false);
+        }
+      }, PANEL_CLOSE_DELAY_MS);
+      exitTimer = setTimeout(
+        () => finish(status, false),
+        PANEL_CLOSE_DELAY_MS + EXIT_TIMEOUT_MS,
+      );
     };
 
     const evaluateUsage = (): void => {
@@ -272,8 +294,7 @@ export async function runClaudeUsageProbe(
     if (!startupIdleTimer) {
       startupIdleTimer = setTimeout(sendUsage, STARTUP_IDLE_MS);
     }
-  }).catch(async () => {
-    await removeProbeDirectory(tempBase, workingDirectory);
+  }).catch(() => {
     return {
       ...emptySignals,
       status: "process_failed",
@@ -289,32 +310,4 @@ function appendBounded(current: string, next: string): string {
   return combined.length <= MAX_CAPTURE_CHARS
     ? combined
     : combined.slice(-MAX_CAPTURE_CHARS);
-}
-
-async function removeProbeDirectory(
-  tempBase: string,
-  workingDirectory: string,
-): Promise<void> {
-  const resolvedBase = path.resolve(tempBase);
-  const resolvedDirectory = path.resolve(workingDirectory);
-  const sameParent =
-    path.dirname(resolvedDirectory).toLowerCase() ===
-    resolvedBase.toLowerCase();
-  if (
-    !sameParent ||
-    !path.basename(resolvedDirectory).startsWith(TEMP_PREFIX)
-  ) {
-    throw new Error("Refusing to remove an unexpected probe directory.");
-  }
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      await rm(resolvedDirectory, { recursive: true, force: true });
-      return;
-    } catch (error) {
-      if (attempt === 4) {
-        throw error;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-  }
 }

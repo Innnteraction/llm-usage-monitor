@@ -1,7 +1,21 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { classifyClaudeUsageScreen } from "../../src/providers/index";
+import {
+  classifyClaudeUsageScreen,
+  resolveClaudeProbeDirectory,
+} from "../../src/providers/index";
 
 describe("Claude PTY usage screen classification", () => {
+  it("uses one stable app-owned probe directory", () => {
+    expect(resolveClaudeProbeDirectory("fixture-local-app-data")).toBe(
+      path.resolve(
+        "fixture-local-app-data",
+        "LLM Usage Monitor",
+        "claude-probe",
+      ),
+    );
+  });
+
   it("recognizes session and weekly quota signals", () => {
     expect(
       classifyClaudeUsageScreen(
