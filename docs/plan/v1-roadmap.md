@@ -52,7 +52,7 @@ quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 �
 - [x] Step 3.3 — 5시간·주간·모델별 창과 오류를 정규화한다.
 - [x] Step 3.4 — native PTY를 Electron 개발·패키지 환경에서 검증한다.
 
-승인된 실행 경계는 고정된 빈 앱 전용 probe 폴더와 최초 1회 사용자 직접 trust다. OAuth 직접 호출, permission bypass와 prompt 자동 승인은 사용하지 않는다.
+기본 실행 경계는 고정된 빈 앱 전용 probe 폴더와 최초 1회 사용자 직접 trust다. OAuth 직접 호출은 Step 4.5.6의 사용자 opt-in 읽기 전용 경로에서만 허용하며 permission bypass와 prompt 자동 승인은 사용하지 않는다.
 
 ## Phase 4 — 갱신·stale·cache
 
@@ -92,6 +92,7 @@ Phase 5에 앞서 실제 Windows 환경에서 먼저 사용해 볼 수 있는 �
 - [x] Step 4.5.3 — Claude CLI 로그인과 전용 probe 폴더 준비를 사용자 주도 흐름으로 안내한다.
 - [x] Step 4.5.4 — quota bar 기반 아이콘과 unsigned Windows x64 Squirrel 설치 파일을 만든다.
 - [x] Step 4.5.5 — 트레이 화면, provider smoke와 설치·실행·제거 관문을 검증한다.
+- [ ] Step 4.5.6 — 사용자 opt-in OAuth usage 경로로 Claude 모델별 Fable quota를 읽고 CLI fallback을 유지한다.
 
 ### Phase 4.5 관문
 
@@ -127,4 +128,4 @@ Phase 6은 새로운 시각 콘셉트로 다시 디자인하는 단계가 아니
 
 ## v1 제외 범위
 
-Gemini, 다중 계정, 계정 전환, Claude OAuth 직접 fallback, 비용 추정, 차트, 알림, 코드 서명, 자동 업데이트, CI 릴리스와 원격 게시는 후속 로드맵으로 분리한다.
+Gemini, 다중 계정, 계정 전환, Claude OAuth token refresh, 비용 추정, 차트, 알림, 코드 서명, 자동 업데이트, CI 릴리스와 원격 게시는 후속 로드맵으로 분리한다.
