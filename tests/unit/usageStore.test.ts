@@ -109,13 +109,20 @@ describe("UsageStore refresh coordination", () => {
     expect(store.getState().refreshing).toEqual([]);
   });
 
-  it("retains the last successful value as stale after a provider failure", async () => {
+  it.each([
+    "rate_limited",
+    "network",
+    "timeout",
+    "unsupported_output",
+  ] as const)(
+    "retains the last successful value as stale after %s",
+    async (errorCode) => {
     const failure: ProviderSnapshot = {
       providerId: "codex",
       status: "unavailable",
       fetchedAt: "2026-09-01T03:02:00.000Z",
       quotaWindows: [],
-      error: { code: "timeout", message: "Codex refresh timed out." },
+      error: { code: errorCode, message: "Sanitized provider failure." },
     };
     const fetchQuota = vi
       .fn<() => Promise<ProviderSnapshot>>()
@@ -134,9 +141,10 @@ describe("UsageStore refresh coordination", () => {
       status: "stale",
       fetchedAt: failure.fetchedAt,
       lastSuccessfulAt: "2026-09-01T03:01:00.000Z",
-      error: { code: "timeout" },
+      error: { code: errorCode },
     });
-  });
+    },
+  );
 
   it("marks the last successful value stale after an unexpected throw", async () => {
     const fetchQuota = vi

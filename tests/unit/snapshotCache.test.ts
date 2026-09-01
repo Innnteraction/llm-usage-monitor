@@ -70,7 +70,7 @@ describe("SnapshotCache", () => {
     });
     expect(await readdir(directory)).toEqual([SNAPSHOT_CACHE_FILENAME]);
 
-    const loaded = await cache.load();
+    const loaded = await new SnapshotCache(filePath).load();
     expect(loaded[0]).toMatchObject({
       providerId: "codex",
       status: "stale",

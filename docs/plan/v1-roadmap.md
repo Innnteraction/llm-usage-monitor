@@ -78,10 +78,10 @@ quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 �
 
 ### Phase 4 관문
 
-- [ ] TUI형 팝오버에서 `5h`·`Weekly`와 reset이 첫 화면에 식별된다.
-- [ ] screenshot smoke와 420×320 overflow 검사를 통과한다.
-- [ ] 429·network·timeout·parser failure에서 마지막 정상값이 stale로 유지된다.
-- [ ] 재시작 시 sanitized cache를 복구하며 손상된 cache가 앱 시작을 막지 않는다.
+- [x] TUI형 팝오버에서 Codex `7d`, Claude `5h`·`7d`·Fable과 reset이 첫 화면에 식별된다.
+- [x] screenshot smoke와 420×320 overflow 검사를 통과한다.
+- [x] 429·network·timeout·parser failure에서 마지막 정상값이 stale로 유지된다.
+- [x] 재시작 시 sanitized cache를 복구하며 손상된 cache가 앱 시작을 막지 않는다.
 
 ## Phase 5 — 로컬 토큰
 
