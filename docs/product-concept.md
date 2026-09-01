@@ -115,6 +115,7 @@ interface ProviderError {
 
 - quota 기본 경로는 설치된 `codex app-server` RPC의 `account/read`와 `account/rateLimits/read`다.
 - 앱은 `auth.json`을 직접 읽거나 쓰지 않는다. 인증 복구와 token refresh는 Codex CLI에만 맡긴다.
+- App Server를 실행한 결과 Codex CLI가 자체 인증 상태를 갱신하는 것은 CLI 소유 동작이며 앱의 직접 파일 변경으로 간주하지 않는다.
 - 로컬 토큰은 `~/.codex/sessions/**/*.jsonl`을 청크 스트리밍과 증분 파싱으로 집계한다.
 
 ### Claude Code
@@ -131,6 +132,7 @@ provider 인터페이스의 확장 가능성만 유지한다. Gemini CLI OAuth �
 ## 보안 불변 조건
 
 - 외부 자격증 파일, OS 키체인과 벤더 CLI의 인증 상태를 수정·교체·삭제하지 않는다.
+- 앱 코드의 직접 credential read/write 부재를 검증한다. 벤더 CLI 자체 refresh까지 막거나 CLI 실행 전후 파일 동일성을 일반 불변 조건으로 두지 않는다.
 - access token, refresh token, cookie, `Authorization` 헤더, credential 본문을 로그·오류·통계·fixture·문서에 남기지 않는다.
 - renderer에 자격증이나 원본 CLI 출력을 보내지 않는다.
 - 계정 이메일은 현재 구독을 구분하는 renderer 표시용으로만 사용하고 로그·오류·stale cache에는 저장하지 않는다.
@@ -142,4 +144,4 @@ provider 인터페이스의 확장 가능성만 유지한다. Gemini CLI OAuth �
 - quota와 로컬 토큰의 범위가 텍스트와 구조 모두에서 구분된다.
 - quota 미제공, CLI 미설치, 인증 만료, 429, 네트워크 실패와 파서 불일치가 정상값으로 오인되지 않는다.
 - provider 하나의 실패가 다른 provider와 로컬 집계를 중단시키지 않는다.
-- 인증 파일의 변경 시간과 내용이 앱 사용 전후로 변하지 않는다.
+- 앱 코드에 vendor credential 파일을 직접 읽거나 쓰는 경로가 없다. 파일 동일성 검사는 향후 승인된 opt-in 직접 읽기 fallback에만 적용한다.

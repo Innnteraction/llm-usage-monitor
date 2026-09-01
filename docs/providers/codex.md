@@ -1,5 +1,9 @@
 # Codex provider 계약
 
+## 요약
+
+이 문서는 Codex quota provider를 수정할 때 사용하는 참조 계약이다. 앱은 App Server의 읽기 RPC만 호출하고 credential 파일에는 직접 접근하지 않는다. App Server를 실행한 Codex CLI가 인증 소유자로서 자체 refresh를 수행할 수 있으므로, 검증 대상은 파일 전체의 전후 동일성이 아니라 앱 코드의 직접 read/write 부재와 refresh 요청 금지다.
+
 ## 검증 기준
 
 - 검증일: 2026-09-01
@@ -24,6 +28,7 @@
 
 - 인증 파일을 직접 열거나 수정하지 않는다.
 - 앱이 token refresh, 로그인 복구 또는 계정 전환을 요청하지 않는다.
+- Codex CLI가 자체 정책으로 인증 상태를 갱신하는 것은 허용하되 앱이 파일 mutation이나 refresh RPC를 대신 수행하지 않는다.
 - App Server stdout은 다음 단계의 프로세스 어댑터에서 프레이밍 즉시 파싱하며 원문을 저장하지 않는다.
 - 알 수 없는 서버 확장 필드는 버리되 필수 quota 필드가 잘못된 경우 명시적 provider 오류로 처리한다.
 

@@ -72,7 +72,9 @@ quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 �
   - 마지막 정상 quota를 실패 시 stale로 유지하고 재시작 시 앱 전용 userData에서 복구한다.
   - cache는 schema version을 검증하고 임시 파일을 완전히 쓴 뒤 rename한다.
   - 계정 식별자와 과거 오류 메시지는 저장하지 않으며 손상·구버전 cache는 앱 시작을 막지 않고 폐기한다.
-- [ ] Step 4.5 — CLI 소유 refresh와 앱 직접 쓰기 금지를 구분해 문서화한다.
+- [x] Step 4.5 — CLI 소유 refresh와 앱 직접 쓰기 금지를 구분해 문서화한다.
+  - 앱 코드의 vendor credential 직접 접근은 금지하고 정적 계약 테스트로 검사한다.
+  - 벤더 CLI 자체 refresh는 인증 소유자의 동작으로 허용하며 파일 동일성 검사는 opt-in 직접 읽기 fallback에만 적용한다.
 
 ### Phase 4 관문
 

@@ -1,5 +1,9 @@
 # Claude Code provider 계약
 
+## 요약
+
+이 문서는 Claude Code quota provider를 수정할 때 사용하는 참조 계약이다. 기본 경로는 격리 PTY의 `/usage`와 읽기 전용 `claude auth status --json`이며 credential 파일을 직접 사용하지 않는다. Claude CLI가 인증 소유자로서 자체 refresh를 수행할 수 있지만 앱은 token을 읽거나 저장·갱신·삭제하지 않는다.
+
 ## Windows PTY feasibility 기준
 
 - 검증일: 2026-09-01

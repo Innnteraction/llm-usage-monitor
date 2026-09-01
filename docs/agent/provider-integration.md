@@ -26,6 +26,8 @@ provider 작업을 시작하기 전에 다음을 코드·설정·공식 문서�
 
 자격증 읽기가 필요한 opt-in 경로는 최소 필드만 메모리에서 사용하고 renderer나 영구 캐시에 전달하지 않는다. 자격증 파일의 원문, 크기, hash, token 일부를 로그하지 않는다.
 
+앱의 보장 범위는 production 코드가 vendor credential 파일을 직접 읽거나 쓰지 않는다는 것이다. 앱이 실행한 Codex·Claude CLI는 인증 소유자로서 자체 정책에 따라 token을 refresh하고 파일을 변경할 수 있으므로 CLI 호출 전후 파일 전체가 항상 같아야 한다고 검사하지 않는다. 내용과 수정 시각의 동일성 검사는 사용자 승인 아래 구현되는 opt-in 직접 읽기 fallback에만 적용한다.
+
 ## quota mapping
 
 - provider 응답을 `QuotaWindow` 목록으로 매핑한 후 UI에 전달한다.
@@ -61,6 +63,7 @@ provider별 테스트 fixture는 실제 자격증과 원본 사용자 데이터�
 6. 마지막 정상값의 stale 유지와 provider 실패 격리
 7. JSONL 청크·멀티바이트 경계, 증분 추가, truncate·교체, 중복 루트와 partial 파싱
 8. 로그·오류·IPC payload에 token, cookie, 헤더와 credential 본문이 없음
-9. opt-in 자격증 읽기 전후에 해당 파일이 변경되지 않음
+9. production provider에 credential 파일 직접 접근과 mutation API가 없음
+10. opt-in 직접 읽기 fallback을 변경한 경우에만 해당 파일의 내용과 수정 시각이 전후 동일함
 
 실제 provider에 접속하는 통합 테스트는 사용자가 명시적으로 실행할 때만 수행하고, 기본 테스트는 로컬 fake process·HTTP server·fixture로 완전히 재현한다.
