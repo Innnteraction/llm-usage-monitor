@@ -70,7 +70,9 @@ const buildProvider = (
               status: "fresh" as const,
             },
           ]
-        : [
+        : process.env.LLM_USAGE_MONITOR_E2E_CLAUDE_NO_FABLE === "1"
+          ? []
+          : [
             {
               id: "claude-model-fable",
               kind: "model_weekly" as const,

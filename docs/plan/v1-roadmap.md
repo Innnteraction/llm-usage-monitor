@@ -52,7 +52,7 @@ quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 �
 - [x] Step 3.3 — 5시간·주간·모델별 창과 오류를 정규화한다.
 - [x] Step 3.4 — native PTY를 Electron 개발·패키지 환경에서 검증한다.
 
-기본 실행 경계는 고정된 빈 앱 전용 probe 폴더와 최초 1회 사용자 직접 trust다. OAuth 직접 호출은 Step 4.5.6의 사용자 opt-in 읽기 전용 경로에서만 허용하며 permission bypass와 prompt 자동 승인은 사용하지 않는다.
+기본 실행 경계는 고정된 빈 앱 전용 probe 폴더와 최초 1회 사용자 직접 trust다. 구독 OAuth token과 credential은 직접 읽거나 비공개 usage API에 중계하지 않으며 permission bypass와 prompt 자동 승인을 사용하지 않는다.
 
 ## Phase 4 — 갱신·stale·cache
 
@@ -62,7 +62,7 @@ quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 �
   - 고정폭 글꼴, 평면 목록, 얇은 진행 막대와 제한된 상태색을 사용하며 장식용 차트·그라데이션·애니메이션은 추가하지 않는다.
   - 420×320에서 Codex·Claude의 핵심 quota가 잘리지 않고, 화면이 CSS 미적용 상태로 보이지 않음을 screenshot smoke로 확인한다.
   - 트레이 재도입 전에는 일반 Windows 창으로 시작하고 닫을 때 종료한다. Vite 개발 CSS는 CSP nonce로 허용하며 packaged CSP의 script·style 출처 제한을 유지한다.
-  - Codex는 계정 `7d`를 기본 표시하고 Spark `5h`·`7d`는 후속 옵션용으로 보존·접는다. Claude는 `5h`·`7d`와 Fable 주간 창을 표시한다.
+  - Codex는 계정 `7d`를 기본 표시하고 Spark `5h`·`7d`는 후속 옵션용으로 보존·접는다. Claude는 `5h`·`7d`와 CLI가 제공한 Fable 주간 창을 표시하며, Fable이 없으면 미제공 상태를 표시한다.
   - provider 이름 옆에 현재 구독 계정을 표시하고 갱신 시각은 AM/PM 형식으로 통일한다. 계정 식별자는 로그·오류·stale cache에 저장하지 않는다.
 - [x] Step 4.3 — 60초 polling과 `Retry-After`·상한 900초 backoff를 구현한다.
   - provider별 timer를 독립적으로 유지하고 성공 시 60초로 복귀한다.
@@ -78,7 +78,7 @@ quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 �
 
 ### Phase 4 관문
 
-- [x] TUI형 팝오버에서 Codex `7d`, Claude `5h`·`7d`·Fable과 reset이 첫 화면에 식별된다.
+- [x] TUI형 팝오버에서 Codex `7d`, Claude `5h`·`7d`와 reset이 첫 화면에 식별되며 Fable 제공 여부를 숨기지 않는다.
 - [x] screenshot smoke와 420×320 overflow 검사를 통과한다.
 - [x] 429·network·timeout·parser failure에서 마지막 정상값이 stale로 유지된다.
 - [x] 재시작 시 sanitized cache를 복구하며 손상된 cache가 앱 시작을 막지 않는다.
@@ -92,7 +92,7 @@ Phase 5에 앞서 실제 Windows 환경에서 먼저 사용해 볼 수 있는 �
 - [x] Step 4.5.3 — Claude CLI 로그인과 전용 probe 폴더 준비를 사용자 주도 흐름으로 안내한다.
 - [x] Step 4.5.4 — quota bar 기반 아이콘과 unsigned Windows x64 Squirrel 설치 파일을 만든다.
 - [x] Step 4.5.5 — 트레이 화면, provider smoke와 설치·실행·제거 관문을 검증한다.
-- [ ] Step 4.5.6 — 사용자 opt-in OAuth usage 경로로 Claude 모델별 Fable quota를 읽고 CLI fallback을 유지한다.
+- [x] Step 4.5.6 — Anthropic 공식 인증 경계를 재검토하고 구독 OAuth usage 경로를 제외한다. Claude CLI가 Fable을 제공하지 않으면 미제공 상태로 표시한다.
 
 ### Phase 4.5 관문
 
@@ -102,6 +102,7 @@ Phase 5에 앞서 실제 Windows 환경에서 먼저 사용해 볼 수 있는 �
 - [x] 전용 아이콘이 실행 파일·트레이·Setup.exe에 적용된다.
 - [x] fake 계정 스크린샷과 실제 provider 읽기 전용 smoke가 민감정보 없이 통과한다.
 - [x] unsigned x64 설치 파일의 설치·실행·제거와 SHA-256 산출이 재현된다.
+- [x] Claude 구독 credential을 직접 읽거나 비공개 usage API에 중계하는 경로가 없고 결정 근거가 문서화된다.
 
 ## Phase 5 — 로컬 토큰
 
@@ -128,4 +129,4 @@ Phase 6은 새로운 시각 콘셉트로 다시 디자인하는 단계가 아니
 
 ## v1 제외 범위
 
-Gemini, 다중 계정, 계정 전환, Claude OAuth token refresh, 비용 추정, 차트, 알림, 코드 서명, 자동 업데이트, CI 릴리스와 원격 게시는 후속 로드맵으로 분리한다.
+Gemini, 다중 계정, 계정 전환, 비용 추정, 차트, 알림, 코드 서명, 자동 업데이트, CI 릴리스와 원격 게시는 후속 로드맵으로 분리한다. Claude 구독 OAuth credential 재사용은 후속 기능이 아니라 공식 지원 또는 서면 허가 전까지 금지된 경계다.

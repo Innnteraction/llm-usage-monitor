@@ -108,8 +108,8 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
   }
 });
 
-test("starts hidden after Claude setup has succeeded once", async (_fixtures, testInfo) => {
-  const userData = testInfo.outputPath("ready-user-data");
+test("starts hidden after Claude setup has succeeded once", async ({ browserName }, testInfo) => {
+  const userData = testInfo.outputPath(`${browserName}-ready-user-data`);
   await mkdir(userData, { recursive: true });
   await writeFile(
     path.join(userData, "claude-setup-ready-v1"),
@@ -146,13 +146,33 @@ test("starts hidden after Claude setup has succeeded once", async (_fixtures, te
   }
 });
 
-test("keeps the TUI inside the popover at 150 percent scale", async (_fixtures, testInfo) => {
+test("labels Fable as unavailable when Claude CLI omits it", async () => {
+  const electronApp = await electron.launch({
+    args: [appPath],
+    env: {
+      ...process.env,
+      LLM_USAGE_MONITOR_E2E: "1",
+      LLM_USAGE_MONITOR_E2E_USER_DATA: test.info().outputPath("user-data"),
+      LLM_USAGE_MONITOR_E2E_CLAUDE_NO_FABLE: "1",
+    },
+  });
+
+  try {
+    const page = await electronApp.firstWindow();
+    await expect(page.getByText("not provided by Claude CLI")).toBeVisible();
+    await expect(page.getByText("Fable", { exact: true })).toBeVisible();
+  } finally {
+    await electronApp.close().catch(() => undefined);
+  }
+});
+
+test("keeps the TUI inside the popover at 150 percent scale", async ({ browserName }, testInfo) => {
   const electronApp = await electron.launch({
     args: [appPath, "--force-device-scale-factor=1.5"],
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
-      LLM_USAGE_MONITOR_E2E_USER_DATA: testInfo.outputPath("scaled-user-data"),
+      LLM_USAGE_MONITOR_E2E_USER_DATA: testInfo.outputPath(`${browserName}-scaled-user-data`),
     },
   });
 

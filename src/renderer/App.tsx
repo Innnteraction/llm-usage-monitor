@@ -88,6 +88,12 @@ const selectDisplayWindows = (
   return fable ? [...primary, fable] : primary;
 };
 
+const hasFableWindow = (provider: ProviderSnapshot): boolean =>
+  provider.quotaWindows.some(
+    (window) =>
+      window.kind === "model_weekly" && /\bfable\b/i.test(window.label),
+  );
+
 const countOptionalWindows = (
   provider: ProviderSnapshot,
   displayed: QuotaWindow[],
@@ -218,6 +224,12 @@ const ProviderCard = ({
             window={window}
           />
         ))}
+        {provider.providerId === "claude" && !hasFableWindow(provider) ? (
+          <p className="quota-unavailable">
+            <strong>Fable</strong>
+            <span>not provided by Claude CLI</span>
+          </p>
+        ) : null}
       </div>
       {additionalWindowCount > 0 ? (
         <p className="additional-limits">

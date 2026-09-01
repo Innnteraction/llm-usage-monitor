@@ -2,7 +2,7 @@
 
 ## 요약
 
-이 문서는 초기 구현자가 Windows 트레이 앱의 정보 우선순위, provider 경계와 실패 표현을 같은 방식으로 이해하도록 돕는 설명 문서다. v1의 핵심은 Codex의 계정 주간 quota와 Claude Code의 5시간·주간·Fable quota며, 로컬 토큰은 서로 다른 범위를 갖는 보조 지표다. 인증은 벤더 CLI가 소유하고 앱은 이를 변조하지 않는다. 구현 전에 이 문서의 UI 상태, 데이터 계약, 수집 경계와 수용 기준을 먼저 확인한다.
+이 문서는 초기 구현자가 Windows 트레이 앱의 정보 우선순위, provider 경계와 실패 표현을 같은 방식으로 이해하도록 돕는 설명 문서다. v1의 핵심은 Codex의 계정 주간 quota와 Claude Code의 5시간·주간 quota며, Claude CLI가 제공할 때만 모델별 Fable quota를 함께 표시한다. 로컬 토큰은 서로 다른 범위를 갖는 보조 지표다. 인증은 벤더 CLI가 소유하고 앱은 이를 변조하지 않는다. 구현 전에 이 문서의 UI 상태, 데이터 계약, 수집 경계와 수용 기준을 먼저 확인한다.
 
 ## 사용자가 얻는 결과
 
@@ -24,7 +24,7 @@
 
 ## 정보 구조와 표시 규칙
 
-provider 블록에는 현재 구독 계정을 함께 표시한다. Codex는 계정 전체의 `7d`를 기본 행으로 강조하고 Spark의 `5h`·`7d`는 snapshot에 보존한 뒤 후속 표시 옵션으로 접어 둔다. Claude Code는 `5h`·`7d`와 모델별 `Fable` 주간 창을 표시한다. 각 창은 사용률, 남은 비율, reset 카운트다운, 수집 소스, 마지막 성공 시각을 함께 보여 준다. 진행 막대는 “사용한 비율”을 기준으로 통일하고 텍스트에서 남은 비율을 병기한다.
+provider 블록에는 현재 구독 계정을 함께 표시한다. Codex는 계정 전체의 `7d`를 기본 행으로 강조하고 Spark의 `5h`·`7d`는 snapshot에 보존한 뒤 후속 표시 옵션으로 접어 둔다. Claude Code는 `5h`·`7d`를 표시하고, CLI가 모델별 `Fable` 주간 창을 제공하면 함께 표시한다. Fable이 생략되면 행 자체를 숨기거나 0%로 만들지 않고 `not provided by Claude CLI`로 표시한다. 각 제공 창은 사용률, 남은 비율, reset 카운트다운, 수집 소스, 마지막 성공 시각을 함께 보여 준다. 진행 막대는 “사용한 비율”을 기준으로 통일하고 텍스트에서 남은 비율을 병기한다.
 
 v1은 화려한 대시보드보다 읽는 속도를 우선한다. 고정폭 글꼴, 단순한 선과 여백, 얇은 진행 막대, fresh·stale·error를 구별하는 제한된 상태색을 사용한다. 장식용 차트, 그라데이션과 불필요한 애니메이션은 넣지 않는다. 420×320 팝오버의 첫 화면에서 Codex·Claude의 핵심 quota와 reset을 식별할 수 있어야 한다.
 
@@ -122,7 +122,7 @@ interface ProviderError {
 
 - quota 기본 경로는 격리된 PTY에서 Claude CLI의 `/usage` 출력을 읽는 방식이다.
 - 출력 형식이 알려진 계약과 다르면 추정을 계속하지 않고 `unsupported_output`을 반환한다.
-- OAuth usage API 직접 호출은 사용자가 명시적으로 켜는 읽기 전용 fallback으로만 허용한다. 자격증 갱신·저장·삭제를 금지하고 만료 시 Claude CLI 재로그인을 안내한다. 이 경로는 비공개 API이므로 보장된 호환 계약으로 간주하지 않는다.
+- Claude Code 구독 OAuth token과 credential을 직접 읽거나 비공개 usage API에 중계하지 않는다. 이 결정의 공식 근거와 재검토 조건은 [Anthropic 인증 경계 결정](decisions/0001-anthropic-credential-boundary.md)에 기록한다.
 - 로컬 토큰은 `~/.claude/projects/**/*.jsonl`을 청크 스트리밍과 증분 파싱으로 집계한다.
 
 ### Gemini

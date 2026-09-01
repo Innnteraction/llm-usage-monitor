@@ -19,6 +19,7 @@
 ## 인증과 민감정보
 
 - Codex·Claude Code·Gemini의 인증 파일, OS 키체인과 CLI 세션을 수정·갱신·교체·삭제하지 않는다. 로그인과 token refresh는 해당 벤더 CLI에만 맡긴다.
+- Claude Code 구독 OAuth token과 credential은 opt-in 여부와 관계없이 직접 읽거나 비공개 usage endpoint에 중계하지 않는다. 지원 범위는 [Anthropic 인증 경계 결정](docs/decisions/0001-anthropic-credential-boundary.md)을 따른다.
 - 앱이 실행한 벤더 CLI는 자신의 소유권에 따라 인증 상태를 갱신할 수 있다. 따라서 CLI 실행 전후 인증 파일 동일성을 전체 앱의 불변 조건으로 두지 않고, 앱 코드의 직접 read/write 부재를 검증한다.
 - 자격증 직접 읽기는 제품 문서에 기록된 사용자 opt-in 읽기 전용 fallback에서만 허용한다. 새 경로를 추가하려면 먼저 명시적 승인과 위협 검토를 받는다.
 - access token, refresh token, API key, cookie, `Authorization` 헤더, credential 본문을 출력·복사·로그·통계·fixture·스냅샷·문서·오류 메시지에 남기지 않는다.

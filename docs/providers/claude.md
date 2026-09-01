@@ -13,7 +13,7 @@
 
 probe는 `%LOCALAPPDATA%\LLM Usage Monitor\claude-probe`라는 고정된 앱 전용 작업 디렉터리를 사용한다. Claude Code의 project 지침·hooks·plugins·skills·MCP를 safe mode로 비활성화하고 restricted mode와 빈 tool set도 적용한다. quota 화면을 받을 준비가 확인된 경우에만 PTY에 `/usage`를 입력하고, 결과를 읽은 뒤 `Escape`로 패널을 닫아 `/exit`한다. 일반 prompt는 보내지 않는다.
 
-결과에는 5시간·주간·Fable 창 신호, quota 상세 신호, 종료 방식과 비식별 오류 코드만 남긴다. 계정 표시는 별도의 읽기 전용 `claude auth status --json` 결과에서 이메일만 검증해 `accountLabel`로 전달한다. raw 화면, quota 수치, reset 값, 실제 계정 식별자와 credential 관련 문자열은 로그·오류·stale cache·fixture·문서에 저장하지 않는다.
+결과에는 5시간·주간과 CLI가 실제 제공한 Fable 창 신호, quota 상세 신호, 종료 방식과 비식별 오류 코드만 남긴다. Fable이 없으면 사용률이나 reset을 추정하지 않고 UI에서 CLI 미제공 상태로 표현한다. 계정 표시는 별도의 읽기 전용 `claude auth status --json` 결과에서 이메일만 검증해 `accountLabel`로 전달한다. raw 화면, quota 수치, reset 값, 실제 계정 식별자와 credential 관련 문자열은 로그·오류·stale cache·fixture·문서에 저장하지 않는다.
 
 로그인·workspace trust 같은 예기치 않은 prompt가 나타나면 선택지를 입력하지 않고 프로세스를 종료한다. 안정적인 quota 화면을 얻지 못해도 OAuth 직접 호출로 자동 전환하지 않는다.
 
@@ -29,7 +29,7 @@ probe는 `%LOCALAPPDATA%\LLM Usage Monitor\claude-probe`라는 고정된 앱 전
 
 Anthropic의 공식 statusline 입력은 Claude Code 2.1.251부터 `rate_limits.five_hour`와 `rate_limits.seven_day`의 구조화된 사용률·reset epoch를 제공한다. 그러나 이 값은 Pro·Max 구독에서 첫 모델 API 응답 이후에만 나타나며, 사용자의 `statusLine` 설정 또는 실행 중인 세션과 협력해야 한다. 따라서 독립 상시 수집기의 기본 경로로 사용하지 않고, 기존 statusline을 덮어쓰지 않는 명시적 opt-in 보조 입력 후보로 남긴다.
 
-CodexBar의 고정 probe 폴더와 빈 tool set은 채택한다. trust·telemetry prompt 자동 응답과 Claude 프로젝트 JSONL 삭제는 채택하지 않는다. Windows용 ClaudeBar와 여러 statusline 도구가 사용하는 credential 직접 읽기·OAuth usage API 호출도 현재 인증 경계에 맞지 않아 v1 기본 경로에서 제외한다.
+CodexBar의 고정 probe 폴더와 빈 tool set은 채택한다. trust·telemetry prompt 자동 응답과 Claude 프로젝트 JSONL 삭제는 채택하지 않는다. Windows용 ClaudeBar와 여러 statusline 도구가 사용하는 credential 직접 읽기·OAuth usage API 호출은 [Anthropic 인증 경계 결정](../decisions/0001-anthropic-credential-boundary.md)에 따라 v1과 후속 fallback에서 제외한다.
 
 ## 실제 환경 smoke
 

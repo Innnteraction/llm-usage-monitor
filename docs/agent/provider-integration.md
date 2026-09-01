@@ -21,12 +21,12 @@ provider 작업을 시작하기 전에 다음을 코드·설정·공식 문서�
 | provider | 기본 quota source | 자격증 규칙 |
 | --- | --- | --- |
 | Codex | `codex app-server` RPC | `auth.json`을 직접 사용하지 않고 로그인·refresh를 Codex CLI에 위임한다. |
-| Claude Code | 격리 PTY의 `/usage` | CLI 소유를 우선한다. 직접 OAuth 호출은 사용자 opt-in·읽기 전용이며 refresh·저장·삭제를 금지한다. |
+| Claude Code | 격리 PTY의 `/usage` | CLI 소유를 유지한다. 구독 OAuth token·credential을 직접 읽거나 비공개 usage API에 중계하지 않는다. |
 | Gemini | v1 미구현 | 지원 계정과 API 계약을 다시 검증하기 전에 자격증 경로를 추가하지 않는다. |
 
-자격증 읽기가 필요한 opt-in 경로는 최소 필드만 메모리에서 사용하고 renderer나 영구 캐시에 전달하지 않는다. 자격증 파일의 원문, 크기, hash, token 일부를 로그하지 않는다.
+Claude Code의 구독 credential에는 opt-in 직접 읽기 예외를 두지 않는다. 다른 provider에서 자격증 읽기 경로가 필요해도 별도 공식 계약과 사용자 승인을 먼저 확보하고, 최소 필드만 메모리에서 사용하며 renderer나 영구 캐시에 전달하지 않는다. 자격증 파일의 원문, 크기, hash, token 일부를 로그하지 않는다.
 
-앱의 보장 범위는 production 코드가 vendor credential 파일을 직접 읽거나 쓰지 않는다는 것이다. 앱이 실행한 Codex·Claude CLI는 인증 소유자로서 자체 정책에 따라 token을 refresh하고 파일을 변경할 수 있으므로 CLI 호출 전후 파일 전체가 항상 같아야 한다고 검사하지 않는다. 내용과 수정 시각의 동일성 검사는 사용자 승인 아래 구현되는 opt-in 직접 읽기 fallback에만 적용한다.
+앱의 보장 범위는 production 코드가 vendor credential 파일을 직접 읽거나 쓰지 않는다는 것이다. 앱이 실행한 Codex·Claude CLI는 인증 소유자로서 자체 정책에 따라 token을 refresh하고 파일을 변경할 수 있으므로 CLI 호출 전후 파일 전체가 항상 같아야 한다고 검사하지 않는다. 향후 다른 provider에 승인된 직접 읽기 경로가 생긴 경우에만 해당 경로의 내용과 수정 시각 동일성을 검사한다.
 
 ## quota mapping
 

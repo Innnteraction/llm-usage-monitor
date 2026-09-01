@@ -229,6 +229,21 @@ h2 {
   border: 0;
 }
 
+.quota-unavailable {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  color: #626262;
+  font-size: 0.62rem;
+}
+
+.quota-unavailable strong {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 500;
+}
+
 .provider-card footer {
   display: flex;
   justify-content: space-between;

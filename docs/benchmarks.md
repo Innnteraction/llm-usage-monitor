@@ -27,7 +27,7 @@ claude-swap의 대시보드는 계정별 5시간·7일 사용률과 reset을 한
 
 ### 수집 소스와 인증 소유자를 드러낸다
 
-CodexBar는 Codex에서 OAuth API, web dashboard, CLI RPC를 별도 소스로 구분하고, 자격증이 stale일 때 공유 `auth.json`을 갱신하지 않고 Codex CLI에 복구를 위임한다. Claude에서도 OAuth·Web·CLI 경로를 분리한다. LLM Usage Monitor는 v1에서 CLI 소유 경로를 우선하고, 직접 자격증 재사용을 사용자가 켜는 읽기 전용 fallback으로 제한한다.
+CodexBar는 Codex에서 OAuth API, web dashboard, CLI RPC를 별도 소스로 구분하고, 자격증이 stale일 때 공유 `auth.json`을 갱신하지 않고 Codex CLI에 복구를 위임한다. Claude에서도 OAuth·Web·CLI 경로를 분리한다. 다만 동작하는 벤치마크 구현은 Anthropic의 허가를 입증하지 않는다. LLM Usage Monitor는 [Anthropic 인증 경계 결정](decisions/0001-anthropic-credential-boundary.md)에 따라 Claude 구독 credential 재사용과 비공개 OAuth usage 호출을 채택하지 않는다.
 
 - [Codex provider 자료](https://github.com/steipete/CodexBar/blob/8a732e743564abdb68ab3bee9332153ef88597a4/docs/codex.md)
 - [Claude provider 자료](https://github.com/steipete/CodexBar/blob/8a732e743564abdb68ab3bee9332153ef88597a4/docs/claude.md)
@@ -49,7 +49,7 @@ CodexBar는 고정된 `ClaudeProbe` 폴더, 빈 tool set, session ID와 probe �
 - CodexBar의 브라우저 cookie 자동 가져오기와 다중 provider 전체를 v1에 반영하지 않는다.
 - codex-usage-monitor의 VS Code 확장 형태와 상세 분석 차트는 초기 트레이 앱 범위에서 제외한다.
 - Tokscale의 리더보드·제출·소셜 인증 기능은 필요하지 않다.
-- ClaudeBar와 statusline 도구들의 `.credentials.json` 직접 읽기 및 비공개 OAuth usage API 호출은 v1 기본 경로에서 제외한다.
+- ClaudeBar와 일부 도구의 `.credentials.json` 직접 읽기 및 비공개 OAuth usage API 호출은 공식 인증 경계와 맞지 않아 구현하지 않는다.
 - clauddy는 검증 revision에 명시적 저장소 라이선스가 없어 코드·문구를 반입하지 않는다.
 
 ## 라이선스와 재검증
