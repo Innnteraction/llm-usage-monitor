@@ -1,12 +1,17 @@
 import {
   providerSnapshotSchema,
+  type ProviderAuthKind,
   type ProviderError,
   type ProviderSnapshot,
   type QuotaWindow,
 } from "../../shared/index";
 import type { ClaudePtyProbeResult, ClaudePtyProbeStatus } from "./ptyProbe";
 import type { ClaudeParsedQuotaWindow } from "./usageParser";
-import type { ClaudeAccountContext } from "./provider";
+
+export interface ClaudeAccountContext {
+  accountLabel?: string;
+  authKind: ProviderAuthKind;
+}
 
 export function normalizeClaudeSnapshot(
   result: ClaudePtyProbeResult,

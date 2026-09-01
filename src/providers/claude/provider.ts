@@ -7,6 +7,7 @@ import type {
 import {
   createClaudeUnexpectedSnapshot,
   normalizeClaudeSnapshot,
+  type ClaudeAccountContext,
 } from "./normalize";
 import { runClaudeUsageProbe, type ClaudePtyProbeResult } from "./ptyProbe";
 
@@ -14,11 +15,6 @@ export interface ClaudeQuotaProviderOptions {
   probe?: () => Promise<ClaudePtyProbeResult>;
   accountReader?: () => Promise<ClaudeAccountContext | undefined>;
   clock?: () => Date;
-}
-
-export interface ClaudeAccountContext {
-  accountLabel?: string;
-  authKind: ProviderAuthKind;
 }
 
 const claudeAuthStatusSchema = z

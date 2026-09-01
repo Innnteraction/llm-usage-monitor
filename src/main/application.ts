@@ -18,12 +18,16 @@ import {
 } from "../providers/index";
 import { createUsagePoller, createUsageStore } from "../usage/index";
 import {
-  mergeCachedSnapshots,
   openClaudeSetup,
+} from "./claudeSetup";
+import {
   registerIpcHandlers,
+} from "./ipc";
+import {
+  mergeCachedSnapshots,
   SNAPSHOT_CACHE_FILENAME,
   SnapshotCache,
-} from "./index";
+} from "./snapshotCache";
 import { createFakeUsageStore } from "./fakeUsage";
 import { createTrayIcon } from "./trayIcon";
 
