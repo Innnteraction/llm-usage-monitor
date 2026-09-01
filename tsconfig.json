@@ -24,6 +24,7 @@
     "vitest.config.mts",
     "vitest.claude-smoke.config.mts",
     "vitest.smoke.config.mts",
-    "playwright.config.ts"
+    "playwright.config.ts",
+    "playwright.claude-packaged.config.ts"
   ]
 }

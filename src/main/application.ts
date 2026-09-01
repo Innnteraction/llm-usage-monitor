@@ -89,6 +89,9 @@ export const startApplication = (): void => {
 
   void app.whenReady().then(() => {
     const useFakeProviders = process.env.LLM_USAGE_MONITOR_E2E === "1";
+    const showWindowForTest =
+      useFakeProviders ||
+      process.env.LLM_USAGE_MONITOR_CLAUDE_PACKAGED_SMOKE === "1";
     const initialTime = new Date();
     const store = useFakeProviders
       ? createFakeUsageStore()
@@ -130,7 +133,7 @@ export const startApplication = (): void => {
       }
     });
     mainWindow.on("blur", () => {
-      if (process.env.LLM_USAGE_MONITOR_E2E !== "1") {
+      if (!showWindowForTest) {
         mainWindow?.hide();
       }
     });
@@ -176,7 +179,7 @@ export const startApplication = (): void => {
     });
 
     mainWindow.once("ready-to-show", () => {
-      if (process.env.LLM_USAGE_MONITOR_E2E === "1") {
+      if (showWindowForTest) {
         showWindow();
       }
     });

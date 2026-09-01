@@ -38,3 +38,11 @@ CodexBar의 고정 probe 폴더와 빈 tool set은 채택한다. trust·telemetr
 파서는 `Current session` 계열 header를 `five_hour`, 전체 모델의 `Current week`를 `weekly`, 모델명이 붙은 주간 header를 `model_weekly`로 변환한다. 각 header 다음 영역에서 확인된 사용률과 reset만 사용한다. `remaining`으로 표현된 비율은 사용률로 변환하지만, 비율이 없거나 범위를 벗어난 창은 만들지 않는다.
 
 필수 5시간·주간 창이 모두 확인되면 `fresh` snapshot으로 게시한다. CLI 미설치, 미인증, workspace trust 대기, timeout, 프로세스 종료와 출력 변경은 서로 구분된 sanitized 오류로 변환한다. 필수 창이 누락되면 0%로 추정하지 않고 두 창 모두 `unavailable`로 유지한다.
+
+## Electron 패키지 계약
+
+Vite main bundle은 `node-pty`를 external dependency로 유지한다. Forge의 Vite copy 경계 뒤에서 라이선스·runtime JavaScript와 Windows x64 prebuild만 allowlist로 staging하고, native binary는 `app.asar.unpacked`에 둔다. 다른 플랫폼 binary, source map, 테스트와 PDB는 패키지에 넣지 않는다.
+
+`pnpm test:smoke:claude-packaged`는 패키지를 새로 만든 뒤 개발 Electron이 아닌 생성된 앱 실행 파일을 직접 연다. 2026-09-01 Electron 44.1.0 패키지에서 Claude CLI PTY를 spawn하고 `fresh` quota snapshot을 얻는 데 성공했다. 이 검사는 실제 사용률이나 raw 화면을 assertion 메시지·fixture·로그에 남기지 않는다.
+
+현재 Windows x64 prebuild는 실제 패키지 실행으로 ABI 호환성을 검증한다. Forge의 source rebuild는 이 PC에 설치되지 않은 Visual Studio Spectre 완화 라이브러리를 요구하므로 패키지 경로로 사용하지 않는다.
