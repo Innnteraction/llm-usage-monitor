@@ -24,14 +24,14 @@
 - [x] Step 1.1 — Node 24·pnpm 9·Electron Forge·Vite·React 단일 패키지를 생성한다.
 - [x] Step 1.2 — 모듈 경계 초안을 검토받고 Architecture Guard를 활성화한다.
 - [x] Step 1.3 — 공통 snapshot 계약과 제한된 IPC를 구현한다.
-- [ ] Step 1.4 — fake snapshot으로 트레이 팝오버 수직 슬라이스를 완성한다.
+- [x] Step 1.4 — fake snapshot으로 트레이 팝오버 수직 슬라이스를 완성한다.
 
 ### Phase 1 관문
 
-- [ ] typecheck·lint·unit·Electron smoke test를 통과한다.
-- [ ] Architecture Guard `verify`를 통과한다.
-- [ ] renderer가 Node·filesystem·임의 IPC에 접근할 수 없다.
-- [ ] 트레이 열기·refresh·hide·quit 흐름을 확인한다.
+- [x] typecheck·lint·unit·Electron smoke test를 통과한다.
+- [x] Architecture Guard `verify`를 통과한다.
+- [x] renderer가 Node·filesystem·임의 IPC에 접근할 수 없다.
+- [x] 트레이 열기·refresh·hide·quit 흐름을 확인한다.
 
 ## Phase 2 — Codex quota
 
