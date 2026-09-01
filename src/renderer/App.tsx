@@ -17,15 +17,37 @@ const sourceNames: Record<QuotaWindow["source"], string> = {
   local_fixture: "Local fixture",
 };
 
-const formatReset = (resetsAt?: string): string =>
-  resetsAt
-    ? new Intl.DateTimeFormat("ko-KR", {
-        hour: "2-digit",
-        minute: "2-digit",
-        month: "short",
-        day: "numeric",
-      }).format(new Date(resetsAt))
-    : "벤더에서 제공하지 않음";
+const formatCountdown = (resetsAt?: string): string => {
+  if (!resetsAt) {
+    return "--";
+  }
+
+  const remainingMinutes = Math.max(
+    0,
+    Math.floor((new Date(resetsAt).getTime() - Date.now()) / 60_000),
+  );
+  const days = Math.floor(remainingMinutes / (24 * 60));
+  const hours = Math.floor((remainingMinutes % (24 * 60)) / 60);
+  const minutes = remainingMinutes % 60;
+
+  if (days > 0) {
+    return `${days}d ${hours}h`;
+  }
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+};
+
+const usageTone = (usedPercent?: number): "low" | "medium" | "high" => {
+  if (usedPercent !== undefined && usedPercent >= 90) {
+    return "high";
+  }
+  if (usedPercent !== undefined && usedPercent >= 70) {
+    return "medium";
+  }
+  return "low";
+};
 
 const Quota = ({
   providerId,
@@ -36,30 +58,41 @@ const Quota = ({
 }) => {
   const used = window.usedPercent;
   const remaining = used === undefined ? undefined : 100 - used;
+  const tone = usageTone(used);
+  const label = window.kind === "weekly" ? "7d" : window.label;
 
   return (
     <section className="quota">
-      <div className="quota-heading">
-        <strong>{window.label}</strong>
-        <span
-          className="quota-value"
-          data-testid={`${providerId}-${window.kind}-value`}
-        >
-          {used === undefined ? "미제공" : `${used}%`}
-        </span>
-      </div>
-      <progress max={100} value={used} aria-label={`${window.label} 사용률`} />
-      <div className="quota-meta">
-        <span>
-          {remaining === undefined ? "남은 비율 미제공" : `${remaining}% 남음`}
-        </span>
-        <span>Reset {formatReset(window.resetsAt)}</span>
-      </div>
+      <strong className="quota-label">{label}</strong>
+      <progress
+        className={`quota-meter tone-${tone}`}
+        max={100}
+        value={used}
+        aria-label={`${window.label} 사용률`}
+      />
+      <span
+        className={`quota-value tone-${tone}`}
+        data-testid={`${providerId}-${window.kind}-value`}
+      >
+        {used === undefined ? "--" : `${used}%`}
+      </span>
+      <span className="quota-reset">
+        resets <time dateTime={window.resetsAt}>{formatCountdown(window.resetsAt)}</time>
+      </span>
+      <span className="quota-remaining">
+        {remaining === undefined ? "remaining --" : `${remaining}% remaining`}
+      </span>
     </section>
   );
 };
 
-const ProviderCard = ({ provider }: { provider: ProviderSnapshot }) => {
+const ProviderCard = ({
+  provider,
+  index,
+}: {
+  provider: ProviderSnapshot;
+  index: number;
+}) => {
   const sources = [
     ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
   ];
@@ -67,12 +100,10 @@ const ProviderCard = ({ provider }: { provider: ProviderSnapshot }) => {
   return (
     <article className="provider-card">
       <header>
-        <div>
-          <p className="provider-label">Provider</p>
-          <h2>{providerNames[provider.providerId]}</h2>
-        </div>
+        <span className="provider-index">{index + 1}</span>
+        <h2>{providerNames[provider.providerId]}</h2>
         <span className={`status status-${provider.status}`}>
-          {provider.status}
+          <span aria-hidden="true">●</span> {provider.status}
         </span>
       </header>
       {provider.error ? (
@@ -90,8 +121,10 @@ const ProviderCard = ({ provider }: { provider: ProviderSnapshot }) => {
         ))}
       </div>
       <footer>
-        <span>source: {sources.join(", ")}</span>
-        <span>{new Date(provider.fetchedAt).toLocaleTimeString("ko-KR")}</span>
+        <span>source {sources.join(", ")}</span>
+        <span>
+          updated {new Date(provider.fetchedAt).toLocaleTimeString("ko-KR")}
+        </span>
       </footer>
     </article>
   );
@@ -135,16 +168,13 @@ export const App = () => {
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div>
-          <p className="eyebrow">Quota overview</p>
-          <h1>LLM Usage Monitor</h1>
-        </div>
+        <h1>watching quota providers</h1>
         <button
           type="button"
           onClick={refresh}
           disabled={!snapshot || snapshot.refreshing.length > 0}
         >
-          {snapshot?.refreshing.length ? "갱신 중…" : "새로고침"}
+          {snapshot?.refreshing.length ? "refreshing..." : "refresh"}
         </button>
       </header>
 
@@ -156,8 +186,12 @@ export const App = () => {
 
       <section className="provider-list" aria-live="polite">
         {snapshot ? (
-          snapshot.providers.map((provider) => (
-            <ProviderCard key={provider.providerId} provider={provider} />
+          snapshot.providers.map((provider, index) => (
+            <ProviderCard
+              key={provider.providerId}
+              provider={provider}
+              index={index}
+            />
           ))
         ) : (
           <p className="loading">사용량을 불러오는 중…</p>
@@ -165,8 +199,7 @@ export const App = () => {
       </section>
 
       <p className="scope-note">
-        quota는 계정 범위이며 실제 토큰은 추후 이 PC의 로컬 로그로 별도
-        표시됩니다.
+        quota: account scope · tokens: this PC only
       </p>
     </main>
   );

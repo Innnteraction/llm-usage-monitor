@@ -19,7 +19,7 @@ import { registerIpcHandlers } from "./index";
 import { createFakeUsageStore } from "./fakeUsage";
 import { createTrayIcon } from "./trayIcon";
 
-const WINDOW_SIZE = { width: 420, height: 600 };
+const WINDOW_SIZE = { width: 420, height: 320 };
 
 const positionNearTray = (
   window: BrowserWindow,

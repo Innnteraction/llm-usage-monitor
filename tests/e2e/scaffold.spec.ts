@@ -8,7 +8,7 @@ const appPath = path.resolve(
   "app.asar",
 );
 
-test("tray popover refresh, hide and quit flow", async () => {
+test("tray popover refresh, layout, hide and quit flow", async () => {
   const electronApp = await electron.launch({
     args: [appPath],
     env: {
@@ -20,12 +20,32 @@ test("tray popover refresh, hide and quit flow", async () => {
   try {
     const page = await electronApp.firstWindow();
     await expect(
-      page.getByRole("heading", { name: "LLM Usage Monitor" }),
+      page.getByRole("heading", { name: "watching quota providers" }),
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Codex" })).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Claude Code" }),
     ).toBeVisible();
+
+    const layout = await page.evaluate(() => ({
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      scrollWidth: document.documentElement.scrollWidth,
+      scrollHeight: document.documentElement.scrollHeight,
+      providerCards: document.querySelectorAll(".provider-card").length,
+      textMeters: document.querySelectorAll(".quota-meter").length,
+    }));
+    expect(layout).toEqual({
+      viewportWidth: 420,
+      viewportHeight: 320,
+      scrollWidth: 420,
+      scrollHeight: 320,
+      providerCards: 2,
+      textMeters: 4,
+    });
+    await page.screenshot({
+      path: test.info().outputPath("tui-quota-overview.png"),
+    });
 
     const isolation = await page.evaluate(() => ({
       methods: Object.keys(window.usageMonitor).sort(),
@@ -45,7 +65,7 @@ test("tray popover refresh, hide and quit flow", async () => {
     });
     const fiveHour = page.getByTestId("codex-five_hour-value");
     await expect(fiveHour).toHaveText("42%");
-    await page.getByRole("button", { name: "새로고침" }).click();
+    await page.getByRole("button", { name: "refresh" }).click();
     await expect(fiveHour).toHaveText("43%");
 
     await electronApp.evaluate(({ BrowserWindow }) => {
@@ -62,7 +82,9 @@ test("tray popover refresh, hide and quit flow", async () => {
     await electronApp.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]?.show();
     });
-    await expect(page.getByRole("button", { name: "새로고침" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "refresh" }),
+    ).toBeVisible();
 
     const closed = page.waitForEvent("close");
     await electronApp.evaluate(({ app }) => app.quit());

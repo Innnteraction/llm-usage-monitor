@@ -57,10 +57,10 @@ quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 �
 ## Phase 4 — 갱신·stale·cache
 
 - [x] Step 4.1 — provider 격리·병렬 갱신·generation 보호를 구현한다.
-- [ ] Step 4.2 — CSWAP을 참고한 TUI형 화면 기준선을 구현한다.
+- [x] Step 4.2 — CSWAP을 참고한 TUI형 화면 기준선을 구현한다.
   - `5h`·`Weekly`를 provider별 첫 행에 두고 사용률, 남은 비율과 reset을 한 화면에서 읽게 한다.
-  - 고정폭 글꼴, 단순 테두리, 텍스트 진행 막대와 제한된 상태색을 사용하며 장식용 차트·그라데이션·애니메이션은 추가하지 않는다.
-  - 420×600에서 Codex·Claude의 핵심 quota가 가로로 잘리지 않고, 화면이 CSS 미적용 상태로 보이지 않음을 screenshot smoke로 확인한다.
+  - 고정폭 글꼴, 평면 목록, 얇은 진행 막대와 제한된 상태색을 사용하며 장식용 차트·그라데이션·애니메이션은 추가하지 않는다.
+  - 420×320에서 Codex·Claude의 핵심 quota가 잘리지 않고, 화면이 CSS 미적용 상태로 보이지 않음을 screenshot smoke로 확인한다.
 - [ ] Step 4.3 — 60초 polling과 `Retry-After`·상한 900초 backoff를 구현한다.
 - [ ] Step 4.4 — 민감정보가 없는 atomic stale cache를 구현한다.
 - [ ] Step 4.5 — CLI 소유 refresh와 앱 직접 쓰기 금지를 구분해 문서화한다.
@@ -68,7 +68,7 @@ quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 �
 ### Phase 4 관문
 
 - [ ] TUI형 팝오버에서 `5h`·`Weekly`와 reset이 첫 화면에 식별된다.
-- [ ] screenshot smoke와 420×600 overflow 검사를 통과한다.
+- [ ] screenshot smoke와 420×320 overflow 검사를 통과한다.
 - [ ] 429·network·timeout·parser failure에서 마지막 정상값이 stale로 유지된다.
 - [ ] 재시작 시 sanitized cache를 복구하며 손상된 cache가 앱 시작을 막지 않는다.
 
