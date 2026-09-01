@@ -42,10 +42,12 @@
 
 ## Phase 3 — Claude Code quota
 
-- [ ] Step 3.1 — Windows PTY에서 `/usage` 자동화 가능성을 검증한다.
+- [x] Step 3.1 — Windows PTY에서 `/usage` 자동화 가능성을 검증한다. 현재 환경은 workspace trust prompt로 차단되며 입력 없이 안전하게 중단한다.
 - [ ] Step 3.2 — Claude PTY 프로세스 어댑터를 구현한다.
 - [ ] Step 3.3 — 5시간·주간·모델별 창과 오류를 정규화한다.
 - [ ] Step 3.4 — native PTY를 Electron 개발·패키지 환경에서 검증한다.
+
+Phase 3은 workspace trust를 변조하지 않는 실행 경계를 별도로 승인하기 전까지 Step 3.1 관문에서 중단한다. OAuth 직접 호출과 permission bypass로 자동 전환하지 않는다.
 
 ## Phase 4 — 갱신·stale·cache
 
