@@ -35,6 +35,7 @@ playwright-report/
 test-results/
 tmp/
 temp/
+.tmp/
 
 # Electron build and packaging output
 dist/

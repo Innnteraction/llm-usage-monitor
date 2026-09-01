@@ -83,6 +83,25 @@ quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 �
 - [x] 429·network·timeout·parser failure에서 마지막 정상값이 stale로 유지된다.
 - [x] 재시작 시 sanitized cache를 복구하며 손상된 cache가 앱 시작을 막지 않는다.
 
+## Phase 4.5 — 트레이·Claude 온보딩·간이 배포
+
+Phase 5에 앞서 실제 Windows 환경에서 먼저 사용해 볼 수 있는 미리보기 관문이다. Phase 6의 상주 동작과 Phase 7의 설치 검증 일부를 앞당겨 확인하지만, 해당 Phase 전체를 완료한 것으로 간주하지 않는다.
+
+- [x] Step 4.5.1 — Phase 4 기준선을 `main`에 병합하고 미리보기 브랜치·Guard 계획을 고정한다.
+- [ ] Step 4.5.2 — 현재 TUI renderer를 트레이 팝오버 수명주기에 다시 연결한다.
+- [ ] Step 4.5.3 — Claude CLI 로그인과 전용 probe 폴더 준비를 사용자 주도 흐름으로 안내한다.
+- [ ] Step 4.5.4 — quota bar 기반 아이콘과 unsigned Windows x64 Squirrel 설치 파일을 만든다.
+- [ ] Step 4.5.5 — 트레이 화면, provider smoke와 설치·실행·제거 관문을 검증한다.
+
+### Phase 4.5 관문
+
+- [ ] 첫 설정 이후 앱이 트레이에서 조용히 시작하고 클릭 시 420×320 팝오버를 표시한다.
+- [ ] Claude 로그인·workspace trust 선택은 보이는 Claude CLI에서만 사용자가 직접 수행한다.
+- [ ] Claude Code CLI 계정과 인증 종류만 표시하며 Claude Desktop credential은 검사하지 않는다.
+- [ ] 전용 아이콘이 실행 파일·트레이·Setup.exe에 적용된다.
+- [ ] fake 계정 스크린샷과 실제 provider 읽기 전용 smoke가 민감정보 없이 통과한다.
+- [ ] unsigned x64 설치 파일의 설치·실행·제거와 SHA-256 산출이 재현된다.
+
 ## Phase 5 — 로컬 토큰
 
 - [ ] Step 5.1 — streaming·증분 JSONL 엔진을 구현한다.
