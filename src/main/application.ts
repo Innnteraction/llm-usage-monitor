@@ -10,7 +10,7 @@ import {
   createClaudeInitialSnapshot,
   createCodexInitialSnapshot,
 } from "../providers/index";
-import { createUsageStore } from "../usage/index";
+import { createUsagePoller, createUsageStore } from "../usage/index";
 import { registerIpcHandlers } from "./index";
 import { createFakeUsageStore } from "./fakeUsage";
 
@@ -62,14 +62,21 @@ export const startApplication = (): void => {
   void app.whenReady().then(() => {
     const useFakeProviders = process.env.LLM_USAGE_MONITOR_E2E === "1";
     const initialTime = new Date();
+    const providers = [new CodexQuotaProvider(), new ClaudeQuotaProvider()];
     const store = useFakeProviders
       ? createFakeUsageStore()
       : createUsageStore({
-          providers: [new CodexQuotaProvider(), new ClaudeQuotaProvider()],
+          providers,
           initialSnapshots: [
             createCodexInitialSnapshot(initialTime),
             createClaudeInitialSnapshot(initialTime),
           ],
+        });
+    const poller = useFakeProviders
+      ? undefined
+      : createUsagePoller({
+          store,
+          providerIds: providers.map(({ id }) => id),
         });
     mainWindow = new BrowserWindow({
       ...WINDOW_SIZE,
@@ -99,7 +106,8 @@ export const startApplication = (): void => {
     );
     const ipcController = registerIpcHandlers(ipcMain, mainWindow, {
       getState: async () => store.getState(),
-      refresh: async (providerId) => store.refresh(providerId),
+      refresh: async (providerId) =>
+        poller?.refresh(providerId) ?? store.refresh(providerId),
       getPreferences: async () => ({
         launchAtLogin: app.getLoginItemSettings().openAtLogin,
       }),
@@ -109,14 +117,13 @@ export const startApplication = (): void => {
       },
     });
     const unsubscribe = store.subscribe(ipcController.publishState);
-    if (!useFakeProviders) {
-      void store.refresh();
-    }
+    void poller?.start();
 
     mainWindow.once("ready-to-show", () => {
       showWindow();
     });
     mainWindow.on("closed", () => {
+      poller?.stop();
       unsubscribe();
       ipcController.dispose();
       mainWindow = undefined;

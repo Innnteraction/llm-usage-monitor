@@ -64,7 +64,10 @@ quota는 주 정보, 로컬 토큰은 보조 정보며 벤더 CLI가 인증을 �
   - 트레이 재도입 전에는 일반 Windows 창으로 시작하고 닫을 때 종료한다. Vite 개발 CSS는 CSP nonce로 허용하며 packaged CSP의 script·style 출처 제한을 유지한다.
   - Codex는 계정 `7d`를 기본 표시하고 Spark `5h`·`7d`는 후속 옵션용으로 보존·접는다. Claude는 `5h`·`7d`와 Fable 주간 창을 표시한다.
   - provider 이름 옆에 현재 구독 계정을 표시하고 갱신 시각은 AM/PM 형식으로 통일한다. 계정 식별자는 로그·오류·stale cache에 저장하지 않는다.
-- [ ] Step 4.3 — 60초 polling과 `Retry-After`·상한 900초 backoff를 구현한다.
+- [x] Step 4.3 — 60초 polling과 `Retry-After`·상한 900초 backoff를 구현한다.
+  - provider별 timer를 독립적으로 유지하고 성공 시 60초로 복귀한다.
+  - 실패 시 60·120·240·480·900초로 늘리며 미래의 `retryAt`이 있으면 그 시각을 우선한다.
+  - 진행 중인 provider에 반복 refresh가 들어오면 현재 요청 뒤의 후속 실행 한 번으로 합친다.
 - [ ] Step 4.4 — 민감정보가 없는 atomic stale cache를 구현한다.
 - [ ] Step 4.5 — CLI 소유 refresh와 앱 직접 쓰기 금지를 구분해 문서화한다.
 

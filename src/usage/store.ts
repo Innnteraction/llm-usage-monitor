@@ -33,7 +33,7 @@ export function createUsageStore({
   const generations = new Map<ProviderId, number>();
   const inFlight = new Map<
     ProviderId,
-    { generation: number; promise: Promise<void> }
+    { generation: number; queued: boolean; promise: Promise<void> }
   >();
 
   const publish = (): void => {
@@ -50,12 +50,18 @@ export function createUsageStore({
   const startRefresh = (provider: QuotaProvider): Promise<void> => {
     const current = inFlight.get(provider.id);
     if (current) {
+      current.queued = true;
       return current.promise;
     }
 
     const generation = (generations.get(provider.id) ?? 0) + 1;
     generations.set(provider.id, generation);
-    const promise = Promise.resolve()
+    const entry = {
+      generation,
+      queued: false,
+      promise: Promise.resolve(),
+    };
+    entry.promise = Promise.resolve()
       .then(() => provider.fetchQuota())
       .then((providerSnapshot) => {
         if (
@@ -77,9 +83,13 @@ export function createUsageStore({
       .catch(() => {
         // Providers publish sanitized failures; unexpected throws retain the last snapshot.
       })
-      .finally(() => {
+      .then(() => {
         if (inFlight.get(provider.id)?.generation !== generation) {
           return;
+        }
+        if (entry.queued) {
+          inFlight.delete(provider.id);
+          return startRefresh(provider);
         }
         inFlight.delete(provider.id);
         snapshot = appSnapshotSchema.parse({
@@ -89,8 +99,8 @@ export function createUsageStore({
         });
         publish();
       });
-    inFlight.set(provider.id, { generation, promise });
-    return promise;
+    inFlight.set(provider.id, entry);
+    return entry.promise;
   };
 
   return {

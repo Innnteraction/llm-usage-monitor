@@ -53,9 +53,13 @@ describe("UsageStore refresh coordination", () => {
     expect(store.getState().refreshing).toEqual([]);
   });
 
-  it("merges repeated refreshes for the same provider", async () => {
-    const result = deferred<ProviderSnapshot>();
-    const fetchQuota = vi.fn(() => result.promise);
+  it("queues one follow-up for repeated refreshes of the same provider", async () => {
+    const firstResult = deferred<ProviderSnapshot>();
+    const secondResult = deferred<ProviderSnapshot>();
+    const fetchQuota = vi
+      .fn<() => Promise<ProviderSnapshot>>()
+      .mockReturnValueOnce(firstResult.promise)
+      .mockReturnValueOnce(secondResult.promise);
     const store = createUsageStore({
       providers: [{ id: "claude", fetchQuota }],
       initialSnapshots: [initialSnapshot("claude")],
@@ -63,10 +67,13 @@ describe("UsageStore refresh coordination", () => {
 
     const first = store.refresh("claude");
     const second = store.refresh("claude");
-    result.resolve(freshSnapshot("claude"));
-    await Promise.all([first, second]);
+    const third = store.refresh("claude");
+    firstResult.resolve(freshSnapshot("claude"));
+    await vi.waitFor(() => expect(fetchQuota).toHaveBeenCalledTimes(2));
+    secondResult.resolve(freshSnapshot("claude"));
+    await Promise.all([first, second, third]);
 
-    expect(fetchQuota).toHaveBeenCalledTimes(1);
+    expect(fetchQuota).toHaveBeenCalledTimes(2);
     expect(store.getState().providers).toEqual([freshSnapshot("claude")]);
   });
 
