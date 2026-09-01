@@ -135,10 +135,12 @@ export async function runClaudeUsageProbe(
           : parseClaudeUsageScreen(usageScreen, options.clock?.() ?? new Date());
       startupScreen = "";
       usageScreen = "";
-      try {
-        terminal?.kill();
-      } catch {
-        // The process already exited.
+      if (!gracefulExit) {
+        try {
+          terminal?.kill();
+        } catch {
+          // The process already exited.
+        }
       }
       const result: ClaudePtyProbeResult = {
         ...signals,

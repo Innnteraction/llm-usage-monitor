@@ -30,6 +30,9 @@ const nodePtyRuntimeFiles = [
 ];
 
 const config: ForgeConfig = {
+  rebuildConfig: {
+    onlyModules: [],
+  },
   packagerConfig: {
     asar: {
       unpack: "**/node_modules/node-pty/**/*",

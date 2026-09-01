@@ -45,4 +45,4 @@ Vite main bundle은 `node-pty`를 external dependency로 유지한다. Forge의 
 
 `pnpm test:smoke:claude-packaged`는 패키지를 새로 만든 뒤 개발 Electron이 아닌 생성된 앱 실행 파일을 직접 연다. 2026-09-01 Electron 44.1.0 패키지에서 Claude CLI PTY를 spawn하고 `fresh` quota snapshot을 얻는 데 성공했다. 이 검사는 실제 사용률이나 raw 화면을 assertion 메시지·fixture·로그에 남기지 않는다.
 
-현재 Windows x64 prebuild는 실제 패키지 실행으로 ABI 호환성을 검증한다. Forge의 source rebuild는 이 PC에 설치되지 않은 Visual Studio Spectre 완화 라이브러리를 요구하므로 패키지 경로로 사용하지 않는다.
+현재 Windows x64 prebuild는 실제 개발 실행과 패키지 실행으로 ABI 호환성을 검증한다. Forge의 source rebuild는 이 PC에 설치되지 않은 Visual Studio Spectre 완화 라이브러리를 요구하므로 `rebuildConfig.onlyModules`를 빈 목록으로 두고 사용하지 않는다.
