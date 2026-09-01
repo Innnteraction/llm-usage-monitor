@@ -3,6 +3,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { spawn, type IPty } from "node-pty";
+import {
+  parseClaudeUsageScreen,
+  type ClaudeParsedQuotaWindow,
+} from "./usageParser";
 
 const APP_DIRECTORY_NAME = "LLM Usage Monitor";
 const PROBE_DIRECTORY_NAME = "claude-probe";
@@ -35,12 +39,14 @@ export interface ClaudePtyProbeResult extends ClaudeUsageScreenSignals {
   gracefulExit: boolean;
   sentUsageCommand: boolean;
   sentModelPrompt: false;
+  quotaWindows: ClaudeParsedQuotaWindow[];
 }
 
 export interface ClaudePtyProbeOptions {
   command?: string;
   workingDirectory?: string;
   timeoutMs?: number;
+  clock?: () => Date;
 }
 
 export function resolveClaudeProbeDirectory(
@@ -123,6 +129,10 @@ export async function runClaudeUsageProbe(
       const signals = classifyClaudeUsageScreen(
         phase === "startup" ? startupScreen : usageScreen,
       );
+      const quotaWindows =
+        phase === "startup"
+          ? []
+          : parseClaudeUsageScreen(usageScreen, options.clock?.() ?? new Date());
       startupScreen = "";
       usageScreen = "";
       try {
@@ -136,6 +146,7 @@ export async function runClaudeUsageProbe(
         gracefulExit,
         sentUsageCommand,
         sentModelPrompt: false,
+        quotaWindows,
       };
       resolve(result);
     };
@@ -167,14 +178,17 @@ export async function runClaudeUsageProbe(
 
     const evaluateUsage = (): void => {
       const signals = classifyClaudeUsageScreen(usageScreen);
+      const windows = parseClaudeUsageScreen(
+        usageScreen,
+        options.clock?.() ?? new Date(),
+      );
       if (signals.requiresLogin) {
         finish("not_authenticated", false);
       } else if (signals.hasTrustPrompt) {
         finish("blocked_prompt", false);
       } else if (
-        signals.hasFiveHourWindow &&
-        signals.hasWeeklyWindow &&
-        signals.hasQuotaDetails
+        windows.some(({ kind }) => kind === "five_hour") &&
+        windows.some(({ kind }) => kind === "weekly")
       ) {
         beginExit("supported");
       } else {
@@ -301,6 +315,7 @@ export async function runClaudeUsageProbe(
       gracefulExit: false,
       sentUsageCommand,
       sentModelPrompt: false,
+      quotaWindows: [],
     };
   });
 }

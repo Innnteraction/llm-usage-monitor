@@ -32,3 +32,9 @@ CodexBar의 고정 probe 폴더와 빈 tool set은 채택한다. trust·telemetr
 최초 준비는 고정 probe 폴더에서 위의 실행 인자로 Claude를 직접 열고 해당 빈 폴더만 trust한 뒤 `/exit`하는 과정이다. 이 작업은 설치·최초 실행 UI에서 사용자 동작으로 제공하며 백그라운드에서 대신 승인하지 않는다.
 
 2026-09-01 실제 로그인된 Claude Code 2.1.252에서 최초 trust 이후 smoke가 통과했다. 5시간·주간·quota 상세 신호를 얻었고 모델 prompt를 보내지 않았으며 `Escape`로 usage 패널을 닫은 뒤 `/exit`로 정상 종료했다. 실제 quota 수치와 raw 화면은 출력하거나 저장하지 않았다.
+
+## 정규화 계약
+
+파서는 `Current session` 계열 header를 `five_hour`, 전체 모델의 `Current week`를 `weekly`, 모델명이 붙은 주간 header를 `model_weekly`로 변환한다. 각 header 다음 영역에서 확인된 사용률과 reset만 사용한다. `remaining`으로 표현된 비율은 사용률로 변환하지만, 비율이 없거나 범위를 벗어난 창은 만들지 않는다.
+
+필수 5시간·주간 창이 모두 확인되면 `fresh` snapshot으로 게시한다. CLI 미설치, 미인증, workspace trust 대기, timeout, 프로세스 종료와 출력 변경은 서로 구분된 sanitized 오류로 변환한다. 필수 창이 누락되면 0%로 추정하지 않고 두 창 모두 `unavailable`로 유지한다.
