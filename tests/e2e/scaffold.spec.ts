@@ -31,6 +31,8 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
     await expect(page.getByText("codex.user@example.com")).toBeVisible();
     await expect(page.getByText("claude.user@example.com")).toBeVisible();
     await expect(page.getByText("Fable", { exact: true })).toBeVisible();
+    await expect(page.getByText(/this PC 1\.2M · I900K O330K/)).toBeVisible();
+    await expect(page.getByText(/partial \(1 failed\)/)).toBeVisible();
 
     const layout = await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
@@ -43,6 +45,7 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
         document.querySelectorAll(".additional-limits").length,
       stylesheets: document.styleSheets.length,
       background: getComputedStyle(document.body).backgroundColor,
+      localUsageLines: document.querySelectorAll(".local-usage").length,
     }));
     expect(layout).toMatchObject({
       viewportWidth: 420,
@@ -52,12 +55,15 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
       additionalSummaries: 1,
       stylesheets: 1,
       background: "rgb(16, 16, 16)",
+      localUsageLines: 2,
     });
     expect(layout.viewportHeight).toBeGreaterThanOrEqual(320);
     expect(layout.viewportHeight).toBeLessThanOrEqual(360);
     expect(layout.scrollHeight).toBe(layout.viewportHeight);
     await expect(page.getByText("+2 additional limits")).toBeVisible();
-    await expect(page.getByText(/updated \d{1,2}:\d{2} (AM|PM)/).first()).toBeVisible();
+    await expect(
+      page.getByText(/updated \d{1,2}:\d{2} (AM|PM)/).first(),
+    ).toBeVisible();
     await page.screenshot({
       path: test.info().outputPath("tui-quota-overview.png"),
     });
@@ -108,7 +114,9 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
   }
 });
 
-test("starts hidden after Claude setup has succeeded once", async ({ browserName }, testInfo) => {
+test("starts hidden after Claude setup has succeeded once", async ({
+  browserName,
+}, testInfo) => {
   const userData = testInfo.outputPath(`${browserName}-ready-user-data`);
   await mkdir(userData, { recursive: true });
   await writeFile(
@@ -129,8 +137,8 @@ test("starts hidden after Claude setup has succeeded once", async ({ browserName
   try {
     await expect
       .poll(() =>
-        electronApp.evaluate(({ BrowserWindow }) =>
-          BrowserWindow.getAllWindows().length,
+        electronApp.evaluate(
+          ({ BrowserWindow }) => BrowserWindow.getAllWindows().length,
         ),
       )
       .toBe(1);
@@ -166,13 +174,59 @@ test("labels Fable as unavailable when Claude CLI omits it", async () => {
   }
 });
 
-test("keeps the TUI inside the popover at 150 percent scale", async ({ browserName }, testInfo) => {
+test("shows calculating local usage state", async () => {
+  const electronApp = await electron.launch({
+    args: [appPath],
+    env: {
+      ...process.env,
+      LLM_USAGE_MONITOR_E2E: "1",
+      LLM_USAGE_MONITOR_E2E_USER_DATA: test.info().outputPath("user-data"),
+      LLM_USAGE_MONITOR_E2E_LOCAL_USAGE_STATE: "calculating",
+    },
+  });
+
+  try {
+    const page = await electronApp.firstWindow();
+    await expect(
+      page.getByText("this PC calculating", { exact: true }).first(),
+    ).toBeVisible();
+  } finally {
+    await electronApp.close().catch(() => undefined);
+  }
+});
+
+test("shows no local logs state", async () => {
+  const electronApp = await electron.launch({
+    args: [appPath],
+    env: {
+      ...process.env,
+      LLM_USAGE_MONITOR_E2E: "1",
+      LLM_USAGE_MONITOR_E2E_USER_DATA: test.info().outputPath("user-data"),
+      LLM_USAGE_MONITOR_E2E_LOCAL_USAGE_STATE: "no_logs",
+    },
+  });
+
+  try {
+    const page = await electronApp.firstWindow();
+    await expect(
+      page.getByText("this PC no local logs", { exact: true }).first(),
+    ).toBeVisible();
+  } finally {
+    await electronApp.close().catch(() => undefined);
+  }
+});
+
+test("keeps the TUI inside the popover at 150 percent scale", async ({
+  browserName,
+}, testInfo) => {
   const electronApp = await electron.launch({
     args: [appPath, "--force-device-scale-factor=1.5"],
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
-      LLM_USAGE_MONITOR_E2E_USER_DATA: testInfo.outputPath(`${browserName}-scaled-user-data`),
+      LLM_USAGE_MONITOR_E2E_USER_DATA: testInfo.outputPath(
+        `${browserName}-scaled-user-data`,
+      ),
     },
   });
 

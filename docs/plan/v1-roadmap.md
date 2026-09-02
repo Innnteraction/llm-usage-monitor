@@ -126,7 +126,7 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
   - 스트리밍 중 같은 message가 반복되거나 파일 사이에서 중복돼도 익명화된 message ID를 기준으로 하나만 집계하고, 각 토큰 성분의 최댓값을 최종 usage로 선택한다.
   - 최상위 usage만 사용하고 `iterations` 같은 중첩 usage는 다시 합산하지 않는다.
   - input은 `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`, total은 input과 output의 합으로 정의한다. cache creation의 하위 breakdown은 다시 더하지 않는다.
-- [ ] Step 5.4 — watch·reconcile·독립 상태 병합을 UI에 연결한다.
+- [x] Step 5.4 — watch·reconcile·독립 상태 병합을 UI에 연결한다.
   - `fs.watch`는 750 ms debounce 신호로만 사용하고 60초 metadata reconcile을 진실 원천으로 둔다. provider별 scanner는 진행 중 scan 하나와 후속 scan 하나만 허용하며 앱 종료 시 watch·stream을 중단한다.
   - `UsageStore`에 로컬 usage 전용 merge 경로를 추가한다. quota·stale 갱신은 로컬 usage를 보존하고, 로컬 갱신은 quota·계정·오류 상태를 보존한다.
   - 기존 refresh가 quota와 로컬 scan을 함께 요청하게 하되 공개 IPC method는 늘리지 않는다. quota snapshot cache에서는 `localUsage`를 제외하고 scanner index만 영속 상태의 소유자로 둔다.

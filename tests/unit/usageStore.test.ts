@@ -28,6 +28,88 @@ const deferred = <T>() => {
 };
 
 describe("UsageStore refresh coordination", () => {
+  it("preserves local usage regardless of quota refresh completion order", async () => {
+    const fresh = deferred<ProviderSnapshot>();
+    const unavailable = deferred<ProviderSnapshot>();
+    const store = createUsageStore({
+      providers: [
+        {
+          id: "codex",
+          fetchQuota: vi
+            .fn<() => Promise<ProviderSnapshot>>()
+            .mockReturnValueOnce(fresh.promise)
+            .mockReturnValueOnce(unavailable.promise),
+        },
+      ],
+      initialSnapshots: [initialSnapshot("codex")],
+    });
+    const localUsage = {
+      scope: "local_device" as const,
+      scannedFileCount: 1,
+      failedFileCount: 0,
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+      partial: false,
+      calculatedAt: "2026-09-01T03:02:00.000Z",
+    };
+
+    const firstRefresh = store.refresh("codex");
+    store.updateLocalUsage("codex", localUsage);
+    fresh.resolve(freshSnapshot("codex"));
+    await firstRefresh;
+    expect(store.getState().providers[0]?.localUsage).toEqual(localUsage);
+
+    const secondRefresh = store.refresh("codex");
+    unavailable.resolve({
+      ...initialSnapshot("codex"),
+      fetchedAt: "2026-09-01T03:03:00.000Z",
+      error: { code: "network", message: "Sanitized provider failure." },
+    });
+    await secondRefresh;
+    expect(store.getState().providers[0]).toMatchObject({
+      status: "stale",
+      localUsage,
+    });
+  });
+
+  it("merges valid local usage without replacing quota state", () => {
+    const store = createUsageStore({
+      providers: [],
+      initialSnapshots: [freshSnapshot("codex")],
+    });
+    store.updateLocalUsage("codex", {
+      scope: "local_device",
+      scannedFileCount: 1,
+      failedFileCount: 0,
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+      partial: false,
+      calculatedAt: "2026-09-01T03:02:00.000Z",
+    });
+    expect(store.getState().providers[0]).toMatchObject({
+      status: "fresh",
+      lastSuccessfulAt: "2026-09-01T03:01:00.000Z",
+      localUsage: { totalTokens: 15 },
+    });
+    const stateBeforeUnknownProvider = store.getState();
+    const updatedAtBeforeUnknownProvider = stateBeforeUnknownProvider.updatedAt;
+    store.updateLocalUsage("claude", {
+      scope: "local_device",
+      scannedFileCount: 1,
+      failedFileCount: 0,
+      inputTokens: 1,
+      outputTokens: 1,
+      totalTokens: 2,
+      partial: false,
+      calculatedAt: "2026-09-01T03:02:00.000Z",
+    });
+    expect(store.getState().providers).toHaveLength(1);
+    expect(store.getState()).toBe(stateBeforeUnknownProvider);
+    expect(store.getState().updatedAt).toBe(updatedAtBeforeUnknownProvider);
+  });
+
   it("runs providers in parallel and isolates an unexpected failure", async () => {
     const codex = deferred<ProviderSnapshot>();
     const claude = deferred<ProviderSnapshot>();
@@ -117,32 +199,32 @@ describe("UsageStore refresh coordination", () => {
   ] as const)(
     "retains the last successful value as stale after %s",
     async (errorCode) => {
-    const failure: ProviderSnapshot = {
-      providerId: "codex",
-      status: "unavailable",
-      fetchedAt: "2026-09-01T03:02:00.000Z",
-      quotaWindows: [],
-      error: { code: errorCode, message: "Sanitized provider failure." },
-    };
-    const fetchQuota = vi
-      .fn<() => Promise<ProviderSnapshot>>()
-      .mockResolvedValueOnce(freshSnapshot("codex"))
-      .mockResolvedValueOnce(failure);
-    const store = createUsageStore({
-      providers: [{ id: "codex", fetchQuota }],
-      initialSnapshots: [initialSnapshot("codex")],
-    });
+      const failure: ProviderSnapshot = {
+        providerId: "codex",
+        status: "unavailable",
+        fetchedAt: "2026-09-01T03:02:00.000Z",
+        quotaWindows: [],
+        error: { code: errorCode, message: "Sanitized provider failure." },
+      };
+      const fetchQuota = vi
+        .fn<() => Promise<ProviderSnapshot>>()
+        .mockResolvedValueOnce(freshSnapshot("codex"))
+        .mockResolvedValueOnce(failure);
+      const store = createUsageStore({
+        providers: [{ id: "codex", fetchQuota }],
+        initialSnapshots: [initialSnapshot("codex")],
+      });
 
-    await store.refresh("codex");
-    await store.refresh("codex");
+      await store.refresh("codex");
+      await store.refresh("codex");
 
-    expect(store.getState().providers[0]).toMatchObject({
-      providerId: "codex",
-      status: "stale",
-      fetchedAt: failure.fetchedAt,
-      lastSuccessfulAt: "2026-09-01T03:01:00.000Z",
-      error: { code: errorCode },
-    });
+      expect(store.getState().providers[0]).toMatchObject({
+        providerId: "codex",
+        status: "stale",
+        fetchedAt: failure.fetchedAt,
+        lastSuccessfulAt: "2026-09-01T03:01:00.000Z",
+        error: { code: errorCode },
+      });
     },
   );
 

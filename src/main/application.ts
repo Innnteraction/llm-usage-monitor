@@ -16,13 +16,18 @@ import {
   createClaudeInitialSnapshot,
   createCodexInitialSnapshot,
 } from "../providers/index";
-import { createUsagePoller, createUsageStore } from "../usage/index";
 import {
-  openClaudeSetup,
-} from "./claudeSetup";
+  createLocalUsageCoordinator,
+  createUsagePoller,
+  createUsageStore,
+} from "../usage/index";
 import {
-  registerIpcHandlers,
-} from "./ipc";
+  ClaudeLocalUsageScanner,
+  CodexLocalUsageScanner,
+  LocalUsageCheckpointStore,
+} from "../local-usage/index";
+import { openClaudeSetup } from "./claudeSetup";
+import { registerIpcHandlers } from "./ipc";
 import {
   mergeCachedSnapshots,
   SNAPSHOT_CACHE_FILENAME,
@@ -82,15 +87,14 @@ const loadRenderer = (window: BrowserWindow): void => {
   }
 
   void window.loadFile(
-    path.join(
-      __dirname,
-      `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`,
-    ),
+    path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
   );
 };
 
 export const startApplication = (): void => {
   let isQuitting = false;
+  let finishingQuit = false;
+  let stopLocalUsage: (() => Promise<void>) | undefined;
   let mainWindow: BrowserWindow | undefined;
   let tray: Tray | undefined;
 
@@ -102,8 +106,7 @@ export const startApplication = (): void => {
       ? path.join(tmpdir(), `llm-usage-monitor-smoke-${process.pid}`)
       : undefined);
   const usesIsolatedTestData =
-    process.env.LLM_USAGE_MONITOR_E2E === "1" ||
-    packagedSmoke;
+    process.env.LLM_USAGE_MONITOR_E2E === "1" || packagedSmoke;
   if (usesIsolatedTestData && e2eUserData) {
     app.setPath("userData", path.resolve(e2eUserData));
   }
@@ -124,8 +127,13 @@ export const startApplication = (): void => {
 
   app.on("second-instance", showWindow);
   app.on("activate", showWindow);
-  app.on("before-quit", () => {
+  app.on("before-quit", (event) => {
     isQuitting = true;
+    if (!finishingQuit && stopLocalUsage) {
+      event.preventDefault();
+      finishingQuit = true;
+      void stopLocalUsage().finally(() => app.quit());
+    }
   });
   app.on("window-all-closed", () => {
     // The tray owns the Windows application lifecycle.
@@ -168,6 +176,27 @@ export const startApplication = (): void => {
           store,
           providerIds: providers.map(({ id }) => id),
         });
+    const checkpointStore = useFakeProviders
+      ? undefined
+      : new LocalUsageCheckpointStore(
+          path.join(app.getPath("userData"), "local-usage-index-v1.json"),
+        );
+    const localUsageCoordinator = useFakeProviders
+      ? undefined
+      : createLocalUsageCoordinator({
+          store,
+          scanners: [
+            new CodexLocalUsageScanner({
+              checkpointStore: checkpointStore!,
+            }),
+            new ClaudeLocalUsageScanner({
+              checkpointStore: checkpointStore!,
+            }),
+          ],
+        });
+    stopLocalUsage = async () => {
+      await localUsageCoordinator?.stop();
+    };
 
     mainWindow = new BrowserWindow({
       ...WINDOW_SIZE,
@@ -179,12 +208,7 @@ export const startApplication = (): void => {
       fullscreenable: false,
       skipTaskbar: true,
       title: "LLM Usage Monitor",
-      icon: path.join(
-        app.getAppPath(),
-        "assets",
-        "icons",
-        "app-icon.ico",
-      ),
+      icon: path.join(app.getAppPath(), "assets", "icons", "app-icon.ico"),
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
@@ -221,8 +245,12 @@ export const startApplication = (): void => {
 
     const ipcController = registerIpcHandlers(ipcMain, mainWindow, {
       getState: async () => store.getState(),
-      refresh: async (providerId) =>
-        poller?.refresh(providerId) ?? store.refresh(providerId),
+      refresh: async (providerId) => {
+        await Promise.all([
+          poller?.refresh(providerId) ?? store.refresh(providerId),
+          localUsageCoordinator?.refresh(providerId),
+        ]);
+      },
       getPreferences: async () => ({
         launchAtLogin: app.getLoginItemSettings().openAtLogin,
       }),
@@ -253,10 +281,13 @@ export const startApplication = (): void => {
         });
       }
     });
-    void poller?.start();
+    void Promise.all([poller?.start(), localUsageCoordinator?.start()]);
 
     const refreshAll = (): void => {
-      void (poller?.refresh() ?? store.refresh());
+      void Promise.all([
+        poller?.refresh() ?? store.refresh(),
+        localUsageCoordinator?.refresh(),
+      ]);
     };
     const updateLaunchAtLogin = (enabled: boolean): void => {
       app.setLoginItemSettings({ openAtLogin: enabled });
@@ -298,6 +329,7 @@ export const startApplication = (): void => {
     });
     mainWindow.on("closed", () => {
       poller?.stop();
+      void localUsageCoordinator?.stop();
       unsubscribe();
       unsubscribeCache();
       unsubscribeSetup();

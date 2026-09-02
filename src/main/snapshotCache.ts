@@ -29,14 +29,14 @@ const sanitizeForCache = (
     ? { lastSuccessfulAt: snapshot.lastSuccessfulAt }
     : {}),
   quotaWindows: snapshot.quotaWindows,
-  ...(snapshot.localUsage ? { localUsage: snapshot.localUsage } : {}),
 });
 
 const parseCachedProvider = (value: unknown): ProviderSnapshot => {
   if (
     !isRecord(value) ||
     "accountLabel" in value ||
-    "error" in value
+    "error" in value ||
+    "localUsage" in value
   ) {
     throw new Error("Unsupported snapshot cache.");
   }

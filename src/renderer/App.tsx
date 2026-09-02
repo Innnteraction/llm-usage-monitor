@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type {
   AppSnapshot,
   ClaudeSetupAction,
+  LocalTokenUsage,
   ProviderSnapshot,
   QuotaWindow,
 } from "../shared/index";
@@ -63,9 +64,42 @@ const formatUpdatedAt = (value: string): string =>
     hour12: true,
   }).format(new Date(value));
 
-const selectDisplayWindows = (
-  provider: ProviderSnapshot,
-): QuotaWindow[] => {
+export const formatLocalTokens = (value: number): string => {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}K`;
+  return String(value);
+};
+
+export const localUsageLine = (
+  usage: LocalTokenUsage | undefined,
+): { text: string; ariaLabel: string } => {
+  if (!usage)
+    return {
+      text: "this PC calculating",
+      ariaLabel: "이 PC 로컬 토큰을 계산 중",
+    };
+  if (usage.scannedFileCount === 0 && !usage.partial)
+    return {
+      text: "this PC no local logs",
+      ariaLabel: "이 PC에 로컬 로그가 없습니다",
+    };
+  const observed = usage.observedFrom
+    ? new Intl.DateTimeFormat("en-US", {
+        month: "numeric",
+        day: "numeric",
+      }).format(new Date(usage.observedFrom))
+    : "--";
+  const partial = usage.partial
+    ? ` · partial (${usage.failedFileCount} failed)`
+    : "";
+  return {
+    text: `this PC ${formatLocalTokens(usage.totalTokens)} · I${formatLocalTokens(usage.inputTokens)} O${formatLocalTokens(usage.outputTokens)} · R${formatLocalTokens(usage.cacheReadTokens ?? 0)} W${formatLocalTokens(usage.cacheWriteTokens ?? 0)} · ${observed}+${partial}`,
+    ariaLabel: `이 PC 로컬 토큰 총 ${usage.totalTokens}, 입력 ${usage.inputTokens}, 출력 ${usage.outputTokens}, 캐시 읽기 ${usage.cacheReadTokens ?? 0}, 캐시 쓰기 ${usage.cacheWriteTokens ?? 0}, 계산 시각 ${usage.calculatedAt}${usage.partial ? `, 부분 결과, 실패 파일 ${usage.failedFileCount}` : ""}`,
+  };
+};
+
+const selectDisplayWindows = (provider: ProviderSnapshot): QuotaWindow[] => {
   const find = (kind: QuotaWindow["kind"]) =>
     provider.quotaWindows.find((window) => window.kind === kind);
 
@@ -145,7 +179,10 @@ const Quota = ({
         {used === undefined ? "--" : `${used}%`}
       </span>
       <span className="quota-reset">
-        resets <time dateTime={window.resetsAt}>{formatCountdown(window.resetsAt)}</time>
+        resets{" "}
+        <time dateTime={window.resetsAt}>
+          {formatCountdown(window.resetsAt)}
+        </time>
       </span>
       <span className="quota-remaining">
         {remaining === undefined ? "remaining --" : `${remaining}% remaining`}
@@ -167,10 +204,7 @@ const ProviderCard = ({
     ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
   ];
   const primaryWindows = selectDisplayWindows(provider);
-  const additionalWindowCount = countOptionalWindows(
-    provider,
-    primaryWindows,
-  );
+  const additionalWindowCount = countOptionalWindows(provider, primaryWindows);
   const setupAction =
     provider.providerId !== "claude"
       ? undefined
@@ -179,6 +213,7 @@ const ProviderCard = ({
         : provider.error?.code === "workspace_trust_required"
           ? "trust_probe"
           : undefined;
+  const localUsage = localUsageLine(provider.localUsage);
 
   return (
     <article className="provider-card">
@@ -236,6 +271,9 @@ const ProviderCard = ({
         </p>
       ) : null}
       <footer>
+        <span className="local-usage" aria-label={localUsage.ariaLabel}>
+          {localUsage.text}
+        </span>
         <span>source {sources.join(", ")}</span>
         <span>
           updated{" "}

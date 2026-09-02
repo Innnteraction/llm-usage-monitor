@@ -51,9 +51,9 @@ const createCache = async () => {
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map((directory) =>
-      rm(directory, { recursive: true, force: true }),
-    ),
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { recursive: true, force: true })),
   );
 });
 
@@ -81,6 +81,34 @@ describe("SnapshotCache", () => {
     expect(loaded[0]).not.toHaveProperty("error");
   });
 
+  it("never stores local usage and rejects legacy cache containing it", async () => {
+    const { cache, filePath } = await createCache();
+    const provider = {
+      ...freshProvider(),
+      localUsage: {
+        scope: "local_device" as const,
+        scannedFileCount: 1,
+        failedFileCount: 0,
+        inputTokens: 1234,
+        outputTokens: 5,
+        totalTokens: 1239,
+        partial: false,
+        calculatedAt: "2026-09-01T03:01:00.000Z",
+      },
+    };
+    await cache.save(appSnapshot(provider));
+    const raw = await readFile(filePath, "utf8");
+    expect(raw).not.toContain("localUsage");
+    expect(raw).not.toContain("inputTokens");
+    expect(raw).not.toContain("1234");
+    await writeFile(
+      filePath,
+      JSON.stringify({ schemaVersion: 1, providers: [provider] }),
+      "utf8",
+    );
+    expect(await cache.load()).toEqual([]);
+  });
+
   it("replaces the cache with the latest complete snapshot", async () => {
     const { cache, filePath } = await createCache();
     await Promise.all([
@@ -88,9 +116,7 @@ describe("SnapshotCache", () => {
       cache.save(appSnapshot(freshProvider(48))),
     ]);
 
-    expect(await readFile(filePath, "utf8")).toContain(
-      '"usedPercent":48',
-    );
+    expect(await readFile(filePath, "utf8")).toContain('"usedPercent":48');
   });
 
   it("discards corrupt and unsupported cache files", async () => {

@@ -3,6 +3,9 @@ import {
   type AppSnapshot,
   type ProviderId,
   type ProviderSnapshot,
+  type LocalTokenUsage,
+  type LocalUsageProviderId,
+  localTokenUsageSchema,
   providerSnapshotSchema,
 } from "../shared/index";
 
@@ -24,7 +27,10 @@ const retainLastSuccessfulSnapshot = (
   failure: ProviderSnapshot,
 ): ProviderSnapshot => {
   if (!current.lastSuccessfulAt) {
-    return failure;
+    return providerSnapshotSchema.parse({
+      ...failure,
+      ...(current.localUsage ? { localUsage: current.localUsage } : {}),
+    });
   }
 
   return providerSnapshotSchema.parse({
@@ -100,7 +106,12 @@ export function createUsageStore({
                     currentSnapshot,
                     providerSnapshot,
                   )
-                : providerSnapshot
+                : {
+                    ...providerSnapshot,
+                    ...(currentSnapshot.localUsage
+                      ? { localUsage: currentSnapshot.localUsage }
+                      : {}),
+                  }
               : currentSnapshot,
           ),
           updatedAt: clock().toISOString(),
@@ -170,6 +181,29 @@ export function createUsageStore({
         publish();
       }
       await Promise.all(refreshes);
+    },
+    updateLocalUsage(
+      providerId: LocalUsageProviderId,
+      usage: LocalTokenUsage,
+    ): void {
+      if (
+        !snapshot.providers.some(
+          (provider) => provider.providerId === providerId,
+        )
+      ) {
+        return;
+      }
+      const parsed = localTokenUsageSchema.safeParse(usage);
+      if (!parsed.success) return;
+      snapshot = appSnapshotSchema.parse({
+        ...snapshot,
+        providers: snapshot.providers.map((provider) => {
+          if (provider.providerId !== providerId) return provider;
+          return { ...provider, localUsage: parsed.data };
+        }),
+        updatedAt: clock().toISOString(),
+      });
+      publish();
     },
     subscribe(listener: SnapshotListener): () => void {
       listeners.add(listener);

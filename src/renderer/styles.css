@@ -1,8 +1,8 @@
 :root {
   color: #d4d4d4;
   background: #101010;
-  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono",
-    monospace;
+  font-family:
+    "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   --muted: #858585;
@@ -83,8 +83,8 @@ h2 {
 
 .provider-list {
   display: grid;
-  gap: 18px;
-  margin-top: 22px;
+  gap: 9px;
+  margin-top: 14px;
 }
 
 .provider-card {
@@ -246,11 +246,20 @@ h2 {
 
 .provider-card footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 10px;
-  margin: 6px 0 0 32px;
+  margin: 3px 0 0 32px;
   color: #626262;
   font-size: 0.54rem;
+}
+
+.local-usage {
+  flex-basis: 100%;
+  overflow: hidden;
+  color: #858585;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .additional-limits {
