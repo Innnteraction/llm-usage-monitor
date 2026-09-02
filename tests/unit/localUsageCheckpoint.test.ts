@@ -61,6 +61,20 @@ describe("LocalUsageCheckpointStore", () => {
     expect(raw).not.toContain("fixture.jsonl");
   });
 
+  it("returns the latest successful sections from the same store instance", async () => {
+    const { store } = await createStore();
+    await store.updateProvider("codex", () => sectionWith("codex-file-hash"));
+    expect((await store.load()).providers.codex.files["codex-file-hash"])
+      .toMatchObject({ errorCount: 2 });
+
+    await store.updateProvider("claude", () => sectionWith("claude-file-hash"));
+    const state = await store.load();
+    expect(state.providers.codex.files["codex-file-hash"])
+      .toMatchObject({ errorCount: 2 });
+    expect(state.providers.claude.files["claude-file-hash"])
+      .toMatchObject({ errorCount: 2 });
+  });
+
   it("round-trips cumulative and hashed-message checkpoints", async () => {
     const { filePath, store } = await createStore();
     await store.updateProvider("claude", () => sectionWith("claude-file-hash"));

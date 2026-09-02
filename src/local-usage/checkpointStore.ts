@@ -68,7 +68,8 @@ export class LocalUsageCheckpointStore {
     if (!this.loadPromise) {
       this.loadPromise = this.readState();
     }
-    return cloneState(await this.loadPromise);
+    await this.loadPromise;
+    return cloneState(this.state ?? emptyCheckpointState());
   }
 
   public async updateProvider(
@@ -84,8 +85,8 @@ export class LocalUsageCheckpointStore {
         providers: { ...current.providers, [providerId]: nextSection },
       } as LocalUsageCheckpointState;
       const parsed = checkpointStateSchema.parse(next) as LocalUsageCheckpointState;
-      this.state = parsed;
       await this.writeState(parsed);
+      this.state = parsed;
     });
     this.writeQueue = pending.catch(() => undefined);
     await pending;
