@@ -116,7 +116,7 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
   - 개행 없이 끝난 마지막 행은 다음 scan까지 보존하고 offset을 전진시키지 않는다. 삭제된 파일의 기여분은 reconcile에서 합계와 index에서 제거한다.
   - quota snapshot cache와 분리된 `userData/local-usage-index-v1.json`을 atomic write한다. 원본 경로·message ID·본문은 저장하지 않고 손상된 index는 폐기한 뒤 전체 재스캔한다.
   - 모든 토큰 필드는 0 이상의 safe integer로 검증하고 합산 과정에서도 overflow를 거부한다.
-- [ ] Step 5.2 — Codex 로컬 토큰 스캐너를 구현한다.
+- [x] Step 5.2 — Codex 로컬 토큰 스캐너를 구현한다.
   - `~/.codex/sessions/**/*.jsonl`에서 `event_msg → token_count → total_token_usage`만 읽는다.
   - input·output·cached token은 0 이상의 safe integer인지, `total = input + output`인지, cache 계열이 input을 넘지 않는지 검증한다.
   - 파일 안의 누적 벡터는 성분별 양의 delta만 합산한다. 값이 감소하면 재계산·rollback으로 보고 그 delta를 0으로 처리하되 이후 증가분은 계속 반영한다.
