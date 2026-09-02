@@ -2,7 +2,7 @@
 
 ## 요약
 
-- 목표: Codex·Claude Code의 quota와 로컬 토큰을 보여 주고 Antigravity quota를 선택적으로 추가할 수 있는 Windows 트레이 앱을 완성한다.
+- 목표: Codex·Claude Code의 quota와 로컬 토큰을 보여 주는 Windows 트레이 앱을 완성한다. Antigravity는 v1 이후에 검토한다.
 - 완료 모습: CSWAP처럼 짧은 시선 이동으로 `5h`·`Weekly`를 읽고 각 provider 아래에서 이 PC의 로컬 토큰 합계를 보조 정보로 확인할 수 있는 TUI형 팝오버와 설치 파일이 동작한다.
 - 핵심 접근: Phase별 기능 브랜치와 Step별 커밋을 유지하고, quota·로컬 토큰·선택 provider를 분리된 경계와 검증 관문으로 점진적으로 연결한다.
 - 검증: 각 Step의 가까운 테스트와 Phase 관문, 실제 provider smoke, 패키지 설치·제거 검사를 통과한다.
@@ -130,7 +130,7 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
   - `fs.watch`는 750 ms debounce 신호로만 사용하고 60초 metadata reconcile을 진실 원천으로 둔다. provider별 scanner는 진행 중 scan 하나와 후속 scan 하나만 허용하며 앱 종료 시 watch·stream을 중단한다.
   - `UsageStore`에 로컬 usage 전용 merge 경로를 추가한다. quota·stale 갱신은 로컬 usage를 보존하고, 로컬 갱신은 quota·계정·오류 상태를 보존한다.
   - 기존 refresh가 quota와 로컬 scan을 함께 요청하게 하되 공개 IPC method는 늘리지 않는다. quota snapshot cache에서는 `localUsage`를 제외하고 scanner index만 영속 상태의 소유자로 둔다.
-  - quota 아래에 `tokens this PC`, total, input·output, cache read·write, 관측 시작일을 한 줄의 보조 정보로 표시한다. `calculating`, `no local logs`, `partial`을 구분하고 quota의 시각적 우선순위와 420×320 크기를 유지한다.
+  - quota 아래에 `this PC`, total, input·output, cache read·write, 관측 시작일을 두 줄의 보조 정보로 표시한다. 색상과 hover·focus 도움말로 의미를 설명하며 `calculating`, `no local logs`, `partial`을 구분한다. quota의 시각적 우선순위와 420×320 크기를 유지한다.
   - `LocalTokenUsage`에 선택적 `observedFrom`을 추가한다. `scannedFileCount`는 현재 정상적으로 index된 파일 수로 정의하며 값이 없으면 계산 중, 0이고 partial이 아니면 로그 없음, partial이면 확인된 부분 합계를 뜻한다.
 
 ### Phase 5 관문
@@ -145,9 +145,44 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
 - [x] Architecture Guard `verify`, typecheck, lint, unit·integration·Electron smoke, `git diff --check`와 민감정보 검사를 통과한다.
 - [x] Antigravity 로컬 토큰은 Phase 5에 포함하지 않는다.
 
-## Phase 5.5 — Antigravity (`agy`) 선택 provider
+## Phase 6 — TUI형 제품 UI 마감과 Windows 상주 동작
 
-Phase 5의 공통 수집 기반을 완료한 뒤 선택적으로 진행한다. 이전 소비자용 CLI에 대한 호환 계층을 두지 않고, Google이 제공하는 Antigravity CLI의 `agy` 실행 파일만 대상으로 한다.
+- [ ] Step 6.1 — 정보 계층과 추가 quota 열람을 마감한다.
+  - 기본 화면은 Codex `7d`, Claude `5h`·`7d`·`Fable`과 로컬 토큰 두 줄 보조 표시를 유지한다. `+N additional limits`는 현재 snapshot에 보존된 추가 quota만 보여 주는 키보드 조작 가능 펼치기 버튼으로 바꾸며, 기본 quota·ID와 중복 제거하고 접힘 상태는 provider별 renderer 메모리에만 보관한다.
+  - 긴 모델명은 별도 제목 행으로 표시하고 긴 계정명은 말줄임·hover·keyboard focus 전체 도움말을 제공하며 메모리에만 둔다. 420×320과 110% 글꼴을 유지하고 헤더·하단 범위 안내는 고정하며 provider 목록만 세로 스크롤한다. 가로 스크롤·글꼴 축소는 사용하지 않는다.
+- [ ] Step 6.2 — quota 상태·시간·설명을 마감한다.
+  - 사용률 도움말에는 남은 비율을, reset 도움말에는 로컬 날짜·AM/PM 시각을 제공한다. renderer의 30초 타이머와 창 focus 시 즉시 계산으로 카운트다운만 갱신하며 provider 요청은 발생시키지 않는다.
+  - reset이 지나도 quota를 초기화하지 않고 마지막 수치를 유지하며 `reset 확인 대기`로 설명한다. quota 미제공은 명시적 행으로 표시하고 진행 막대·0%·불확정 막대를 사용하지 않는다.
+  - fresh·stale·unavailable과 인증·trust·CLI 미설치·429·network·timeout·출력 변경을 짧은 상태 문구와 설명으로 구별하고 stale에는 마지막 성공 시각을 표시한다. 로컬 `calculating`·`no logs`·`partial`은 quota 상태와 분리하며, 선택적 cache 수치가 없으면 0 대신 미제공으로 설명한다. 툴팁은 hover·focus로 열리고 포인터 이동 중 유지되며 동시에 하나만 표시한다.
+- [ ] Step 6.3 — 시스템 테마와 키보드 접근성을 마감한다.
+  - 기존 색상을 CSS 의미별 변수로 정리하고 별도 설정·저장 없이 OS 다크·라이트를 자동으로 따른다. 일반 텍스트 4.5:1, 필수 UI 경계·focus 표시 3:1 대비와 110% 글꼴의 평면 TUI 스타일을 유지한다.
+  - Tab·Shift+Tab·Enter·Space로 refresh·펼치기·설명·Claude 준비 버튼을 조작한다. Escape는 팝오버와 툴팁을 닫고 다시 열어도 숨겨진 툴팁이 남지 않게 한다. live 영역은 필요한 갱신 완료·실패만 짧게 알리고 수치 갱신으로 focus를 이동시키지 않는다. 자동 시작과 종료는 기존 네이티브 트레이 메뉴를 사용하며 화면 설정 패널은 추가하지 않는다.
+- [ ] Step 6.4 — Windows 트레이 동작을 검증·보완한다.
+  - 기존 toggle·blur·close/hide·단일 인스턴스 동작을 보존한다. 트레이 위치와 해당 모니터 work area로 배치하고 유효하지 않은 트레이 bounds는 커서 위치로 대체하며, 음수 좌표·배율 차이·모니터 제거 뒤에도 화면 안에 배치한다.
+  - 자동 시작 체크 상태는 메뉴를 열 때 실제 설정과 일치하게 하고 기본 off·사용자 opt-in을 유지한다. refresh 실패는 처리되지 않은 Promise rejection으로 남기지 않으며 Quit 시 quota poller·로컬 scanner·watcher·구독·IPC 정리가 완료되는지 검증하고 발견된 누락만 수정한다.
+
+### Phase 6 관문
+
+- [ ] fake 데이터로 기본·추가 quota 펼침·긴 계정/모델명·큰 토큰 수치·양쪽 provider 오류·Fable 미제공을 검증한다.
+- [ ] 다크·라이트 × Windows 100%·150%에서 글자 잘림, reset 열 overflow, 스크롤 도달 가능성과 툴팁 위치를 확인한다.
+- [ ] 시간 경과·reset 경과·refresh 실패 중에도 카운트다운과 stale 설명이 정확하다.
+- [ ] 키보드와 Windows Narrator로 핵심 정보·동작을 확인하고 네이티브 트레이 메뉴의 자동 시작·종료를 검증한다.
+- [ ] 트레이 배치 계산을 단위 테스트로 검증한다. 실제 혼합 배율·멀티 모니터는 가능한 환경에서 수동 검증하며 사용할 수 없으면 미검증으로 명시한다.
+- [ ] Architecture Guard `verify`, typecheck, lint, unit·integration·Electron smoke, `git diff --check`와 민감정보 검사를 통과한다.
+- [ ] 허구 계정 스크린샷과 결과를 제공하고 `test(phase6): TUI 제품 마감 관문 검증`으로 커밋한다.
+
+각 Step은 Guard verify, 가까운 테스트, 전체 diff·민감정보 검토를 거쳐 각각 `feat(ui): 추가 quota 펼치기와 긴 콘텐츠 표시`, `feat(ui): quota 상태와 시간 설명 보강`, `feat(ui): 시스템 테마와 키보드 접근성 마감`, `fix(tray): 화면 배치와 상주 동작 안정화`로 커밋한다. Phase 6은 새로운 시각 콘셉트로 다시 디자인하는 단계가 아니며, Phase 4에서 승인된 TUI형 기준선을 유지한다.
+
+## Phase 7 — Windows 설치형 v1
+
+- [ ] Step 7.1 — x64 Squirrel·ASAR integrity·native unpack 패키지를 생성한다.
+- [ ] Step 7.2 — clean 환경의 설치·실행·자동 시작·제거를 검증한다.
+- [ ] Step 7.3 — 아키텍처·보안·테스트·민감정보 최종 관문을 통과한다.
+- [ ] Step 7.4 — README·SHA-256·`v0.1.0` 로컬 release candidate를 완성한다.
+
+## Phase 5.5 — Antigravity (`agy`) 선택 provider (보류·v1 제외)
+
+v1 완료 이후에만 검토하는 보류 항목이다. 이전 소비자용 CLI에 대한 호환 계층을 두지 않고, Google이 제공하는 Antigravity CLI의 `agy` 실행 파일만 대상으로 한다.
 
 - [ ] Step 5.5.1 — Windows에 설치된 `agy` 버전·로그인 상태와 격리 PTY의 `/usage` 실행 가능성을 확인한다.
   - 고정된 빈 앱 전용 probe 폴더에서 공식 `agy`만 실행한다.
@@ -174,22 +209,6 @@ Phase 5의 공통 수집 기반을 완료한 뒤 선택적으로 진행한다. �
 - [ ] 실제 `/usage` smoke가 agent 작업과 모델 prompt를 생성하지 않았음을 확인한다.
 - [ ] Antigravity 로컬 토큰은 안정된 공식 집계 계약이 확인되기 전까지 제공하지 않는다.
 
-## Phase 6 — TUI형 제품 UI 마감과 Windows 상주 동작
-
-- [ ] Step 6.1 — Phase 4의 TUI형 정보 계층과 밀도를 실제 데이터 상태에 맞게 마감한다.
-- [ ] Step 6.2 — fresh·stale·오류·로컬 토큰을 텍스트와 제한된 상태색으로 구별한다.
-- [ ] Step 6.3 — 트레이 배치·숨김·refresh·자동 시작 opt-in·quit을 완성한다.
-- [ ] Step 6.4 — 다크·라이트·키보드·screen reader·Windows 100%·150% 배율을 검증한다.
-
-Phase 6은 새로운 시각 콘셉트로 다시 디자인하는 단계가 아니다. Phase 4에서 승인된 TUI형 기준선을 유지하고 실제 상태, 트레이 상호작용과 접근성을 완성한다.
-
-## Phase 7 — Windows 설치형 v1
-
-- [ ] Step 7.1 — x64 Squirrel·ASAR integrity·native unpack 패키지를 생성한다.
-- [ ] Step 7.2 — clean 환경의 설치·실행·자동 시작·제거를 검증한다.
-- [ ] Step 7.3 — 아키텍처·보안·테스트·민감정보 최종 관문을 통과한다.
-- [ ] Step 7.4 — README·SHA-256·`v0.1.0` 로컬 release candidate를 완성한다.
-
 ## v1 제외 범위
 
-Antigravity 로컬 토큰, 다중 계정, 계정 전환, 비용 추정, 차트, 알림, 코드 서명, 자동 업데이트, CI 릴리스와 원격 게시는 후속 로드맵으로 분리한다. Claude 구독 OAuth credential 재사용은 후속 기능이 아니라 공식 지원 또는 서면 허가 전까지 금지된 경계다.
+Antigravity와 Antigravity 로컬 토큰, 다중 계정, 계정 전환, 비용 추정, 차트, 알림, 코드 서명, 자동 업데이트, CI 릴리스와 원격 게시는 v1 이후 로드맵으로 분리한다. Claude 구독 OAuth credential 재사용은 후속 기능이 아니라 공식 지원 또는 서면 허가 전까지 금지된 경계다.
