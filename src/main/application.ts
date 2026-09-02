@@ -5,7 +5,6 @@ import {
   Menu,
   screen,
   Tray,
-  type Rectangle,
 } from "electron";
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -35,6 +34,8 @@ import {
 } from "./snapshotCache";
 import { createFakeUsageStore } from "./fakeUsage";
 import { createTrayIcon } from "./trayIcon";
+import { createBeforeQuitHandler, createTrayMenuTemplate } from "./trayMenu";
+import { calculatePopoverPosition, selectPopoverAnchor } from "./windowPosition";
 
 const WINDOW_SIZE = { width: 420, height: 320 };
 const CLAUDE_SETUP_READY_MARKER = "claude-setup-ready-v1";
@@ -53,30 +54,18 @@ const markClaudeSetupReady = async (filePath: string): Promise<void> => {
   await writeFile(filePath, "ready\n", { encoding: "utf8", flag: "w" });
 };
 
-export const calculatePopoverPosition = (
-  anchor: { x: number; y: number },
-  workArea: Rectangle,
-): { x: number; y: number } => ({
-  x: Math.min(
-    Math.max(anchor.x - Math.round(WINDOW_SIZE.width / 2), workArea.x),
-    workArea.x + workArea.width - WINDOW_SIZE.width,
-  ),
-  y: workArea.y + workArea.height - WINDOW_SIZE.height,
-});
-
 const positionNearTray = (
   window: BrowserWindow,
-  trayBounds?: Rectangle,
+  trayBounds?: Electron.Rectangle,
 ): void => {
   const cursor = screen.getCursorScreenPoint();
-  const anchor = trayBounds
-    ? {
-        x: trayBounds.x + Math.round(trayBounds.width / 2),
-        y: trayBounds.y + Math.round(trayBounds.height / 2),
-      }
-    : cursor;
+  const anchor = selectPopoverAnchor(
+    trayBounds,
+    screen.getAllDisplays().map(({ bounds }) => bounds),
+    cursor,
+  );
   const display = screen.getDisplayNearestPoint(anchor);
-  const position = calculatePopoverPosition(anchor, display.workArea);
+  const position = calculatePopoverPosition(anchor, display.workArea, WINDOW_SIZE);
   window.setPosition(position.x, position.y, false);
 };
 
@@ -93,8 +82,8 @@ const loadRenderer = (window: BrowserWindow): void => {
 
 export const startApplication = (): void => {
   let isQuitting = false;
-  let finishingQuit = false;
-  let stopLocalUsage: (() => Promise<void>) | undefined;
+  let shutdown: (() => Promise<void>) | undefined;
+  let beforeQuit: ((event: { preventDefault(): void }) => void) | undefined;
   let mainWindow: BrowserWindow | undefined;
   let tray: Tray | undefined;
 
@@ -117,7 +106,7 @@ export const startApplication = (): void => {
   }
 
   const showWindow = (): void => {
-    if (!mainWindow) {
+    if (isQuitting || !mainWindow) {
       return;
     }
     positionNearTray(mainWindow, tray?.getBounds());
@@ -129,11 +118,7 @@ export const startApplication = (): void => {
   app.on("activate", showWindow);
   app.on("before-quit", (event) => {
     isQuitting = true;
-    if (!finishingQuit && stopLocalUsage) {
-      event.preventDefault();
-      finishingQuit = true;
-      void stopLocalUsage().finally(() => app.quit());
-    }
+    beforeQuit?.(event);
   });
   app.on("window-all-closed", () => {
     // The tray owns the Windows application lifecycle.
@@ -194,10 +179,6 @@ export const startApplication = (): void => {
             }),
           ],
         });
-    stopLocalUsage = async () => {
-      await localUsageCoordinator?.stop();
-    };
-
     mainWindow = new BrowserWindow({
       ...WINDOW_SIZE,
       useContentSize: true,
@@ -242,18 +223,36 @@ export const startApplication = (): void => {
       }
     });
 
+    const pendingBackground = new Set<Promise<unknown>>();
+    const trackBackground = <T>(operation: Promise<T>): Promise<T> => {
+      pendingBackground.add(operation);
+      void operation.then(
+        () => pendingBackground.delete(operation),
+        () => pendingBackground.delete(operation),
+      );
+      return operation;
+    };
+    const refreshUsage = (providerId?: "codex" | "claude"): Promise<void> =>
+      trackBackground(
+        Promise.all([
+          poller?.refresh(providerId) ?? store.refresh(providerId),
+          localUsageCoordinator?.refresh(providerId),
+        ]).then(() => undefined),
+      );
+
     const ipcController = registerIpcHandlers(ipcMain, mainWindow, {
       getState: async () => store.getState(),
       refresh: async (providerId) => {
-        await Promise.all([
-          poller?.refresh(providerId) ?? store.refresh(providerId),
-          localUsageCoordinator?.refresh(providerId),
-        ]);
+        if (isQuitting) return;
+        await refreshUsage(providerId);
       },
       getPreferences: async () => ({
         launchAtLogin: app.getLoginItemSettings().openAtLogin,
       }),
       setLaunchAtLogin: async (enabled) => {
+        if (isQuitting) {
+          return { launchAtLogin: app.getLoginItemSettings().openAtLogin };
+        }
         app.setLoginItemSettings({ openAtLogin: enabled });
         return { launchAtLogin: app.getLoginItemSettings().openAtLogin };
       },
@@ -275,45 +274,78 @@ export const startApplication = (): void => {
         )
       ) {
         setupReadyWritten = true;
-        void markClaudeSetupReady(markerPath).catch(() => {
-          setupReadyWritten = false;
-        });
+        void trackBackground(
+          markClaudeSetupReady(markerPath).catch(() => {
+            setupReadyWritten = false;
+          }),
+        );
       }
     });
-    void Promise.all([poller?.start(), localUsageCoordinator?.start()]);
+    let shutdownPromise: Promise<void> | undefined;
+    shutdown = (): Promise<void> => {
+      shutdownPromise ??= (async () => {
+        mainWindow?.hide();
+        unsubscribe();
+        unsubscribeCache();
+        unsubscribeSetup();
+        ipcController.dispose();
+        try {
+          await Promise.allSettled([
+            poller?.stop(),
+            localUsageCoordinator?.stop(),
+            ...pendingBackground,
+          ]);
+        } finally {
+          try {
+            await snapshotCache?.flush();
+          } catch {
+            // A best-effort cache flush must not leave IPC or tray resources alive.
+          }
+          tray?.destroy();
+          tray = undefined;
+        }
+      })();
+      return shutdownPromise;
+    };
+    beforeQuit = createBeforeQuitHandler({
+      hide: () => mainWindow?.hide(),
+      shutdown,
+      quit: () => app.quit(),
+    });
+    void Promise.all([poller?.start(), localUsageCoordinator?.start()]).catch(
+      () => undefined,
+    );
 
     const refreshAll = (): void => {
-      void Promise.all([
-        poller?.refresh() ?? store.refresh(),
-        localUsageCoordinator?.refresh(),
-      ]);
+      if (isQuitting) return;
+      void refreshUsage().catch(() => undefined);
     };
     const updateLaunchAtLogin = (enabled: boolean): void => {
+      if (isQuitting) return;
       app.setLoginItemSettings({ openAtLogin: enabled });
     };
     tray = new Tray(createTrayIcon());
     tray.setToolTip("LLM Usage Monitor");
-    tray.setContextMenu(
-      Menu.buildFromTemplate([
-        { label: "열기", click: showWindow },
-        { label: "새로고침", click: refreshAll },
-        {
-          label: "Windows 로그인 시 시작",
-          type: "checkbox",
-          checked: app.getLoginItemSettings().openAtLogin,
-          click: (menuItem) => updateLaunchAtLogin(menuItem.checked),
-        },
-        { type: "separator" },
-        {
-          label: "종료",
-          click: () => {
-            isQuitting = true;
-            app.quit();
+    const buildTrayMenu = () =>
+      Menu.buildFromTemplate(
+        createTrayMenuTemplate(
+          () => app.getLoginItemSettings().openAtLogin,
+          {
+            open: showWindow,
+            refresh: refreshAll,
+            setLaunchAtLogin: updateLaunchAtLogin,
+            quit: () => {
+              isQuitting = true;
+              app.quit();
+            },
           },
-        },
-      ]),
-    );
+        ),
+      );
+    tray.on("right-click", () => {
+      if (!isQuitting) tray?.popUpContextMenu(buildTrayMenu());
+    });
     tray.on("click", () => {
+      if (isQuitting) return;
       if (mainWindow?.isVisible()) {
         mainWindow.hide();
       } else {
@@ -327,14 +359,7 @@ export const startApplication = (): void => {
       }
     });
     mainWindow.on("closed", () => {
-      poller?.stop();
-      void localUsageCoordinator?.stop();
-      unsubscribe();
-      unsubscribeCache();
-      unsubscribeSetup();
-      ipcController.dispose();
-      tray?.destroy();
-      tray = undefined;
+      void shutdown?.().catch(() => undefined);
       mainWindow = undefined;
     });
     loadRenderer(mainWindow);

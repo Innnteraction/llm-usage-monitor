@@ -99,4 +99,8 @@ export class SnapshotCache {
       .catch(() => undefined);
     return this.writeQueue;
   }
+
+  flush(): Promise<void> {
+    return this.writeQueue;
+  }
 }

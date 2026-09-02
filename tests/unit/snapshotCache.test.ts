@@ -119,6 +119,13 @@ describe("SnapshotCache", () => {
     expect(await readFile(filePath, "utf8")).toContain('"usedPercent":48');
   });
 
+  it("flush waits for queued snapshot writes", async () => {
+    const { cache, filePath } = await createCache();
+    void cache.save(appSnapshot(freshProvider(48)));
+    await cache.flush();
+    expect(await readFile(filePath, "utf8")).toContain('"usedPercent":48');
+  });
+
   it("discards corrupt and unsupported cache files", async () => {
     const { cache, filePath } = await createCache();
     await writeFile(filePath, "{not-json", "utf8");

@@ -55,7 +55,11 @@ export function createUsagePoller({
 }: UsagePollerOptions) {
   const timers = new Map<ProviderId, ReturnType<typeof setTimeout>>();
   const failureCounts = new Map<ProviderId, number>();
+  const inFlight = new Set<Promise<void>>();
   let running = false;
+  let stopped = false;
+  let stopPromise: Promise<void> | undefined;
+  let startPromise: Promise<void> | undefined;
 
   const clearTimer = (providerId: ProviderId): void => {
     const timer = timers.get(providerId);
@@ -66,6 +70,7 @@ export function createUsagePoller({
   };
 
   const scheduleNext = (providerId: ProviderId): void => {
+    if (!running || stopped) return;
     clearTimer(providerId);
     const providerSnapshot = store
       .getState()
@@ -87,11 +92,17 @@ export function createUsagePoller({
   };
 
   const refreshProvider = async (providerId: ProviderId): Promise<void> => {
+    if (stopped) return;
     clearTimer(providerId);
-    await store.refresh(providerId);
-    if (running) {
-      scheduleNext(providerId);
-    }
+    const operation = Promise.resolve()
+      .then(() => store.refresh(providerId))
+      .catch(() => undefined)
+      .finally(() => {
+        if (running && !stopped) scheduleNext(providerId);
+      });
+    inFlight.add(operation);
+    await operation;
+    inFlight.delete(operation);
   };
 
   const refresh = async (providerId?: ProviderId): Promise<void> => {
@@ -102,19 +113,34 @@ export function createUsagePoller({
   };
 
   return {
-    async start(): Promise<void> {
+    start(): Promise<void> {
       if (running) {
-        return;
+        return Promise.resolve();
       }
-      running = true;
-      await refresh();
+      if (startPromise) return startPromise;
+      startPromise = (async () => {
+        if (stopPromise) {
+          await stopPromise;
+          stopPromise = undefined;
+        }
+        stopped = false;
+        running = true;
+        await refresh();
+      })().finally(() => {
+        startPromise = undefined;
+      });
+      return startPromise;
     },
     refresh,
-    stop(): void {
+    async stop(): Promise<void> {
+      if (stopPromise) return stopPromise;
       running = false;
+      stopped = true;
       for (const providerId of providerIds) {
         clearTimer(providerId);
       }
+      stopPromise = Promise.all([...inFlight]).then(() => undefined);
+      await stopPromise;
     },
   };
 }
