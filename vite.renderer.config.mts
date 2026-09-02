@@ -8,6 +8,11 @@ export default defineConfig({
   html: {
     cspNonce: "llm-usage-monitor-vite",
   },
+  server: {
+    host: "127.0.0.1",
+    port: 17321,
+    strictPort: true,
+  },
   build: {
     outDir: path.resolve(".vite/renderer/main_window"),
   },

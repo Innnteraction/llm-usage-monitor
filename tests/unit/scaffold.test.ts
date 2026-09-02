@@ -1,9 +1,22 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildClaudeSetupLaunch } from "../../src/main/index";
 
 describe("development scaffold", () => {
   it("runs the unit test toolchain", () => {
     expect(true).toBe(true);
+  });
+
+  it("pins the renderer development server to the local 17321 port", () => {
+    const config = readFileSync(
+      path.resolve(import.meta.dirname, "../../vite.renderer.config.mts"),
+      "utf8",
+    );
+
+    expect(config).toContain('host: "127.0.0.1"');
+    expect(config).toContain("port: 17321");
+    expect(config).toContain("strictPort: true");
   });
 
   it("builds only the fixed Claude login and trust commands", () => {
