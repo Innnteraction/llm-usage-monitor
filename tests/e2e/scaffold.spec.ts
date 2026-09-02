@@ -21,6 +21,7 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
 
   try {
     const page = await electronApp.firstWindow();
+    await page.emulateMedia({ colorScheme: "dark" });
     await expect(
       page.getByRole("heading", { name: "watching quota providers" }),
     ).toBeVisible();
@@ -164,6 +165,8 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
       await expect(page.getByRole("tooltip")).toBeVisible();
       await trigger.focus();
       await expect(page.getByRole("tooltip")).toBeVisible();
+      await page.mouse.move(0, 0);
+      await expect(page.getByRole("tooltip")).toBeVisible();
     }
 
     const isolation = await page.evaluate(() => ({
@@ -201,8 +204,40 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
 
     await electronApp.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]?.show();
+      BrowserWindow.getAllWindows()[0]?.focus();
     });
     await expect(page.getByRole("button", { name: "refresh" })).toBeVisible();
+    await expect
+      .poll(() =>
+        electronApp.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0]?.isFocused(),
+        ),
+      )
+      .toBe(true);
+    await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
+    await total.focus();
+    await expect(page.getByRole("tooltip")).toBeVisible();
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.webContents.sendInputEvent({
+        type: "keyDown",
+        keyCode: "Escape",
+      });
+    });
+    await expect
+      .poll(() =>
+        electronApp.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0]?.isVisible(),
+        ),
+      )
+      .toBe(false);
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.show();
+      BrowserWindow.getAllWindows()[0]?.focus();
+    });
+    await expect(page.getByRole("button", { name: "refresh" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
 
     const closed = page.waitForEvent("close");
     await electronApp.evaluate(({ app }) => app.quit());
@@ -340,6 +375,174 @@ test("updates the countdown on its 30 second timer without refreshing provider v
     await expect(page.getByRole("button", { name: "refresh" })).toBeEnabled();
   } finally {
     await electronApp.close().catch(() => undefined);
+  }
+});
+
+test("updates the countdown on window focus without refreshing provider values", async () => {
+  const electronApp = await electron.launch({
+    args: [appPath],
+    env: {
+      ...process.env,
+      LLM_USAGE_MONITOR_E2E: "1",
+      LLM_USAGE_MONITOR_E2E_USER_DATA: test.info().outputPath("phase6-focus-user-data"),
+    },
+  });
+
+  try {
+    const page = await electronApp.firstWindow();
+    const weekly = page.getByTestId("codex-weekly-value");
+    await expect(weekly).toHaveText("63%");
+    await page.evaluate(() => {
+      const clock = Date.now();
+      Date.now = () => clock + 8 * 24 * 60 * 60 * 1000;
+      window.dispatchEvent(new Event("focus"));
+    });
+    await expect(
+      page.locator(".provider-card").first().getByRole("button", {
+        name: "reset pending",
+      }),
+    ).toBeVisible();
+    await expect(weekly).toHaveText("63%");
+  } finally {
+    await electronApp.close().catch(() => undefined);
+  }
+});
+
+test("uses accessible dark and light TUI colors at 100 and 150 percent", async () => {
+  for (const colorScheme of ["dark", "light"] as const) {
+    for (const scale of [1, 1.5]) {
+      const electronApp = await electron.launch({
+        args: [appPath, `--force-device-scale-factor=${scale}`],
+        env: {
+          ...process.env,
+          LLM_USAGE_MONITOR_E2E: "1",
+          LLM_USAGE_MONITOR_E2E_PHASE6_LONG_CONTENT: "1",
+          LLM_USAGE_MONITOR_E2E_PHASE6_ERRORS: "1",
+          LLM_USAGE_MONITOR_E2E_USER_DATA: test.info().outputPath(
+            `phase6-${colorScheme}-${scale}-user-data`,
+          ),
+        },
+      });
+
+      try {
+        const page = await electronApp.firstWindow();
+        await page.emulateMedia({ colorScheme });
+        const toggle = page.getByRole("button", { name: "+2 additional limits" });
+        await toggle.focus();
+        await page.keyboard.press("Enter");
+        await page.screenshot({
+          path: test.info().outputPath(
+            `tui-${colorScheme}-${scale}-expanded-error.png`,
+          ),
+        });
+        const account = page.getByRole("button", {
+          name: "codex.account.with.a.deliberately.long.label@example.com",
+        });
+        await account.focus();
+        await expect(page.getByRole("tooltip")).toBeVisible();
+
+        const contrast = await page.evaluate(() => {
+          const ratio = (foreground: string, background: string): number => {
+            const channels = (color: string) =>
+              color.match(/\d+/g)!.slice(0, 3).map(Number).map((value) => {
+                const normalized = value / 255;
+                return normalized <= 0.04045
+                  ? normalized / 12.92
+                  : ((normalized + 0.055) / 1.055) ** 2.4;
+              });
+            const luminance = (color: string) => {
+              const [red = 0, green = 0, blue = 0] = channels(color);
+              return red * 0.2126 + green * 0.7152 + blue * 0.0722;
+            };
+            const first = luminance(foreground);
+            const second = luminance(background);
+            return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+          };
+          const bodyColor = getComputedStyle(document.body).backgroundColor;
+          const textSelectors = [
+            "h1",
+            "h2",
+            ".account-label",
+            ".account-client",
+            ".provider-index",
+            ".status",
+            ".quota-label",
+            ".local-usage",
+            ".scope-note",
+            ".provider-error",
+            ".quota-not-provided-text",
+            ".quota-value",
+          ];
+          const textRatios = textSelectors.flatMap((selector) =>
+            [...document.querySelectorAll<HTMLElement>(selector)].map((element) =>
+              ratio(getComputedStyle(element).color, bodyColor),
+            ),
+          );
+          const account = document.querySelector<HTMLElement>(".account-label")!;
+          const accountStyle = getComputedStyle(account);
+          const tooltip = document.querySelector<HTMLElement>(".local-token-tooltip")!;
+          return {
+            textRatios,
+            focusRatio: ratio(accountStyle.outlineColor, bodyColor),
+            focusStyle: accountStyle.outlineStyle,
+            width: document.documentElement.scrollWidth,
+            viewport: window.innerWidth,
+            resetFits: [...document.querySelectorAll<HTMLElement>(".quota-reset")].every(
+              (element) => element.scrollWidth <= element.clientWidth,
+            ),
+            tooltipRatio: ratio(
+              getComputedStyle(tooltip).color,
+              getComputedStyle(tooltip).backgroundColor,
+            ),
+            tooltipFits: tooltip.scrollWidth <= tooltip.clientWidth,
+            statusRatios: ["--low", "--medium", "--high"].map((name) => {
+              const probe = document.createElement("span");
+              probe.style.color = `var(${name})`;
+              document.body.append(probe);
+              const color = getComputedStyle(probe).color;
+              probe.remove();
+              return ratio(color, bodyColor);
+            }),
+          };
+        });
+        expect(contrast.textRatios.every((value) => value >= 4.5)).toBe(true);
+        expect(contrast.focusRatio).toBeGreaterThanOrEqual(3);
+        expect(contrast.focusStyle).toBe("dotted");
+        expect(contrast.tooltipRatio).toBeGreaterThanOrEqual(4.5);
+        expect(contrast.tooltipFits).toBe(true);
+        expect(contrast.statusRatios.every((value) => value >= 3)).toBe(true);
+        expect(contrast.width).toBe(contrast.viewport);
+        expect(contrast.resetFits).toBe(true);
+      } finally {
+        await electronApp.close().catch(() => undefined);
+      }
+    }
+  }
+});
+
+test("captures normal dark and light quota overviews", async () => {
+  for (const colorScheme of ["dark", "light"] as const) {
+    const electronApp = await electron.launch({
+      args: [appPath],
+      env: {
+        ...process.env,
+        LLM_USAGE_MONITOR_E2E: "1",
+        LLM_USAGE_MONITOR_E2E_USER_DATA: test.info().outputPath(
+          `phase6-${colorScheme}-normal-user-data`,
+        ),
+      },
+    });
+
+    try {
+      const page = await electronApp.firstWindow();
+      await page.emulateMedia({ colorScheme });
+      await expect(page.getByRole("heading", { name: "Codex" })).toBeVisible();
+      await page.screenshot({
+        path: test.info().outputPath(`tui-${colorScheme}-normal.png`),
+      });
+    } finally {
+      await electronApp.close().catch(() => undefined);
+    }
   }
 });
 

@@ -222,9 +222,8 @@ export const startApplication = (): void => {
     mainWindow.webContents.on("will-navigate", (event) => {
       event.preventDefault();
     });
-    mainWindow.webContents.on("before-input-event", (event, input) => {
+    mainWindow.webContents.on("before-input-event", (_event, input) => {
       if (input.type === "keyDown" && input.key === "Escape") {
-        event.preventDefault();
         mainWindow?.hide();
       }
     });

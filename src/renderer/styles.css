@@ -1,13 +1,22 @@
 :root {
   font-size: 110%;
-  color: #d4d4d4;
-  background: #101010;
+  color: var(--text);
+  background: var(--surface);
   font-family:
     "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --muted: #858585;
+  --surface: #101010;
+  --text: #e0e0e0;
+  --muted: #a5a5a5;
+  --subtle: #9b9b9b;
   --track: #3b3b3b;
+  --tooltip-surface: #252525;
+  --tooltip-border: #858585;
+  --focus: #e0e0e0;
+  --input: #72b7c9;
+  --output: #b28cdb;
+  --cache: #769bb0;
   --low: #80ae88;
   --medium: #d2a95f;
   --high: #df6269;
@@ -22,7 +31,7 @@ body {
   min-height: 100vh;
   margin: 0;
   overflow: hidden;
-  background: #101010;
+  background: var(--surface);
 }
 
 button {
@@ -38,8 +47,8 @@ button {
 
 button:hover,
 button:focus-visible {
-  color: #d4d4d4;
-  outline: 1px dotted var(--muted);
+  color: var(--text);
+  outline: 1px dotted var(--focus);
   outline-offset: 3px;
 }
 
@@ -80,7 +89,7 @@ h1 {
 
 h2 {
   margin: 0;
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 0.9rem;
   font-weight: 700;
 }
@@ -135,6 +144,8 @@ h2 {
   display: flex;
   max-width: 100%;
   min-width: 0;
+  color: inherit;
+  font-weight: 400;
 }
 
 .account-label .local-token-trigger > span:first-child {
@@ -146,13 +157,13 @@ h2 {
 
 .account-client {
   flex: none;
-  color: #626262;
+  color: var(--subtle);
   font-size: 0.54rem;
   white-space: nowrap;
 }
 
 .provider-index {
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 0.82rem;
   font-weight: 700;
   text-align: right;
@@ -293,7 +304,7 @@ h2 {
   justify-content: space-between;
   gap: 8px;
   margin: 0;
-  color: #626262;
+  color: var(--subtle);
   font-size: 0.62rem;
 }
 
@@ -309,14 +320,14 @@ h2 {
   justify-content: space-between;
   gap: 4px 10px;
   margin: 2px 0 0 32px;
-  color: #626262;
+  color: var(--subtle);
   font-size: 0.54rem;
 }
 
 .local-usage {
   flex-basis: 100%;
   min-width: 0;
-  color: #858585;
+  color: var(--muted);
   line-height: 1.35;
 }
 
@@ -353,19 +364,36 @@ h2 {
 }
 
 .local-token-help.tone-neutral {
-  color: #d4d4d4;
+  color: var(--text);
 }
 .local-token-help.tone-input {
-  color: #72b7c9;
+  color: var(--input);
 }
 .local-token-help.tone-output {
-  color: #b28cdb;
+  color: var(--output);
 }
 .local-token-help.tone-cache {
-  color: #769bb0;
+  color: var(--cache);
 }
 .local-token-help.tone-partial {
   color: var(--medium);
+}
+
+.local-token-help.quota-reset {
+  color: var(--muted);
+}
+
+.local-token-help.account-label {
+  color: var(--muted);
+}
+
+.account-label:focus-within {
+  outline: 1px dotted var(--focus);
+  outline-offset: -1px;
+}
+
+.account-label .local-token-trigger:focus-visible {
+  outline: 0;
 }
 
 .local-token-tooltip {
@@ -375,18 +403,19 @@ h2 {
   bottom: 18px;
   width: min(300px, calc(100vw - 40px));
   padding: 6px 7px;
-  color: #e6e6e6;
-  background: #252525;
-  border: 1px solid #555;
+  color: var(--text);
+  background: var(--tooltip-surface);
+  border: 1px solid var(--tooltip-border);
   box-shadow: 0 2px 8px rgb(0 0 0 / 45%);
   font-size: 0.58rem;
   line-height: 1.35;
+  overflow-wrap: anywhere;
   white-space: normal;
 }
 
 .additional-limits {
   margin: 5px 0 0 32px;
-  color: #626262;
+  color: var(--subtle);
   font-size: 0.58rem;
 }
 
@@ -445,7 +474,7 @@ h2 {
 .loading,
 .error-banner {
   margin: 12px 0 0 32px;
-  color: #626262;
+  color: var(--subtle);
   font-size: 0.58rem;
   line-height: 1.4;
 }
@@ -461,6 +490,35 @@ h2 {
 .error-banner {
   margin-left: 0;
   color: var(--high);
+}
+
+.update-notice {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --surface: #ffffff;
+    --text: #202020;
+    --muted: #555555;
+    --subtle: #666666;
+    --track: #b9b9b9;
+    --tooltip-surface: #ffffff;
+    --tooltip-border: #555555;
+    --focus: #202020;
+    --input: #176b82;
+    --output: #6b3f95;
+    --cache: #3d657a;
+    --low: #216e39;
+    --medium: #7a4d00;
+    --high: #a61b23;
+  }
 }
 
 @media (max-width: 360px) {

@@ -112,6 +112,7 @@ const HelpTrigger = ({
 }) => {
   const tooltipId = `${id}-tooltip`;
   const isOpen = activeHelp === id;
+  const helpRef = useRef<HTMLSpanElement>(null);
   const closeTimer = useRef<number | undefined>(undefined);
   const activeHelpRef = useRef<string | undefined>(undefined);
   useEffect(() => {
@@ -125,11 +126,17 @@ const HelpTrigger = ({
   const closeLater = (): void => {
     window.clearTimeout(closeTimer.current);
     closeTimer.current = window.setTimeout(() => {
-      if (activeHelpRef.current === id) onActiveHelpChange(undefined);
+      if (
+        activeHelpRef.current === id &&
+        !helpRef.current?.contains(document.activeElement)
+      ) {
+        onActiveHelpChange(undefined);
+      }
     }, 400);
   };
   return (
     <span
+      ref={helpRef}
       className={`local-token-help tone-${tone}${className ? ` ${className}` : ""}`}
       onMouseEnter={show}
       onMouseLeave={closeLater}
@@ -139,6 +146,7 @@ const HelpTrigger = ({
         className="local-token-trigger"
         data-testid={testId}
         aria-describedby={isOpen ? tooltipId : undefined}
+        onClick={show}
         onFocus={show}
         onBlur={closeLater}
       >
@@ -542,16 +550,40 @@ export const App = () => {
   const [snapshot, setSnapshot] = useState<AppSnapshot>();
   const [error, setError] = useState(false);
   const [activeHelp, setActiveHelp] = useState<string>();
+  const [notice, setNotice] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const previousSnapshot = useRef<AppSnapshot | undefined>(undefined);
 
   useEffect(() => {
     const updateClock = (): void => setNow(Date.now());
+    const handleWindowFocus = (): void => {
+      updateClock();
+      setActiveHelp(undefined);
+    };
     const timer = window.setInterval(updateClock, 30_000);
-    window.addEventListener("focus", updateClock);
+    window.addEventListener("focus", handleWindowFocus);
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener("focus", updateClock);
+      window.removeEventListener("focus", handleWindowFocus);
     };
+  }, []);
+
+  useEffect(() => {
+    const closeHelp = (): void => setActiveHelp(undefined);
+    window.addEventListener("blur", closeHelp);
+    document.addEventListener("visibilitychange", closeHelp);
+    return () => {
+      window.removeEventListener("blur", closeHelp);
+      document.removeEventListener("visibilitychange", closeHelp);
+    };
+  }, []);
+
+  useEffect(() => {
+    const closeHelpOnEscape = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setActiveHelp(undefined);
+    };
+    window.addEventListener("keydown", closeHelpOnEscape);
+    return () => window.removeEventListener("keydown", closeHelpOnEscape);
   }, []);
 
   useEffect(() => {
@@ -559,6 +591,16 @@ export const App = () => {
     const unsubscribe = window.usageMonitor.subscribe((next) => {
       if (active) {
         setSnapshot(next);
+        const previous = previousSnapshot.current;
+        if (previous?.refreshing.length && !next.refreshing.length) {
+          setNotice(
+            next.providers.some((provider) => provider.error)
+              ? "사용량 갱신 실패: 마지막 값을 유지합니다."
+              : "사용량 갱신 완료.",
+          );
+        }
+        if (!next.providers.some((provider) => provider.error)) setError(false);
+        previousSnapshot.current = next;
       }
     });
     void window.usageMonitor
@@ -566,11 +608,14 @@ export const App = () => {
       .then((next) => {
         if (active) {
           setSnapshot(next);
+          previousSnapshot.current = next;
+          setNotice("사용량을 불러왔습니다.");
         }
       })
       .catch(() => {
         if (active) {
           setError(true);
+          setNotice("사용량을 불러오지 못했습니다.");
         }
       });
 
@@ -582,6 +627,7 @@ export const App = () => {
 
   const refresh = (): void => {
     setError(false);
+    setNotice("");
     void window.usageMonitor.refresh().catch(() => setError(true));
   };
 
@@ -616,7 +662,11 @@ export const App = () => {
         </p>
       ) : null}
 
-      <section className="provider-list" aria-live="polite">
+      <p className="update-notice" role="status" aria-live="polite">
+        {notice}
+      </p>
+
+      <section className="provider-list">
         {snapshot ? (
           snapshot.providers.map((provider, index) => (
             <ProviderCard
