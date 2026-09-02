@@ -147,7 +147,7 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
 
 ## Phase 6 — TUI형 제품 UI 마감과 Windows 상주 동작
 
-- [ ] Step 6.1 — 정보 계층과 추가 quota 열람을 마감한다.
+- [x] Step 6.1 — 정보 계층과 추가 quota 열람을 마감한다.
   - 기본 화면은 Codex `7d`, Claude `5h`·`7d`·`Fable`과 로컬 토큰 두 줄 보조 표시를 유지한다. `+N additional limits`는 현재 snapshot에 보존된 추가 quota만 보여 주는 키보드 조작 가능 펼치기 버튼으로 바꾸며, 기본 quota·ID와 중복 제거하고 접힘 상태는 provider별 renderer 메모리에만 보관한다.
   - 긴 모델명은 별도 제목 행으로 표시하고 긴 계정명은 말줄임·hover·keyboard focus 전체 도움말을 제공하며 메모리에만 둔다. 420×320과 110% 글꼴을 유지하고 헤더·하단 범위 안내는 고정하며 provider 목록만 세로 스크롤한다. 가로 스크롤·글꼴 축소는 사용하지 않는다.
 - [ ] Step 6.2 — quota 상태·시간·설명을 마감한다.

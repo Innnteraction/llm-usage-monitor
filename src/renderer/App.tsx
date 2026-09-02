@@ -93,12 +93,13 @@ const formatLocalCalculatedAt = (value: string): string =>
     hour12: true,
   }).format(new Date(value));
 
-const LocalTokenHelp = ({
+const HelpTrigger = ({
   id,
   label,
   value,
   description,
   tone = "neutral",
+  className,
   activeHelp,
   onActiveHelpChange,
 }: {
@@ -107,6 +108,7 @@ const LocalTokenHelp = ({
   value?: string;
   description: string;
   tone?: "neutral" | "input" | "output" | "cache" | "partial";
+  className?: string;
   activeHelp?: string;
   onActiveHelpChange(id?: string): void;
 }) => {
@@ -130,7 +132,7 @@ const LocalTokenHelp = ({
   };
   return (
     <span
-      className={`local-token-help tone-${tone}`}
+      className={`local-token-help tone-${tone}${className ? ` ${className}` : ""}`}
       onMouseEnter={show}
       onMouseLeave={closeLater}
     >
@@ -178,7 +180,7 @@ const LocalUsage = ({
     description: string,
     tone?: "neutral" | "input" | "output" | "cache" | "partial",
   ) => (
-    <LocalTokenHelp
+    <HelpTrigger
       id={id(kind)}
       label={label}
       value={value}
@@ -283,23 +285,27 @@ const hasFableWindow = (provider: ProviderSnapshot): boolean =>
       window.kind === "model_weekly" && /\bfable\b/i.test(window.label),
   );
 
-const countOptionalWindows = (
+const selectAdditionalWindows = (
   provider: ProviderSnapshot,
   displayed: QuotaWindow[],
-): number => {
+): QuotaWindow[] => {
   const displayedIds = new Set(displayed.map(({ id }) => id));
+  const seenIds = new Set<string>();
   return provider.quotaWindows.filter((window) => {
-    if (displayedIds.has(window.id) || window.status === "unavailable") {
+    if (
+      displayedIds.has(window.id) ||
+      seenIds.has(window.id) ||
+      window.status === "unavailable"
+    ) {
       return false;
     }
-    if (provider.providerId !== "codex") {
-      return true;
-    }
+    seenIds.add(window.id);
+    if (provider.providerId !== "codex") return true;
     return (
       window.kind === "model_weekly" ||
       (window.kind === "other" && window.id.startsWith("codex-limit-"))
     );
-  }).length;
+  });
 };
 
 const Quota = ({
@@ -364,7 +370,10 @@ const ProviderCard = ({
     ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
   ];
   const primaryWindows = selectDisplayWindows(provider);
-  const additionalWindowCount = countOptionalWindows(provider, primaryWindows);
+  const additionalWindows = selectAdditionalWindows(provider, primaryWindows);
+  const additionalWindowCount = additionalWindows.length;
+  const [additionalExpanded, setAdditionalExpanded] = useState(false);
+  const additionalId = `${provider.providerId}-additional-limits`;
   const setupAction =
     provider.providerId !== "claude"
       ? undefined
@@ -380,9 +389,14 @@ const ProviderCard = ({
         <div className="provider-title">
           <h2>{providerNames[provider.providerId]}</h2>
           {provider.accountLabel ? (
-            <span className="account-label" title={provider.accountLabel}>
-              {provider.accountLabel}
-            </span>
+            <HelpTrigger
+              id={`${provider.providerId}-account`}
+              label={provider.accountLabel}
+              className="account-label"
+              description={`현재 ${providerNames[provider.providerId]} CLI가 제공한 계정 식별자: ${provider.accountLabel}. 이 값은 이 화면의 메모리에만 유지됩니다.`}
+              activeHelp={activeHelp}
+              onActiveHelpChange={onActiveHelpChange}
+            />
           ) : null}
           {provider.providerId === "claude" && provider.authKind ? (
             <span className="account-client">
@@ -424,9 +438,26 @@ const ProviderCard = ({
         ) : null}
       </div>
       {additionalWindowCount > 0 ? (
-        <p className="additional-limits">
-          +{additionalWindowCount} additional limits
-        </p>
+        <div className="additional-limits">
+          <button
+            type="button"
+            aria-controls={additionalId}
+            aria-expanded={additionalExpanded}
+            onClick={() => setAdditionalExpanded((expanded) => !expanded)}
+          >
+            +{additionalWindowCount} additional limits
+          </button>
+          {additionalExpanded ? (
+            <div id={additionalId} className="additional-quota-grid">
+              {additionalWindows.map((window) => (
+                <div className="additional-quota" key={window.id}>
+                  <h3>{window.label}</h3>
+                  <Quota providerId={provider.providerId} window={window} />
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
       ) : null}
       <footer>
         <LocalUsage

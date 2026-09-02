@@ -82,8 +82,9 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
         getComputedStyle(document.querySelector("h1")!).fontSize,
       ),
       token: Number.parseFloat(
-        getComputedStyle(document.querySelector(".local-token-trigger")!)
-          .fontSize,
+        getComputedStyle(
+          document.querySelector(".local-usage .local-token-trigger")!,
+        ).fontSize,
       ),
       tooltip: Number.parseFloat(
         getComputedStyle(document.querySelector(".local-token-tooltip")!)
@@ -266,6 +267,126 @@ test("labels Fable as unavailable when Claude CLI omits it", async () => {
     const page = await electronApp.firstWindow();
     await expect(page.getByText("not provided by Claude CLI")).toBeVisible();
     await expect(page.getByText("Fable", { exact: true })).toBeVisible();
+  } finally {
+    await electronApp.close().catch(() => undefined);
+  }
+});
+
+test("expands additional limits with the keyboard and keeps only providers scrollable", async () => {
+  const electronApp = await electron.launch({
+    args: [appPath],
+    env: {
+      ...process.env,
+      LLM_USAGE_MONITOR_E2E: "1",
+      LLM_USAGE_MONITOR_E2E_PHASE6_LONG_CONTENT: "1",
+      LLM_USAGE_MONITOR_E2E_USER_DATA: test.info().outputPath("phase6-user-data"),
+    },
+  });
+
+  try {
+    const page = await electronApp.firstWindow();
+    const toggle = page.getByRole("button", { name: "+2 additional limits" });
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await toggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      page.getByRole("heading", {
+        name: "Example Codex model with a deliberately long primary label",
+      }),
+    ).toBeVisible();
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+
+    const account = page.getByRole("button", {
+      name: "codex.account.with.a.deliberately.long.label@example.com",
+    });
+    await account.focus();
+    await expect(page.getByRole("tooltip")).toContainText(
+      "codex.account.with.a.deliberately.long.label@example.com",
+    );
+
+    await page.getByRole("button", { name: "refresh" }).click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await toggle.focus();
+    await page.keyboard.press("Space");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await page.keyboard.press("Space");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    const layout = await page.evaluate(() => {
+      const list = document.querySelector<HTMLElement>(".provider-list")!;
+      const header = document.querySelector<HTMLElement>(".app-header")!;
+      const footer = document.querySelector<HTMLElement>(".scope-note")!;
+      const lastProviderFooter = document.querySelectorAll<HTMLElement>(
+        ".provider-card footer",
+      )[1]!;
+      const before = {
+        header: header.getBoundingClientRect().top,
+        footer: footer.getBoundingClientRect().bottom,
+      };
+      list.scrollTop = list.scrollHeight;
+      return {
+        listScrollable: list.scrollHeight > list.clientHeight,
+        listAtBottom: list.scrollTop > 0,
+        listScrollWidth: list.scrollWidth,
+        listClientWidth: list.clientWidth,
+        resetOverflow: [...document.querySelectorAll<HTMLElement>(
+          ".quota-reset",
+        )].every((reset) => reset.scrollWidth <= reset.clientWidth),
+        listClientHeight: list.clientHeight,
+        listScrollHeight: list.scrollHeight,
+        listScrollTop: list.scrollTop,
+        lastProviderFooterBottom:
+          lastProviderFooter.getBoundingClientRect().bottom,
+        listBottom: list.getBoundingClientRect().bottom,
+        headerStable: header.getBoundingClientRect().top === before.header,
+        footerStable: footer.getBoundingClientRect().bottom === before.footer,
+      };
+    });
+    expect(layout).toEqual({
+      listScrollable: true,
+      listAtBottom: true,
+      listScrollWidth: expect.any(Number),
+      listClientWidth: expect.any(Number),
+      resetOverflow: true,
+      listClientHeight: expect.any(Number),
+      listScrollHeight: expect.any(Number),
+      listScrollTop: expect.any(Number),
+      lastProviderFooterBottom: expect.any(Number),
+      listBottom: expect.any(Number),
+      headerStable: true,
+      footerStable: true,
+    });
+    expect(layout.listScrollWidth).toBeLessThanOrEqual(layout.listClientWidth);
+    expect(layout.lastProviderFooterBottom).toBeLessThanOrEqual(
+      layout.listBottom + 1,
+    );
+  } finally {
+    await electronApp.close().catch(() => undefined);
+  }
+});
+
+test("starts with additional limits collapsed after a fresh launch", async () => {
+  const electronApp = await electron.launch({
+    args: [appPath],
+    env: {
+      ...process.env,
+      LLM_USAGE_MONITOR_E2E: "1",
+      LLM_USAGE_MONITOR_E2E_PHASE6_LONG_CONTENT: "1",
+      LLM_USAGE_MONITOR_E2E_USER_DATA: test.info().outputPath("phase6-relaunch-user-data"),
+    },
+  });
+
+  try {
+    const page = await electronApp.firstWindow();
+    await expect(
+      page.getByRole("button", { name: "+2 additional limits" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      page.getByRole("heading", {
+        name: "Example Codex model with a deliberately long primary label",
+      }),
+    ).toHaveCount(0);
   } finally {
     await electronApp.close().catch(() => undefined);
   }
