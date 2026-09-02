@@ -53,10 +53,26 @@ describe("public snapshot contracts", () => {
       localTokenUsageSchema.parse({
         scope: "local_device",
         scannedFileCount: 2,
+        failedFileCount: 0,
         scannedPaths: ["private-path"],
         inputTokens: 10,
         outputTokens: 5,
         totalTokens: 15,
+        partial: false,
+        calculatedAt: "2026-09-01T00:00:00.000Z",
+      }),
+    ).toThrow();
+  });
+
+  it("rejects non-safe local token counts", () => {
+    expect(() =>
+      localTokenUsageSchema.parse({
+        scope: "local_device",
+        scannedFileCount: 1,
+        failedFileCount: 0,
+        inputTokens: Number.MAX_SAFE_INTEGER + 1,
+        outputTokens: 0,
+        totalTokens: 0,
         partial: false,
         calculatedAt: "2026-09-01T00:00:00.000Z",
       }),

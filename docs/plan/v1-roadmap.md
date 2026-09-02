@@ -108,7 +108,7 @@ Phase 5에 앞서 실제 Windows 환경에서 먼저 사용해 볼 수 있는 �
 
 Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Codex·Claude 로그 전체의 토큰을 집계한다. 벤더 로그가 삭제되면 합계도 줄어들 수 있으며, 앱 준비 후 백그라운드에서 자동으로 계산해 quota 갱신과 팝오버 표시를 지연시키지 않는다. 프롬프트·응답·스레드 이름·원본 경로는 IPC·로그·cache에 포함하지 않는다.
 
-- [ ] Step 5.1 — 공통 streaming·checkpoint 엔진을 구현한다.
+- [x] Step 5.1 — 공통 streaming·checkpoint 엔진을 구현한다.
   - 구현 전에 `local-usage → shared`, `main → local-usage` 경계의 Architecture Guard draft와 impact digest를 제시하고 승인을 받는다.
   - 256 KiB 비동기 청크로 JSONL을 읽고 LF·CRLF로 끝난 완전한 행만 처리한다. 한 행은 16 MiB로 제한하며 초과·손상·읽기 실패는 전체 집계를 버리지 않고 `partial`로 기록한다.
   - JSON parse 전에 필요한 event 표식을 선별하고 청크 사이에서 event loop에 양보한다. v1에서는 worker thread를 도입하지 않는다.

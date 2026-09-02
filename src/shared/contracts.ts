@@ -1,10 +1,11 @@
 import { z } from "zod";
 
 const timestampSchema = z.string().datetime({ offset: true });
-const tokenCountSchema = z.number().int().nonnegative();
+const tokenCountSchema = z.number().int().nonnegative().safe();
 
-export const providerIdSchema = z.enum(["codex", "claude", "gemini"]);
+export const providerIdSchema = z.enum(["codex", "claude"]);
 export type ProviderId = z.infer<typeof providerIdSchema>;
+export type LocalUsageProviderId = Extract<ProviderId, "codex" | "claude">;
 
 export const quotaKindSchema = z.enum([
   "five_hour",
@@ -73,6 +74,7 @@ export const localTokenUsageSchema = z
   .object({
     scope: z.literal("local_device"),
     scannedFileCount: z.number().int().nonnegative(),
+    failedFileCount: z.number().int().nonnegative(),
     inputTokens: tokenCountSchema,
     outputTokens: tokenCountSchema,
     cacheReadTokens: tokenCountSchema.optional(),
@@ -80,9 +82,16 @@ export const localTokenUsageSchema = z
     totalTokens: tokenCountSchema,
     partial: z.boolean(),
     calculatedAt: timestampSchema,
+    observedFrom: timestampSchema.optional(),
   })
   .strict();
 export type LocalTokenUsage = z.infer<typeof localTokenUsageSchema>;
+
+export interface LocalUsageScanner {
+  readonly providerId: LocalUsageProviderId;
+  scan(signal: AbortSignal): Promise<LocalTokenUsage>;
+  watch(onDirty: () => void): () => void;
+}
 
 export const providerSnapshotSchema = z
   .object({

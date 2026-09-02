@@ -16,7 +16,6 @@ const authKindNames = {
 const providerNames: Record<ProviderSnapshot["providerId"], string> = {
   codex: "Codex",
   claude: "Claude Code",
-  gemini: "Gemini",
 };
 
 const sourceNames: Record<QuotaWindow["source"], string> = {
