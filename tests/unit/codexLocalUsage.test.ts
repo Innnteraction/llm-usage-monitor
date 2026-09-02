@@ -6,6 +6,8 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -55,6 +57,55 @@ const fixture = async () => {
 const writeLines = async (filePath: string, lines: string[]): Promise<void> => {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${lines.join("\n")}\n`, "utf8");
+};
+
+const delay = (milliseconds: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const waitForLock = async (child: ReturnType<typeof spawn>): Promise<void> =>
+  new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      callback();
+    };
+    const timeout = setTimeout(
+      () => finish(() => reject(new Error("Lock helper did not become ready"))),
+      3_000,
+    );
+    child.stdout?.on("data", (chunk: Buffer) => {
+      if (chunk.toString("utf8").trim() === "locked") {
+        finish(resolve);
+      }
+    });
+    child.once("error", () =>
+      finish(() => reject(new Error("Lock helper failed"))),
+    );
+    child.once("exit", () =>
+      finish(() => reject(new Error("Lock helper exited before ready"))),
+    );
+  });
+
+const waitForExit = async (
+  child: ReturnType<typeof spawn>,
+  timeoutMilliseconds: number,
+): Promise<boolean> => {
+  if (child.exitCode !== null) return true;
+  return Promise.race([
+    once(child, "exit").then(() => true),
+    delay(timeoutMilliseconds).then(() => false),
+  ]);
+};
+
+const releaseLock = async (child: ReturnType<typeof spawn>): Promise<void> => {
+  if (child.exitCode === null) child.stdin?.end("\n");
+  if (await waitForExit(child, 3_000)) return;
+  child.kill();
+  if (!(await waitForExit(child, 3_000))) {
+    throw new Error("Lock helper did not exit after termination");
+  }
 };
 
 afterEach(async () => {
@@ -234,4 +285,61 @@ describe("CodexLocalUsageScanner", () => {
       failedFileCount: 1,
     });
   });
+
+  it.skipIf(process.platform !== "win32")(
+    "keeps the prior contribution while a Windows JSONL file is exclusively locked",
+    async () => {
+      const { filePath, scanner } = await fixture();
+      await writeLines(filePath, [event(13, 5, 3)]);
+      await expect(
+        scanner.scan(new AbortController().signal),
+      ).resolves.toMatchObject({
+        inputTokens: 13,
+        outputTokens: 5,
+        totalTokens: 18,
+        partial: false,
+      });
+
+      const child = spawn(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$target=[Environment]::GetEnvironmentVariable('LLM_USAGE_LOCK_FIXTURE_PATH');$file=[System.IO.File]::Open($target,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::None);[Console]::Out.WriteLine('locked');[Console]::In.ReadLine()|Out-Null;$file.Dispose()",
+        ],
+        {
+          windowsHide: true,
+          stdio: ["pipe", "pipe", "ignore"],
+          env: { ...process.env, LLM_USAGE_LOCK_FIXTURE_PATH: filePath },
+        },
+      );
+
+      try {
+        await waitForLock(child);
+        await expect(
+          scanner.scan(new AbortController().signal),
+        ).resolves.toMatchObject({
+          inputTokens: 13,
+          outputTokens: 5,
+          totalTokens: 18,
+          partial: true,
+          failedFileCount: 1,
+        });
+      } finally {
+        await releaseLock(child);
+      }
+
+      await expect(
+        scanner.scan(new AbortController().signal),
+      ).resolves.toMatchObject({
+        inputTokens: 13,
+        outputTokens: 5,
+        totalTokens: 18,
+        partial: false,
+        failedFileCount: 0,
+      });
+    },
+    15_000,
+  );
 });

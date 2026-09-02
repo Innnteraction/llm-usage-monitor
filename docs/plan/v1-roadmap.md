@@ -135,15 +135,15 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
 
 ### Phase 5 관문
 
-- [ ] UTF-8 청크 경계, CRLF, 7.5 MiB 초과 정상 행, 16 MiB 초과 행, 미완성 마지막 행, malformed·읽기 잠김, abort, truncate·교체·삭제 fixture를 통과한다.
-- [ ] Codex 누적값 감소·반복·누락·잘못된 값과 이후 양의 delta를 검증한다.
-- [ ] Claude 스트리밍 중복·파일 간 중복·중첩 iterations·cache 계산식을 검증한다.
-- [ ] quota와 scanner가 어느 순서로 완료돼도 서로 덮어쓰지 않고 stale quota에서도 로컬 usage가 유지된다.
-- [ ] checkpoint atomic write·손상 복구를 검증하고 path·message ID·본문·계정 정보가 index·IPC·로그에 없음을 확인한다.
-- [ ] Electron smoke에서 calculating·ready·partial·no logs, 420×320·150% 배율과 refresh·tray 반응성을 확인한다.
-- [ ] 실제 로그 smoke는 수치·계정·경로를 출력하지 않고 성공 여부와 0 이상 계약만 확인한다. production 코드에 vendor 로그 root 대상 write·rename·delete가 없음을 정적으로 검사한다.
-- [ ] Architecture Guard `verify`, typecheck, lint, unit·integration·Electron smoke, `git diff --check`와 민감정보 검사를 통과한다.
-- [ ] Antigravity 로컬 토큰은 Phase 5에 포함하지 않는다.
+- [x] UTF-8 청크 경계, CRLF, 7.5 MiB 초과 정상 행, 16 MiB 초과 행, 미완성 마지막 행, malformed·읽기 잠김, abort, truncate·교체·삭제 fixture를 통과한다.
+- [x] Codex 누적값 감소·반복·누락·잘못된 값과 이후 양의 delta를 검증한다.
+- [x] Claude 스트리밍 중복·파일 간 중복·중첩 iterations·cache 계산식을 검증한다.
+- [x] quota와 scanner가 어느 순서로 완료돼도 서로 덮어쓰지 않고 stale quota에서도 로컬 usage가 유지된다.
+- [x] checkpoint atomic write·손상 복구를 검증하고 path·message ID·본문·계정 정보가 index·IPC·로그에 없음을 확인한다.
+- [x] Electron smoke에서 calculating·ready·partial·no logs, 420×320·150% 배율과 refresh·tray 반응성을 확인한다.
+- [x] 실제 로그 smoke는 수치·계정·경로를 출력하지 않고 성공 여부와 0 이상 계약만 확인한다. production 코드에 vendor 로그 root 대상 write·rename·delete가 없음을 정적으로 검사한다.
+- [x] Architecture Guard `verify`, typecheck, lint, unit·integration·Electron smoke, `git diff --check`와 민감정보 검사를 통과한다.
+- [x] Antigravity 로컬 토큰은 Phase 5에 포함하지 않는다.
 
 ## Phase 5.5 — Antigravity (`agy`) 선택 provider
 
