@@ -27,6 +27,7 @@ const fileCheckpointSchema = z
     mtimeMs: safeIntegerSchema,
     offset: safeIntegerSchema,
     boundaryHash: z.string().min(1).max(128),
+    errorCount: safeIntegerSchema.optional(),
     observedFrom: timestampSchema.optional(),
     contribution: contributionSchema,
     lastCumulative: contributionSchema.optional(),

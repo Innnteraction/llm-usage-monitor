@@ -23,6 +23,7 @@ const sectionWith = (fileKey: string) => ({
       mtimeMs: 10,
       offset: 40,
       boundaryHash: "fictional-boundary-hash",
+      errorCount: 2,
       observedFrom: "2026-09-01T00:00:00.000Z",
       contribution: { inputTokens: 20, outputTokens: 10 },
       lastCumulative: { inputTokens: 25, outputTokens: 12 },
@@ -70,6 +71,7 @@ describe("LocalUsageCheckpointStore", () => {
           files: {
             "claude-file-hash": {
               observedFrom: "2026-09-01T00:00:00.000Z",
+              errorCount: 2,
               lastCumulative: { inputTokens: 25, outputTokens: 12 },
               messages: {
                 "fictional-message-hash": { inputTokens: 20, outputTokens: 10 },
@@ -78,6 +80,34 @@ describe("LocalUsageCheckpointStore", () => {
           },
         },
       },
+    });
+  });
+
+  it("rejects invalid persisted file error counts", async () => {
+    const { filePath } = await createStore();
+    const invalidState = {
+      schemaVersion: 1,
+      providers: {
+        codex: sectionWith("codex-file-hash"),
+        claude: { files: {} },
+      },
+    };
+    const checkpoint = invalidState.providers.codex.files["codex-file-hash"];
+    if (!checkpoint) {
+      throw new Error("fixture checkpoint is missing");
+    }
+    checkpoint.errorCount = -1;
+    await writeFile(filePath, JSON.stringify(invalidState), "utf8");
+    expect(await new LocalUsageCheckpointStore(filePath).load()).toEqual({
+      schemaVersion: 1,
+      providers: { codex: { files: {} }, claude: { files: {} } },
+    });
+
+    checkpoint.errorCount = Number.MAX_SAFE_INTEGER + 1;
+    await writeFile(filePath, JSON.stringify(invalidState), "utf8");
+    expect(await new LocalUsageCheckpointStore(filePath).load()).toEqual({
+      schemaVersion: 1,
+      providers: { codex: { files: {} }, claude: { files: {} } },
     });
   });
 });

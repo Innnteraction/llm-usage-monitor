@@ -19,6 +19,7 @@ export interface LocalUsageFileCheckpoint {
   mtimeMs: number;
   offset: number;
   boundaryHash: string;
+  errorCount?: number;
   observedFrom?: string;
   contribution: TokenContribution;
   lastCumulative?: TokenContribution;
