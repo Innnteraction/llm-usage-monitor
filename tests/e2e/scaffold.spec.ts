@@ -31,8 +31,10 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
     await expect(page.getByText("codex.user@example.com")).toBeVisible();
     await expect(page.getByText("claude.user@example.com")).toBeVisible();
     await expect(page.getByText("Fable", { exact: true })).toBeVisible();
-    await expect(page.getByText(/this PC 1\.2M · I900K O330K/)).toBeVisible();
-    await expect(page.getByText(/partial \(1 failed\)/)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "total 1.2M" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "partial 1" })).toBeVisible();
 
     const layout = await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
@@ -65,8 +67,103 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
       page.getByText(/updated \d{1,2}:\d{2} (AM|PM)/).first(),
     ).toBeVisible();
     await page.screenshot({
-      path: test.info().outputPath("tui-quota-overview.png"),
+      path: test.info().outputPath("tui-quota-overview-normal.png"),
     });
+    const total = page.getByRole("button", { name: "total 1.2M" });
+    await total.hover();
+    const totalTooltip = page.getByRole("tooltip");
+    await expect(totalTooltip).toContainText("축약 전 합계: 1,230,000 tokens");
+    await expect(totalTooltip).toContainText("total = input + output");
+    const typeScale = await page.evaluate(() => ({
+      root: Number.parseFloat(
+        getComputedStyle(document.documentElement).fontSize,
+      ),
+      heading: Number.parseFloat(
+        getComputedStyle(document.querySelector("h1")!).fontSize,
+      ),
+      token: Number.parseFloat(
+        getComputedStyle(document.querySelector(".local-token-trigger")!)
+          .fontSize,
+      ),
+      tooltip: Number.parseFloat(
+        getComputedStyle(document.querySelector(".local-token-tooltip")!)
+          .fontSize,
+      ),
+    }));
+    expect(typeScale.root).toBeCloseTo(17.6, 1);
+    expect(typeScale.heading).toBeCloseTo(14.432, 2);
+    expect(typeScale.token).toBeCloseTo(9.504, 2);
+    expect(typeScale.tooltip).toBeCloseTo(10.208, 2);
+    await page.screenshot({
+      path: test.info().outputPath("tui-quota-overview-total-tooltip.png"),
+    });
+    await total.focus();
+    await expect(totalTooltip).toBeVisible();
+    const tooltipLayout = await page.evaluate(() => {
+      const box = document
+        .querySelector<HTMLElement>("[role=tooltip]")
+        ?.getBoundingClientRect();
+      return (
+        box && {
+          left: box.left,
+          top: box.top,
+          right: box.right,
+          bottom: box.bottom,
+          width: window.innerWidth,
+          height: window.innerHeight,
+        }
+      );
+    });
+    expect(tooltipLayout).toMatchObject({
+      left: expect.any(Number),
+      top: expect.any(Number),
+    });
+    expect(tooltipLayout!.left).toBeGreaterThanOrEqual(0);
+    expect(tooltipLayout!.top).toBeGreaterThanOrEqual(0);
+    expect(tooltipLayout!.right).toBeLessThanOrEqual(tooltipLayout!.width);
+    expect(tooltipLayout!.bottom).toBeLessThanOrEqual(tooltipLayout!.height);
+    const childBounds = await page.evaluate(() => {
+      const elements = [
+        ...document.querySelectorAll<HTMLElement>(
+          ".app-header, .provider-card, .quota, .quota-reset, .local-usage, .scope-note, [role=tooltip]",
+        ),
+      ];
+      return {
+        width: window.innerWidth,
+        height: window.innerHeight,
+        scrollWidth: document.documentElement.scrollWidth,
+        resetWidths: [
+          ...document.querySelectorAll<HTMLElement>(".quota-reset"),
+        ].map((element) => ({
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+        })),
+        boxes: elements.map((element) => element.getBoundingClientRect()),
+      };
+    });
+    expect(childBounds.scrollWidth).toBe(childBounds.width);
+    for (const reset of childBounds.resetWidths) {
+      expect(reset.scrollWidth).toBeLessThanOrEqual(reset.clientWidth);
+    }
+    for (const box of childBounds.boxes) {
+      expect(box.left).toBeGreaterThanOrEqual(0);
+      expect(box.top).toBeGreaterThanOrEqual(0);
+      expect(box.right).toBeLessThanOrEqual(childBounds.width);
+      expect(box.bottom).toBeLessThanOrEqual(childBounds.height);
+    }
+    for (const [name, text] of [
+      ["since 9/1", "가장 이른 이벤트 날짜"],
+      ["cache write 20K", "정확한 cache write: 20,000 tokens"],
+      ["partial 1", "확인된 부분 합계"],
+    ] as const) {
+      const trigger = page.getByRole("button", { name }).first();
+      await trigger.hover();
+      await expect(page.getByRole("tooltip")).toContainText(text);
+      await page.getByRole("tooltip").hover();
+      await expect(page.getByRole("tooltip")).toBeVisible();
+      await trigger.focus();
+      await expect(page.getByRole("tooltip")).toBeVisible();
+    }
 
     const isolation = await page.evaluate(() => ({
       methods: Object.keys(window.usageMonitor).sort(),
@@ -248,8 +345,42 @@ test("keeps the TUI inside the popover at 150 percent scale", async ({
     expect(layout.scrollWidth).toBe(layout.width);
     expect(layout.scrollHeight).toBe(layout.height);
     expect(layout.scale).toBeGreaterThanOrEqual(1.4);
+    const input = page.getByRole("button", { name: "input 900K" });
+    await input.focus();
+    await expect(page.getByRole("tooltip")).toContainText(
+      "정확한 input: 900,000 tokens",
+    );
+    const localLayout = await page.evaluate(() => {
+      const boxes = [
+        ...document.querySelectorAll<HTMLElement>(
+          ".app-header, .provider-card, .quota, .quota-reset, .local-usage, .scope-note, [role=tooltip]",
+        ),
+      ].map((element) => element.getBoundingClientRect());
+      return {
+        width: window.innerWidth,
+        height: window.innerHeight,
+        scrollWidth: document.documentElement.scrollWidth,
+        resetWidths: [
+          ...document.querySelectorAll<HTMLElement>(".quota-reset"),
+        ].map((element) => ({
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+        })),
+        boxes,
+      };
+    });
+    expect(localLayout.scrollWidth).toBe(localLayout.width);
+    for (const reset of localLayout.resetWidths) {
+      expect(reset.scrollWidth).toBeLessThanOrEqual(reset.clientWidth);
+    }
+    for (const box of localLayout.boxes) {
+      expect(box.left).toBeGreaterThanOrEqual(0);
+      expect(box.top).toBeGreaterThanOrEqual(0);
+      expect(box.right).toBeLessThanOrEqual(localLayout.width);
+      expect(box.bottom).toBeLessThanOrEqual(localLayout.height);
+    }
     await page.screenshot({
-      path: testInfo.outputPath("tui-quota-overview-150.png"),
+      path: testInfo.outputPath("tui-quota-overview-150-tooltip.png"),
     });
   } finally {
     await electronApp.close().catch(() => undefined);

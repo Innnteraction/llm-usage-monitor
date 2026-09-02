@@ -1,4 +1,5 @@
 :root {
+  font-size: 110%;
   color: #d4d4d4;
   background: #101010;
   font-family:
@@ -49,7 +50,7 @@ button:disabled {
 
 .app-shell {
   height: 100vh;
-  padding: 18px 20px;
+  padding: 14px 20px;
   overflow: hidden;
 }
 
@@ -83,8 +84,8 @@ h2 {
 
 .provider-list {
   display: grid;
-  gap: 9px;
-  margin-top: 14px;
+  gap: 7px;
+  margin-top: 12px;
 }
 
 .provider-card {
@@ -157,7 +158,7 @@ h2 {
 
 .quota {
   display: grid;
-  grid-template-columns: 40px minmax(80px, 1fr) 42px 82px;
+  grid-template-columns: 40px minmax(80px, 1fr) 42px 94px;
   align-items: center;
   gap: 7px;
   min-width: 0;
@@ -248,18 +249,81 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 10px;
-  margin: 3px 0 0 32px;
+  gap: 4px 10px;
+  margin: 2px 0 0 32px;
   color: #626262;
   font-size: 0.54rem;
 }
 
 .local-usage {
   flex-basis: 100%;
-  overflow: hidden;
+  min-width: 0;
   color: #858585;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+}
+
+.local-usage-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 7px;
+  min-width: 0;
+}
+
+.local-token-help {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.local-token-trigger {
+  display: inline-flex;
+  gap: 3px;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+  font-weight: 500;
   white-space: nowrap;
+}
+
+.local-token-trigger strong {
+  font-weight: 700;
+}
+
+.local-token-trigger:hover,
+.local-token-trigger:focus-visible {
+  outline-offset: 2px;
+}
+
+.local-token-help.tone-neutral {
+  color: #d4d4d4;
+}
+.local-token-help.tone-input {
+  color: #72b7c9;
+}
+.local-token-help.tone-output {
+  color: #b28cdb;
+}
+.local-token-help.tone-cache {
+  color: #769bb0;
+}
+.local-token-help.tone-partial {
+  color: var(--medium);
+}
+
+.local-token-tooltip {
+  position: fixed;
+  z-index: 2;
+  right: 20px;
+  bottom: 18px;
+  width: min(300px, calc(100vw - 40px));
+  padding: 6px 7px;
+  color: #e6e6e6;
+  background: #252525;
+  border: 1px solid #555;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 45%);
+  font-size: 0.58rem;
+  line-height: 1.35;
+  white-space: normal;
 }
 
 .additional-limits {
@@ -291,7 +355,7 @@ h2 {
 .scope-note,
 .loading,
 .error-banner {
-  margin: 18px 0 0 32px;
+  margin: 12px 0 0 32px;
   color: #626262;
   font-size: 0.58rem;
   line-height: 1.4;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   AppSnapshot,
   ClaudeSetupAction,
@@ -71,32 +71,188 @@ export const formatLocalTokens = (value: number): string => {
   return String(value);
 };
 
-export const localUsageLine = (
-  usage: LocalTokenUsage | undefined,
-): { text: string; ariaLabel: string } => {
-  if (!usage)
-    return {
-      text: "this PC calculating",
-      ariaLabel: "이 PC 로컬 토큰을 계산 중",
-    };
-  if (usage.scannedFileCount === 0 && !usage.partial)
-    return {
-      text: "this PC no local logs",
-      ariaLabel: "이 PC에 로컬 로그가 없습니다",
-    };
-  const observed = usage.observedFrom
-    ? new Intl.DateTimeFormat("en-US", {
-        month: "numeric",
-        day: "numeric",
-      }).format(new Date(usage.observedFrom))
-    : "--";
-  const partial = usage.partial
-    ? ` · partial (${usage.failedFileCount} failed)`
-    : "";
-  return {
-    text: `this PC ${formatLocalTokens(usage.totalTokens)} · I${formatLocalTokens(usage.inputTokens)} O${formatLocalTokens(usage.outputTokens)} · R${formatLocalTokens(usage.cacheReadTokens ?? 0)} W${formatLocalTokens(usage.cacheWriteTokens ?? 0)} · ${observed}+${partial}`,
-    ariaLabel: `이 PC 로컬 토큰 총 ${usage.totalTokens}, 입력 ${usage.inputTokens}, 출력 ${usage.outputTokens}, 캐시 읽기 ${usage.cacheReadTokens ?? 0}, 캐시 쓰기 ${usage.cacheWriteTokens ?? 0}, 계산 시각 ${usage.calculatedAt}${usage.partial ? `, 부분 결과, 실패 파일 ${usage.failedFileCount}` : ""}`,
+const exactLocalTokens = (value: number): string =>
+  new Intl.NumberFormat("en-US").format(value);
+const formatLocalShortDate = (value: string): string =>
+  new Intl.DateTimeFormat("en-US", { month: "numeric", day: "numeric" }).format(
+    new Date(value),
+  );
+const formatLocalDate = (value: string): string =>
+  new Intl.DateTimeFormat("en-US", {
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+const formatLocalCalculatedAt = (value: string): string =>
+  new Intl.DateTimeFormat("en-US", {
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(value));
+
+const LocalTokenHelp = ({
+  id,
+  label,
+  value,
+  description,
+  tone = "neutral",
+  activeHelp,
+  onActiveHelpChange,
+}: {
+  id: string;
+  label: string;
+  value?: string;
+  description: string;
+  tone?: "neutral" | "input" | "output" | "cache" | "partial";
+  activeHelp?: string;
+  onActiveHelpChange(id?: string): void;
+}) => {
+  const tooltipId = `${id}-tooltip`;
+  const isOpen = activeHelp === id;
+  const closeTimer = useRef<number | undefined>(undefined);
+  const activeHelpRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    activeHelpRef.current = activeHelp;
+  }, [activeHelp]);
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+  const show = (): void => {
+    window.clearTimeout(closeTimer.current);
+    onActiveHelpChange(id);
   };
+  const closeLater = (): void => {
+    window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => {
+      if (activeHelpRef.current === id) onActiveHelpChange(undefined);
+    }, 400);
+  };
+  return (
+    <span
+      className={`local-token-help tone-${tone}`}
+      onMouseEnter={show}
+      onMouseLeave={closeLater}
+    >
+      <button
+        type="button"
+        className="local-token-trigger"
+        aria-describedby={isOpen ? tooltipId : undefined}
+        onFocus={show}
+        onBlur={closeLater}
+      >
+        <span>{label}</span>
+        {value ? <strong>{value}</strong> : null}
+      </button>
+      {isOpen ? (
+        <span id={tooltipId} className="local-token-tooltip" role="tooltip">
+          {description}
+        </span>
+      ) : null}
+    </span>
+  );
+};
+
+const LocalUsage = ({
+  providerId,
+  usage,
+  activeHelp,
+  onActiveHelpChange,
+}: {
+  providerId: ProviderSnapshot["providerId"];
+  usage: LocalTokenUsage | undefined;
+  activeHelp?: string;
+  onActiveHelpChange(id?: string): void;
+}) => {
+  if (!usage) return <span className="local-usage">this PC calculating</span>;
+  if (usage.scannedFileCount === 0 && !usage.partial)
+    return <span className="local-usage">this PC no local logs</span>;
+  const id = (kind: string): string => `${providerId}-local-${kind}`;
+  const observed = usage.observedFrom
+    ? formatLocalShortDate(usage.observedFrom)
+    : "unavailable";
+  const help = (
+    kind: string,
+    label: string,
+    value: string | undefined,
+    description: string,
+    tone?: "neutral" | "input" | "output" | "cache" | "partial",
+  ) => (
+    <LocalTokenHelp
+      id={id(kind)}
+      label={label}
+      value={value}
+      description={description}
+      tone={tone}
+      activeHelp={activeHelp}
+      onActiveHelpChange={onActiveHelpChange}
+    />
+  );
+  return (
+    <div className="local-usage" aria-label="이 PC 로컬 토큰 세부 정보">
+      <div className="local-usage-row">
+        {help(
+          "scope",
+          "this PC",
+          undefined,
+          "이 PC에 현재 남아 있는 로그 전체의 누적 토큰입니다. 계정 전체 값이나 5h/7d quota 기간 값이 아닙니다.",
+        )}
+        {help(
+          "total",
+          "total",
+          formatLocalTokens(usage.totalTokens),
+          `축약 전 합계: ${exactLocalTokens(usage.totalTokens)} tokens. total = input + output이며 cache 토큰을 다시 더하지 않습니다. K=1,000, M=1,000,000, B=1,000,000,000입니다.`,
+        )}
+        {help(
+          "since",
+          "since",
+          observed,
+          usage.observedFrom
+            ? `로컬 로그에서 관측한 가장 이른 이벤트 날짜: ${formatLocalDate(usage.observedFrom)}. quota reset 또는 구독 시작일이 아니며, 그 이후 로그가 완전하다는 보장도 아닙니다. 계산 시각: ${formatLocalCalculatedAt(usage.calculatedAt)}.`
+            : `가장 이른 관측 이벤트 날짜가 제공되지 않았습니다. 계산 시각: ${formatLocalCalculatedAt(usage.calculatedAt)}.`,
+        )}
+        {usage.partial
+          ? help(
+              "partial",
+              "partial",
+              String(usage.failedFileCount),
+              `확인된 부분 합계입니다. 읽기 또는 일부 레코드 처리에 문제가 있는 파일은 ${exactLocalTokens(usage.failedFileCount)}개입니다. 다음 스캔에서 상태를 다시 확인합니다.`,
+              "partial",
+            )
+          : null}
+      </div>
+      <div className="local-usage-row">
+        {help(
+          "input",
+          "input",
+          formatLocalTokens(usage.inputTokens),
+          `정확한 input: ${exactLocalTokens(usage.inputTokens)} tokens. 모델에 전달한 입력 토큰이며 cache 토큰이 포함됩니다.`,
+          "input",
+        )}
+        {help(
+          "output",
+          "output",
+          formatLocalTokens(usage.outputTokens),
+          `정확한 output: ${exactLocalTokens(usage.outputTokens)} tokens. 모델이 생성한 출력 토큰입니다.`,
+          "output",
+        )}
+        {help(
+          "cache-read",
+          "cache read",
+          formatLocalTokens(usage.cacheReadTokens ?? 0),
+          `정확한 cache read: ${exactLocalTokens(usage.cacheReadTokens ?? 0)} tokens. 재사용한 cache 입력 토큰이며 input에 이미 포함되므로 total에 다시 더하지 않습니다.`,
+          "cache",
+        )}
+        {help(
+          "cache-write",
+          "cache write",
+          formatLocalTokens(usage.cacheWriteTokens ?? 0),
+          `정확한 cache write: ${exactLocalTokens(usage.cacheWriteTokens ?? 0)} tokens. cache에 새로 기록한 입력 토큰이며 input에 이미 포함되므로 total에 다시 더하지 않습니다.`,
+          "cache",
+        )}
+      </div>
+    </div>
+  );
 };
 
 const selectDisplayWindows = (provider: ProviderSnapshot): QuotaWindow[] => {
@@ -195,10 +351,14 @@ const ProviderCard = ({
   provider,
   index,
   onOpenClaudeSetup,
+  activeHelp,
+  onActiveHelpChange,
 }: {
   provider: ProviderSnapshot;
   index: number;
   onOpenClaudeSetup(action: ClaudeSetupAction): void;
+  activeHelp?: string;
+  onActiveHelpChange(id?: string): void;
 }) => {
   const sources = [
     ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
@@ -213,8 +373,6 @@ const ProviderCard = ({
         : provider.error?.code === "workspace_trust_required"
           ? "trust_probe"
           : undefined;
-  const localUsage = localUsageLine(provider.localUsage);
-
   return (
     <article className="provider-card">
       <header>
@@ -271,9 +429,12 @@ const ProviderCard = ({
         </p>
       ) : null}
       <footer>
-        <span className="local-usage" aria-label={localUsage.ariaLabel}>
-          {localUsage.text}
-        </span>
+        <LocalUsage
+          providerId={provider.providerId}
+          usage={provider.localUsage}
+          activeHelp={activeHelp}
+          onActiveHelpChange={onActiveHelpChange}
+        />
         <span>source {sources.join(", ")}</span>
         <span>
           updated{" "}
@@ -291,6 +452,7 @@ const ProviderCard = ({
 export const App = () => {
   const [snapshot, setSnapshot] = useState<AppSnapshot>();
   const [error, setError] = useState(false);
+  const [activeHelp, setActiveHelp] = useState<string>();
 
   useEffect(() => {
     let active = true;
@@ -362,6 +524,8 @@ export const App = () => {
               provider={provider}
               index={index}
               onOpenClaudeSetup={openClaudeSetup}
+              activeHelp={activeHelp}
+              onActiveHelpChange={setActiveHelp}
             />
           ))
         ) : (
