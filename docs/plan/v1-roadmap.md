@@ -121,7 +121,7 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
   - input·output·cached token은 0 이상의 safe integer인지, `total = input + output`인지, cache 계열이 input을 넘지 않는지 검증한다.
   - 파일 안의 누적 벡터는 성분별 양의 delta만 합산한다. 값이 감소하면 재계산·rollback으로 보고 그 delta를 0으로 처리하되 이후 증가분은 계속 반영한다.
   - 중복 집계를 피하기 위해 `last_token_usage`는 사용하지 않는다. cache read·write는 input의 부분집합으로 표시하고 total에 다시 더하지 않는다.
-- [ ] Step 5.3 — Claude 로컬 토큰 스캐너를 구현한다.
+- [x] Step 5.3 — Claude 로컬 토큰 스캐너를 구현한다.
   - `~/.claude/projects/**/*.jsonl`에서 최상위 assistant event의 `message.id`와 `message.usage`만 읽는다.
   - 스트리밍 중 같은 message가 반복되거나 파일 사이에서 중복돼도 익명화된 message ID를 기준으로 하나만 집계하고, 각 토큰 성분의 최댓값을 최종 usage로 선택한다.
   - 최상위 usage만 사용하고 `iterations` 같은 중첩 usage는 다시 합산하지 않는다.
