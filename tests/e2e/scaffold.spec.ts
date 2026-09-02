@@ -272,6 +272,77 @@ test("labels Fable as unavailable when Claude CLI omits it", async () => {
   }
 });
 
+test("explains stale, unavailable, missing cache and pending reset states", async () => {
+  const electronApp = await electron.launch({
+    args: [appPath],
+    env: {
+      ...process.env,
+      LLM_USAGE_MONITOR_E2E: "1",
+      LLM_USAGE_MONITOR_E2E_PHASE6_ERRORS: "1",
+      LLM_USAGE_MONITOR_E2E_PHASE6_MISSING_CACHE: "1",
+      LLM_USAGE_MONITOR_E2E_USER_DATA: test.info().outputPath("phase6-status-user-data"),
+    },
+  });
+
+  try {
+    const page = await electronApp.firstWindow();
+    await expect(page.locator(".provider-card").first().locator(".status")).toHaveText(
+      /stale/,
+    );
+    await expect(page.getByText("네트워크 연결을 확인합니다.")).toBeVisible();
+    await expect(page.getByText(/마지막 성공 \d{1,2}:\d{2} (AM|PM)/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "reset pending" })).toBeVisible();
+    await page.getByRole("button", { name: "reset pending" }).hover();
+    await expect(page.getByRole("tooltip")).toContainText("reset 확인 대기");
+    await page.getByRole("button", { name: "cache read --" }).first().hover();
+    await expect(page.getByRole("tooltip")).toContainText("cache read 값이 제공되지 않았습니다");
+
+    const claudeCard = page.locator(".provider-card").filter({ hasText: "Claude Code" });
+    await expect(claudeCard.locator(".status")).toHaveText(/unavailable/);
+    await expect(claudeCard.getByText("CLI가 설치되지 않았습니다.")).toBeVisible();
+    await expect(claudeCard.locator(".quota-meter")).toHaveCount(0);
+    await expect(claudeCard.getByText("not provided", { exact: true })).toHaveCount(2);
+    await expect(claudeCard.getByText(/remaining/)).toHaveCount(0);
+  } finally {
+    await electronApp.close().catch(() => undefined);
+  }
+});
+
+test("updates the countdown on its 30 second timer without refreshing provider values", async () => {
+  const electronApp = await electron.launch({
+    args: [appPath],
+    env: {
+      ...process.env,
+      LLM_USAGE_MONITOR_E2E: "1",
+      LLM_USAGE_MONITOR_E2E_PHASE6_CLOCK: "1",
+      LLM_USAGE_MONITOR_E2E_USER_DATA: test.info().outputPath("phase6-clock-user-data"),
+    },
+  });
+
+  try {
+    const page = await electronApp.firstWindow();
+    await page.clock.install({ time: Date.now() });
+    await page.reload();
+    const weekly = page.getByTestId("codex-weekly-value");
+    await expect(weekly).toHaveText("63%");
+    const codexWeeklyReset = page
+      .locator(".provider-card")
+      .filter({ hasText: "Codex" })
+      .locator(".quota")
+      .filter({ hasText: "7d" })
+      .getByRole("button", { name: /resets/ });
+    await expect(codexWeeklyReset).toHaveText("resets 1m");
+    const updated = await page.locator(".provider-card").first().locator("footer").getByText(/updated/).textContent();
+    await page.clock.runFor(30_000);
+    await expect(codexWeeklyReset).toHaveText("resets 0m");
+    await expect(weekly).toHaveText("63%");
+    await expect(page.locator(".provider-card").first().locator("footer").getByText(/updated/)).toHaveText(updated!);
+    await expect(page.getByRole("button", { name: "refresh" })).toBeEnabled();
+  } finally {
+    await electronApp.close().catch(() => undefined);
+  }
+});
+
 test("expands additional limits with the keyboard and keeps only providers scrollable", async () => {
   const electronApp = await electron.launch({
     args: [appPath],

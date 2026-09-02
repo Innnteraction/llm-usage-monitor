@@ -6,6 +6,11 @@ import type {
   ProviderSnapshot,
   QuotaWindow,
 } from "../shared/index";
+import {
+  formatQuotaCountdown,
+  formatResetAt,
+  isResetPending,
+} from "./presentation";
 
 const authKindNames = {
   subscription: "subscription",
@@ -25,28 +30,6 @@ const sourceNames: Record<QuotaWindow["source"], string> = {
   local_fixture: "Local fixture",
 };
 
-const formatCountdown = (resetsAt?: string): string => {
-  if (!resetsAt) {
-    return "--";
-  }
-
-  const remainingMinutes = Math.max(
-    0,
-    Math.floor((new Date(resetsAt).getTime() - Date.now()) / 60_000),
-  );
-  const days = Math.floor(remainingMinutes / (24 * 60));
-  const hours = Math.floor((remainingMinutes % (24 * 60)) / 60);
-  const minutes = remainingMinutes % 60;
-
-  if (days > 0) {
-    return `${days}d ${hours}h`;
-  }
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  return `${minutes}m`;
-};
-
 const usageTone = (usedPercent?: number): "low" | "medium" | "high" => {
   if (usedPercent !== undefined && usedPercent >= 90) {
     return "high";
@@ -63,6 +46,19 @@ const formatUpdatedAt = (value: string): string =>
     minute: "2-digit",
     hour12: true,
   }).format(new Date(value));
+
+const providerErrorHelp: Record<NonNullable<ProviderSnapshot["error"]>["code"], string> = {
+  not_installed: "CLI가 설치되지 않았습니다.",
+  not_authenticated: "CLI 로그인이 필요합니다.",
+  workspace_trust_required: "전용 폴더 trust 확인이 필요합니다.",
+  unsupported_output: "CLI 출력 형식을 해석하지 못했습니다.",
+  rate_limited: "요청 한도에 도달했습니다.",
+  network: "네트워크 연결을 확인합니다.",
+  timeout: "CLI 응답 시간이 초과했습니다.",
+  process_failed: "CLI 실행에 실패했습니다.",
+  unavailable: "현재 quota를 제공하지 않습니다.",
+  unexpected: "예상하지 못한 오류가 발생했습니다.",
+};
 
 export const formatLocalTokens = (value: number): string => {
   if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
@@ -100,6 +96,7 @@ const HelpTrigger = ({
   description,
   tone = "neutral",
   className,
+  testId,
   activeHelp,
   onActiveHelpChange,
 }: {
@@ -109,6 +106,7 @@ const HelpTrigger = ({
   description: string;
   tone?: "neutral" | "input" | "output" | "cache" | "partial";
   className?: string;
+  testId?: string;
   activeHelp?: string;
   onActiveHelpChange(id?: string): void;
 }) => {
@@ -139,6 +137,7 @@ const HelpTrigger = ({
       <button
         type="button"
         className="local-token-trigger"
+        data-testid={testId}
         aria-describedby={isOpen ? tooltipId : undefined}
         onFocus={show}
         onBlur={closeLater}
@@ -241,15 +240,15 @@ const LocalUsage = ({
         {help(
           "cache-read",
           "cache read",
-          formatLocalTokens(usage.cacheReadTokens ?? 0),
-          `정확한 cache read: ${exactLocalTokens(usage.cacheReadTokens ?? 0)} tokens. 재사용한 cache 입력 토큰이며 input에 이미 포함되므로 total에 다시 더하지 않습니다.`,
+          usage.cacheReadTokens === undefined ? "--" : formatLocalTokens(usage.cacheReadTokens),
+          usage.cacheReadTokens === undefined ? "cache read 값이 제공되지 않았습니다." : `정확한 cache read: ${exactLocalTokens(usage.cacheReadTokens)} tokens. 재사용한 cache 입력 토큰이며 input에 이미 포함되므로 total에 다시 더하지 않습니다.`,
           "cache",
         )}
         {help(
           "cache-write",
           "cache write",
-          formatLocalTokens(usage.cacheWriteTokens ?? 0),
-          `정확한 cache write: ${exactLocalTokens(usage.cacheWriteTokens ?? 0)} tokens. cache에 새로 기록한 입력 토큰이며 input에 이미 포함되므로 total에 다시 더하지 않습니다.`,
+          usage.cacheWriteTokens === undefined ? "--" : formatLocalTokens(usage.cacheWriteTokens),
+          usage.cacheWriteTokens === undefined ? "cache write 값이 제공되지 않았습니다." : `정확한 cache write: ${exactLocalTokens(usage.cacheWriteTokens)} tokens. cache에 새로 기록한 입력 토큰이며 input에 이미 포함되므로 total에 다시 더하지 않습니다.`,
           "cache",
         )}
       </div>
@@ -285,6 +284,17 @@ const hasFableWindow = (provider: ProviderSnapshot): boolean =>
       window.kind === "model_weekly" && /\bfable\b/i.test(window.label),
   );
 
+const missingCoreLabels = (provider: ProviderSnapshot): string[] => {
+  const expectedKinds: QuotaWindow["kind"][] =
+    provider.providerId === "codex" ? ["weekly"] : ["five_hour", "weekly"];
+  const displayedKinds = new Set(
+    selectDisplayWindows(provider).map((window) => window.kind),
+  );
+  return expectedKinds
+    .filter((kind) => !displayedKinds.has(kind))
+    .map((kind) => (kind === "weekly" ? "7d" : "5h"));
+};
+
 const selectAdditionalWindows = (
   provider: ProviderSnapshot,
   displayed: QuotaWindow[],
@@ -292,11 +302,7 @@ const selectAdditionalWindows = (
   const displayedIds = new Set(displayed.map(({ id }) => id));
   const seenIds = new Set<string>();
   return provider.quotaWindows.filter((window) => {
-    if (
-      displayedIds.has(window.id) ||
-      seenIds.has(window.id) ||
-      window.status === "unavailable"
-    ) {
+    if (displayedIds.has(window.id) || seenIds.has(window.id)) {
       return false;
     }
     seenIds.add(window.id);
@@ -311,13 +317,21 @@ const selectAdditionalWindows = (
 const Quota = ({
   providerId,
   window,
+  now,
+  activeHelp,
+  onActiveHelpChange,
 }: {
   providerId: ProviderSnapshot["providerId"];
   window: QuotaWindow;
+  now: number;
+  activeHelp?: string;
+  onActiveHelpChange(id?: string): void;
 }) => {
   const used = window.usedPercent;
+  const unavailable = used === undefined || window.status === "unavailable";
   const remaining = used === undefined ? undefined : 100 - used;
   const tone = usageTone(used);
+  const resetPending = isResetPending(window.resetsAt, now);
   const label =
     window.kind === "weekly"
       ? "7d"
@@ -326,29 +340,50 @@ const Quota = ({
         : window.label;
 
   return (
-    <section className="quota">
+    <section className={`quota${unavailable ? " quota-not-provided" : ""}`}>
       <strong className="quota-label">{label}</strong>
-      <progress
-        className={`quota-meter tone-${tone}`}
-        max={100}
-        value={used}
-        aria-label={`${window.label} 사용률`}
-      />
-      <span
-        className={`quota-value tone-${tone}`}
-        data-testid={`${providerId}-${window.kind}-value`}
-      >
-        {used === undefined ? "--" : `${used}%`}
-      </span>
-      <span className="quota-reset">
-        resets{" "}
-        <time dateTime={window.resetsAt}>
-          {formatCountdown(window.resetsAt)}
-        </time>
-      </span>
-      <span className="quota-remaining">
-        {remaining === undefined ? "remaining --" : `${remaining}% remaining`}
-      </span>
+      {unavailable ? (
+        <span className="quota-not-provided-text">not provided</span>
+      ) : (
+        <>
+          <progress
+            className={`quota-meter tone-${tone}`}
+            max={100}
+            value={used}
+            aria-label={`${window.label} 사용률`}
+          />
+          <HelpTrigger
+            id={`${providerId}-${window.id}-usage`}
+            label={`${used}%`}
+            description={`사용률 ${used}%, 남은 비율 ${remaining}%입니다.`}
+            className={`quota-value tone-${tone}`}
+            testId={`${providerId}-${window.kind}-value`}
+            activeHelp={activeHelp}
+            onActiveHelpChange={onActiveHelpChange}
+          />
+          <HelpTrigger
+            id={`${providerId}-${window.id}-reset`}
+            label={
+              resetPending
+                ? "reset pending"
+                : `resets ${formatQuotaCountdown(window.resetsAt, now)}`
+            }
+            description={
+              resetPending
+                ? `reset 확인 대기: 로컬 reset 시각은 ${formatResetAt(window.resetsAt!)}이며 마지막 quota 수치를 유지한 채 다음 provider 갱신을 기다립니다.`
+                : window.resetsAt
+                  ? `로컬 reset 시각: ${formatResetAt(window.resetsAt)}.`
+                  : "reset 시각이 제공되지 않았습니다."
+            }
+            className="quota-reset"
+            activeHelp={activeHelp}
+            onActiveHelpChange={onActiveHelpChange}
+          />
+        </>
+      )}
+      {!unavailable && remaining !== undefined ? (
+        <span className="quota-remaining">{`${remaining}% remaining`}</span>
+      ) : null}
     </section>
   );
 };
@@ -357,12 +392,14 @@ const ProviderCard = ({
   provider,
   index,
   onOpenClaudeSetup,
+  now,
   activeHelp,
   onActiveHelpChange,
 }: {
   provider: ProviderSnapshot;
   index: number;
   onOpenClaudeSetup(action: ClaudeSetupAction): void;
+  now: number;
   activeHelp?: string;
   onActiveHelpChange(id?: string): void;
 }) => {
@@ -370,6 +407,7 @@ const ProviderCard = ({
     ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
   ];
   const primaryWindows = selectDisplayWindows(provider);
+  const missingCores = missingCoreLabels(provider);
   const additionalWindows = selectAdditionalWindows(provider, primaryWindows);
   const additionalWindowCount = additionalWindows.length;
   const [additionalExpanded, setAdditionalExpanded] = useState(false);
@@ -410,7 +448,12 @@ const ProviderCard = ({
       </header>
       {provider.error ? (
         <div className="provider-error-row" role="status">
-          <p className="provider-error">{provider.error.message}</p>
+          <p className="provider-error">
+            {providerErrorHelp[provider.error.code]}
+            {provider.status === "stale"
+              ? ` 마지막 성공 ${formatUpdatedAt(provider.lastSuccessfulAt ?? provider.fetchedAt)}.`
+              : ""}
+          </p>
           {setupAction ? (
             <button
               type="button"
@@ -428,7 +471,16 @@ const ProviderCard = ({
             key={window.id}
             providerId={provider.providerId}
             window={window}
+            now={now}
+            activeHelp={activeHelp}
+            onActiveHelpChange={onActiveHelpChange}
           />
+        ))}
+        {missingCores.map((label) => (
+          <p className="quota-unavailable" key={`missing-${label}`}>
+            <strong>{label}</strong>
+            <span>not provided</span>
+          </p>
         ))}
         {provider.providerId === "claude" && !hasFableWindow(provider) ? (
           <p className="quota-unavailable">
@@ -452,7 +504,13 @@ const ProviderCard = ({
               {additionalWindows.map((window) => (
                 <div className="additional-quota" key={window.id}>
                   <h3>{window.label}</h3>
-                  <Quota providerId={provider.providerId} window={window} />
+                  <Quota
+                    providerId={provider.providerId}
+                    window={window}
+                    now={now}
+                    activeHelp={activeHelp}
+                    onActiveHelpChange={onActiveHelpChange}
+                  />
                 </div>
               ))}
             </div>
@@ -484,6 +542,17 @@ export const App = () => {
   const [snapshot, setSnapshot] = useState<AppSnapshot>();
   const [error, setError] = useState(false);
   const [activeHelp, setActiveHelp] = useState<string>();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const updateClock = (): void => setNow(Date.now());
+    const timer = window.setInterval(updateClock, 30_000);
+    window.addEventListener("focus", updateClock);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", updateClock);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -555,6 +624,7 @@ export const App = () => {
               provider={provider}
               index={index}
               onOpenClaudeSetup={openClaudeSetup}
+              now={now}
               activeHelp={activeHelp}
               onActiveHelpChange={setActiveHelp}
             />

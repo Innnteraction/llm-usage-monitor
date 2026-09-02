@@ -150,7 +150,7 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
 - [x] Step 6.1 — 정보 계층과 추가 quota 열람을 마감한다.
   - 기본 화면은 Codex `7d`, Claude `5h`·`7d`·`Fable`과 로컬 토큰 두 줄 보조 표시를 유지한다. `+N additional limits`는 현재 snapshot에 보존된 추가 quota만 보여 주는 키보드 조작 가능 펼치기 버튼으로 바꾸며, 기본 quota·ID와 중복 제거하고 접힘 상태는 provider별 renderer 메모리에만 보관한다.
   - 긴 모델명은 별도 제목 행으로 표시하고 긴 계정명은 말줄임·hover·keyboard focus 전체 도움말을 제공하며 메모리에만 둔다. 420×320과 110% 글꼴을 유지하고 헤더·하단 범위 안내는 고정하며 provider 목록만 세로 스크롤한다. 가로 스크롤·글꼴 축소는 사용하지 않는다.
-- [ ] Step 6.2 — quota 상태·시간·설명을 마감한다.
+- [x] Step 6.2 — quota 상태·시간·설명을 마감한다.
   - 사용률 도움말에는 남은 비율을, reset 도움말에는 로컬 날짜·AM/PM 시각을 제공한다. renderer의 30초 타이머와 창 focus 시 즉시 계산으로 카운트다운만 갱신하며 provider 요청은 발생시키지 않는다.
   - reset이 지나도 quota를 초기화하지 않고 마지막 수치를 유지하며 `reset 확인 대기`로 설명한다. quota 미제공은 명시적 행으로 표시하고 진행 막대·0%·불확정 막대를 사용하지 않는다.
   - fresh·stale·unavailable과 인증·trust·CLI 미설치·429·network·timeout·출력 변경을 짧은 상태 문구와 설명으로 구별하고 stale에는 마지막 성공 시각을 표시한다. 로컬 `calculating`·`no logs`·`partial`은 quota 상태와 분리하며, 선택적 cache 수치가 없으면 0 대신 미제공으로 설명한다. 툴팁은 hover·focus로 열리고 포인터 이동 중 유지되며 동시에 하나만 표시한다.

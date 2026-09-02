@@ -217,9 +217,28 @@ h2 {
 }
 
 .quota-value {
+  justify-content: flex-end;
   font-size: 0.74rem;
   font-weight: 700;
   text-align: right;
+}
+
+.local-token-help.quota-value .local-token-trigger,
+.local-token-help.quota-reset .local-token-trigger {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.local-token-help.quota-value.tone-low {
+  color: var(--low);
+}
+
+.local-token-help.quota-value.tone-medium {
+  color: var(--medium);
+}
+
+.local-token-help.quota-value.tone-high {
+  color: var(--high);
 }
 
 .tone-low {
@@ -235,10 +254,27 @@ h2 {
 }
 
 .quota-reset {
+  display: inline-flex;
+  width: 94px;
   overflow: hidden;
   color: var(--muted);
   font-size: 0.68rem;
   white-space: nowrap;
+}
+
+.quota-reset .local-token-trigger {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quota-not-provided {
+  grid-template-columns: 40px minmax(0, 1fr);
+}
+
+.quota-not-provided-text {
+  color: var(--muted);
+  font-size: 0.68rem;
 }
 
 .quota-remaining {
@@ -375,6 +411,10 @@ h2 {
 
 .additional-quota .quota {
   grid-template-columns: minmax(0, 1fr) 42px 94px;
+}
+
+.additional-quota .quota-not-provided {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .additional-quota .quota-label {

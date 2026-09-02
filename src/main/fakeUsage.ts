@@ -16,6 +16,30 @@ const buildProvider = (
   const isCodex = providerId === "codex";
   const longContent =
     process.env.LLM_USAGE_MONITOR_E2E_PHASE6_LONG_CONTENT === "1";
+  const phase6Errors = process.env.LLM_USAGE_MONITOR_E2E_PHASE6_ERRORS === "1";
+  const missingCache = process.env.LLM_USAGE_MONITOR_E2E_PHASE6_MISSING_CACHE === "1";
+  const staleCodex = phase6Errors && isCodex;
+  const unavailableClaude = phase6Errors && !isCodex;
+  const clockScenario = process.env.LLM_USAGE_MONITOR_E2E_PHASE6_CLOCK === "1";
+  const unavailableQuotaWindows = [
+    {
+      id: "claude-five-hour",
+      kind: "five_hour" as const,
+      label: "5h",
+      usedPercent: 28,
+      resetsAt: new Date(now.getTime() + 5 * 60 * 60 * 1000).toISOString(),
+      source: "local_fixture" as const,
+      status: "unavailable" as const,
+    },
+    {
+      id: "claude-weekly",
+      kind: "weekly" as const,
+      label: "Weekly",
+      resetsAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      source: "local_fixture" as const,
+      status: "unavailable" as const,
+    },
+  ];
   const fiveHourUsed = (isCodex ? 42 : 28) + generation;
   const weeklyUsed = (isCodex ? 63 : 51) + generation;
   const localUsageState = process.env.LLM_USAGE_MONITOR_E2E_LOCAL_USAGE_STATE;
@@ -43,8 +67,12 @@ const buildProvider = (
             outputTokens: longContent
               ? (isCodex ? 3_300_000_000 : 1_800_000_000)
               : (isCodex ? 330_000 : 180_000),
-            cacheReadTokens: isCodex ? 700_000 : 200_000,
-            cacheWriteTokens: isCodex ? 20_000 : 10_000,
+            ...(missingCache
+              ? {}
+              : {
+                  cacheReadTokens: isCodex ? 700_000 : 200_000,
+                  cacheWriteTokens: isCodex ? 20_000 : 10_000,
+                }),
             totalTokens: longContent
               ? (isCodex ? 12_300_000_000 : 6_000_000_000)
               : (isCodex ? 1_230_000 : 600_000),
@@ -61,11 +89,18 @@ const buildProvider = (
         ? "codex.user@example.com"
         : "claude.user@example.com",
     ...(isCodex ? {} : { authKind: "subscription" as const }),
-    status: "fresh",
+    status: unavailableClaude ? "unavailable" : staleCodex ? "stale" : "fresh",
     fetchedAt: now.toISOString(),
-    lastSuccessfulAt: now.toISOString(),
+    lastSuccessfulAt: staleCodex
+      ? new Date(now.getTime() - 15 * 60 * 1000).toISOString()
+      : now.toISOString(),
+    ...(staleCodex
+      ? { error: { code: "network" as const, message: "fixture network failure" } }
+      : unavailableClaude
+        ? { error: { code: "not_installed" as const, message: "fixture CLI missing" } }
+        : {}),
     ...(localUsage ? { localUsage } : {}),
-    quotaWindows: [
+    quotaWindows: unavailableClaude ? unavailableQuotaWindows : [
       {
         id: `${providerId}-five-hour`,
         kind: "five_hour",
@@ -81,7 +116,12 @@ const buildProvider = (
         label: "Weekly",
         usedPercent: Math.min(weeklyUsed, 100),
         resetsAt: new Date(
-          now.getTime() + 7 * 24 * 60 * 60 * 1000,
+          now.getTime() +
+            (staleCodex
+              ? -60_000
+              : clockScenario && isCodex
+                ? 90_000
+                : 7 * 24 * 60 * 60 * 1000),
         ).toISOString(),
         source: "local_fixture",
         status: "fresh",
