@@ -163,13 +163,15 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
 
 ### Phase 6 관문
 
-- [ ] fake 데이터로 기본·추가 quota 펼침·긴 계정/모델명·큰 토큰 수치·양쪽 provider 오류·Fable 미제공을 검증한다.
-- [ ] 다크·라이트 × Windows 100%·150%에서 글자 잘림, reset 열 overflow, 스크롤 도달 가능성과 툴팁 위치를 확인한다.
-- [ ] 시간 경과·reset 경과·refresh 실패 중에도 카운트다운과 stale 설명이 정확하다.
+- [x] fake 데이터로 기본·추가 quota 펼침·긴 계정/모델명·큰 토큰 수치·양쪽 provider 오류·Fable 미제공을 검증한다.
+- [x] packaged Electron의 다크·라이트 × 100%·150% 배율에서 글자 잘림, reset 열 overflow, 스크롤 도달 가능성과 툴팁 위치를 확인한다. OS 설정 변경·혼합 배율 모니터는 별도 수동 확인으로 남긴다.
+- [x] 시간 경과·reset 경과·refresh 실패 중에도 카운트다운과 stale 설명이 정확하다.
 - [ ] 키보드와 Windows Narrator로 핵심 정보·동작을 확인하고 네이티브 트레이 메뉴의 자동 시작·종료를 검증한다.
-- [ ] 트레이 배치 계산을 단위 테스트로 검증한다. 실제 혼합 배율·멀티 모니터는 가능한 환경에서 수동 검증하며 사용할 수 없으면 미검증으로 명시한다.
-- [ ] Architecture Guard `verify`, typecheck, lint, unit·integration·Electron smoke, `git diff --check`와 민감정보 검사를 통과한다.
-- [ ] 허구 계정 스크린샷과 결과를 제공하고 `test(phase6): TUI 제품 마감 관문 검증`으로 커밋한다.
+- [x] 트레이 배치 계산을 단위 테스트로 검증한다. 실제 혼합 배율·멀티 모니터는 현재 환경에서 미검증임을 기록한다.
+- [x] Architecture Guard `verify`, typecheck, lint, unit·integration·Electron smoke, `git diff --check`와 민감정보 검사를 통과한다.
+- [x] 허구 계정 스크린샷과 결과를 제공하고 `test(phase6): TUI 제품 마감 관문 검증`으로 커밋한다.
+
+자동 검증 결과와 수동 확인 대기는 [Phase 6 검증 기록](phase6-validation.md)에 구분한다. 구현·자동 관문은 통과했지만 Windows Narrator·네이티브 메뉴·혼합 배율 모니터 확인과 사용자 인수가 남아 있으므로 Phase 전체를 완료 처리하거나 `main`에 병합하지 않는다.
 
 각 Step은 Guard verify, 가까운 테스트, 전체 diff·민감정보 검토를 거쳐 각각 `feat(ui): 추가 quota 펼치기와 긴 콘텐츠 표시`, `feat(ui): quota 상태와 시간 설명 보강`, `feat(ui): 시스템 테마와 키보드 접근성 마감`, `fix(tray): 화면 배치와 상주 동작 안정화`로 커밋한다. Phase 6은 새로운 시각 콘셉트로 다시 디자인하는 단계가 아니며, Phase 4에서 승인된 TUI형 기준선을 유지한다.
 

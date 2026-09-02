@@ -23,6 +23,10 @@ LLM Usage Monitor는 Codex와 Claude Code 구독 계정의 5시간·주간 quota
 
 현재 미리보기 버전은 Codex·Claude quota를 읽어 Windows 트레이의 420×320 TUI형 팝오버에 표시한다. 첫 실행 또는 Claude 준비가 끝나지 않은 동안에는 팝오버를 열고, Claude quota를 한 번 정상 수집한 뒤부터는 트레이에서 조용히 시작한다. 진행 상태와 다음 작업은 [v1 로드맵](docs/plan/v1-roadmap.md)을 따른다.
 
+기본 화면은 Codex `7d`, Claude `5h`·`7d`·`Fable`을 표시한다. `+N additional limits`를 누르면 수집된 추가 quota를 펼칠 수 있다. 긴 내용은 목록 안에서 세로로 스크롤하며, 계정·사용률·reset·토큰 설명은 마우스를 올리거나 Tab으로 초점을 옮겨 확인한다. Enter·Space로 버튼을 조작하고 Escape로 팝오버를 숨긴다. 테마는 Windows의 다크·라이트 설정을 자동으로 따른다.
+
+Windows 로그인 시 시작과 종료는 트레이 아이콘의 우클릭 메뉴에서 선택한다. 자동 시작은 사용자 선택 사항이다. Phase 6의 자동 검사 결과와 남은 수동 확인 항목은 [검증 기록](docs/plan/phase6-validation.md)에 구분해 둔다.
+
 ## 미리보기 실행
 
 Node.js 24와 Codex·Claude Code CLI가 필요하다. 저장소에서 다음 명령으로 개발 앱을 실행한다.
