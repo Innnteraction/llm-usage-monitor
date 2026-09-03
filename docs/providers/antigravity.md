@@ -53,4 +53,4 @@ corepack pnpm exec vitest run --config vitest.antigravity-smoke.config.mts
 
 현재 계약 확인은 특정 로그인 환경의 관측이다. 모든 전역 startup 부작용이 없음을 입증하거나 향후 CLI 출력의 호환성을 보장하지 않는다. 구조 변경은 parser mismatch로 처리하고 마지막 정상 quota를 stale로 유지한다.
 
-2026-09-03 수집기 구현의 Guard·typecheck·lint·전체 단위/통합 158개가 통과했다. 위 smoke 명령도 production provider로 성공했다. 실패 경로는 fake process와 허구 JSON으로 검증했으며 실제 계정의 인증 상태를 변경하지 않았다. 화면 연결은 별도 단계다.
+2026-09-03 수집기와 화면 연결의 Guard·typecheck·lint·전체 단위/통합 159개가 통과했다. 위 smoke 명령도 production provider로 성공했다. 실패 경로는 fake process와 허구 JSON으로 검증했으며 실제 계정의 인증 상태를 변경하지 않았다. Antigravity 전용 개발 Electron 5개에서 모델별 표시·오류 격리·테마·배율·스크롤·compact를 확인했다. packaged 앱과 설치 파일은 별도 배포 관문에 남긴다.

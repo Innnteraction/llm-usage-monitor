@@ -58,6 +58,59 @@ afterEach(async () => {
 });
 
 describe("SnapshotCache", () => {
+  it("restores a sanitized Antigravity snapshot stale without displacing Codex or Claude", async () => {
+    const { cache, filePath } = await createCache();
+    const antigravity: ProviderSnapshot = {
+      providerId: "antigravity",
+      accountLabel: "antigravity.user@example.invalid",
+      status: "fresh",
+      fetchedAt: "2026-09-01T03:01:00.000Z",
+      lastSuccessfulAt: "2026-09-01T03:01:00.000Z",
+      error: { code: "timeout", message: "must not be cached" },
+      quotaWindows: [
+        {
+          id: "agy-gemini-weekly",
+          kind: "model_weekly",
+          label: "Gemini Weekly",
+          usedPercent: 25,
+          source: "antigravity_cli",
+          status: "fresh",
+        },
+      ],
+    };
+    const claude = {
+      ...freshProvider(),
+      providerId: "claude" as const,
+      quotaWindows: [
+        {
+          ...freshProvider().quotaWindows[0]!,
+          id: "claude-weekly",
+          source: "claude_cli" as const,
+        },
+      ],
+    };
+    await cache.save({
+      schemaVersion: 1,
+      providers: [freshProvider(), claude, antigravity],
+      refreshing: [],
+      updatedAt: "2026-09-01T03:01:00.000Z",
+    });
+    const raw = await readFile(filePath, "utf8");
+    expect(raw).not.toContain("accountLabel");
+    expect(raw).not.toContain("error");
+    expect(raw).not.toContain("localUsage");
+    const loaded = await cache.load();
+    expect(loaded.map(({ providerId }) => providerId)).toEqual([
+      "codex",
+      "claude",
+      "antigravity",
+    ]);
+    expect(loaded[2]).toMatchObject({
+      providerId: "antigravity",
+      status: "stale",
+      quotaWindows: [{ source: "antigravity_cli", status: "stale" }],
+    });
+  });
   it("atomically stores only sanitized successful snapshots", async () => {
     const { cache, directory, filePath } = await createCache();
     await cache.save(appSnapshot(freshProvider()));

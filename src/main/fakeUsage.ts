@@ -183,6 +183,72 @@ const buildProvider = (
   };
 };
 
+const buildAntigravityProvider = (
+  generation: number,
+  now: Date,
+): ProviderSnapshot => {
+  const scenario = process.env.LLM_USAGE_MONITOR_E2E_ANTIGRAVITY;
+  const error = scenario === "error";
+  const empty = scenario === "empty";
+  return {
+    providerId: "antigravity",
+    status: error ? "unavailable" : "fresh",
+    fetchedAt: now.toISOString(),
+    ...(error
+      ? { error: { code: "timeout" as const, message: "fixture timeout" } }
+      : { lastSuccessfulAt: now.toISOString() }),
+    quotaWindows:
+      empty || error
+        ? []
+        : [
+            {
+              id: "agy-gemini-5h",
+              kind: "five_hour",
+              label: "Gemini 5h",
+              usedPercent: 20 + generation,
+              resetsAt: new Date(
+                now.getTime() + 5 * 60 * 60 * 1000,
+              ).toISOString(),
+              source: "antigravity_cli",
+              status: "fresh",
+            },
+            {
+              id: "agy-gemini-weekly",
+              kind: "model_weekly",
+              label: "Gemini Weekly",
+              usedPercent: 40 + generation,
+              resetsAt: new Date(
+                now.getTime() + 7 * 24 * 60 * 60 * 1000,
+              ).toISOString(),
+              source: "antigravity_cli",
+              status: "fresh",
+            },
+            {
+              id: "agy-claude-gpt-5h",
+              kind: "five_hour",
+              label: "Claude/GPT 5h",
+              usedPercent: 30 + generation,
+              resetsAt: new Date(
+                now.getTime() + 5 * 60 * 60 * 1000,
+              ).toISOString(),
+              source: "antigravity_cli",
+              status: "fresh",
+            },
+            {
+              id: "agy-claude-gpt-weekly",
+              kind: "model_weekly",
+              label: "Claude/GPT Weekly",
+              usedPercent: 50 + generation,
+              resetsAt: new Date(
+                now.getTime() + 7 * 24 * 60 * 60 * 1000,
+              ).toISOString(),
+              source: "antigravity_cli",
+              status: "fresh",
+            },
+          ],
+  };
+};
+
 export const createFakeUsageStore = (clock: () => Date = () => new Date()) => {
   let generation = 0;
   let snapshot: AppSnapshot = {
@@ -190,6 +256,7 @@ export const createFakeUsageStore = (clock: () => Date = () => new Date()) => {
     providers: [
       buildProvider("codex", generation, clock()),
       buildProvider("claude", generation, clock()),
+      ...(process.env.LLM_USAGE_MONITOR_E2E_ANTIGRAVITY ? [buildAntigravityProvider(generation, clock())] : []),
     ],
     refreshing: [],
     updatedAt: clock().toISOString(),
@@ -209,7 +276,7 @@ export const createFakeUsageStore = (clock: () => Date = () => new Date()) => {
     async refresh(providerId?: ProviderId): Promise<void> {
       const refreshing: ProviderId[] = providerId
         ? [providerId]
-        : ["codex", "claude"];
+        : snapshot.providers.map(({ providerId: id }) => id);
       snapshot = { ...snapshot, refreshing };
       publish();
 
@@ -221,6 +288,7 @@ export const createFakeUsageStore = (clock: () => Date = () => new Date()) => {
         providers: [
           buildProvider("codex", generation, now),
           buildProvider("claude", generation, now),
+          ...(process.env.LLM_USAGE_MONITOR_E2E_ANTIGRAVITY ? [buildAntigravityProvider(generation, now)] : []),
         ],
         refreshing: [],
         updatedAt: now.toISOString(),

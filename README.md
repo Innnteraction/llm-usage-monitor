@@ -21,9 +21,11 @@ LLM Usage Monitor는 Codex와 Claude Code 구독 계정의 5시간·주간 quota
 
 ## 현재 범위
 
-현재 미리보기 버전은 Codex·Claude quota를 읽어 Windows 트레이의 480×360 TUI형 팝오버에 표시한다. 첫 실행 또는 Claude 준비가 끝나지 않은 동안에는 팝오버를 열고, Claude quota를 한 번 정상 수집한 뒤부터는 트레이에서 조용히 시작한다. 진행 상태와 다음 작업은 [v1 로드맵](docs/plan/v1-roadmap.md)을 따른다.
+현재 미리보기 버전은 Codex·Claude와 Antigravity(`agy`) quota를 읽어 Windows 트레이의 480×360 TUI형 팝오버에 표시한다. 첫 실행 또는 Claude 준비가 끝나지 않은 동안에는 팝오버를 열고, Claude quota를 한 번 정상 수집한 뒤부터는 트레이에서 조용히 시작한다. 진행 상태와 다음 작업은 [v1 로드맵](docs/plan/v1-roadmap.md)을 따른다.
 
-기본 화면은 Codex `7d`, Claude `5h`·`7d`·`Fable`을 스크롤 없이 표시한다. `+N additional limits`를 누르면 수집된 추가 quota를 펼칠 수 있다. Codex의 `gpt-reserve Weekly`는 당분간 표시와 추가 한도 개수에서 제외하지만 수집 데이터는 보존한다. 펼친 내용이나 긴 오류는 목록 안에서 세로로 스크롤하며, 텍스트와 스크롤바 사이에 여백을 둔다.
+기본 quota는 Codex `7d`, Claude `5h`·`7d`·`Fable`이다. `+N additional limits`를 누르면 수집된 추가 quota를 펼칠 수 있다. Codex의 `gpt-reserve Weekly`는 당분간 표시와 추가 한도 개수에서 제외하지만 수집 데이터는 보존한다. Antigravity는 별도 카드에서 Gemini 및 Claude/GPT 모델군의 5시간·주간 한도를 표시한다. 세 번째 카드와 펼친 내용은 목록 안에서 세로로 스크롤하며 헤더·하단 조작부는 고정된다.
+
+Antigravity는 v1 필수 대상이 아닌 미리보기 확장이다. 설치되지 않았거나 로그인되지 않은 CLI는 오류 상태로 표시하며 Codex·Claude 수집은 계속된다. Antigravity 계정명과 로컬 토큰은 제공하지 않는다. 모델군 이름의 Gemini는 별도 Gemini CLI 지원을 뜻하지 않는다. [지원 버전·수집 계약](docs/providers/antigravity.md)을 참고한다.
 
 Windows 로그인 시 시작과 종료는 트레이 아이콘의 우클릭 메뉴에서 선택한다. 자동 시작은 사용자 선택 사항이다. Phase 6의 자동 검사 결과와 남은 수동 확인 항목은 [검증 기록](docs/plan/phase6-validation.md)에 구분해 둔다.
 
@@ -55,6 +57,8 @@ Node.js 24와 Codex·Claude Code CLI가 필요하다. 저장소에서 다음 명
 corepack pnpm install
 corepack pnpm dev
 ```
+
+Antigravity 카드도 사용하려면 PATH에서 실행할 수 있는 `agy` 1.1.11 이상 1.1.x와 해당 CLI의 로그인 상태가 필요하다. 앱은 로그인·인증정보를 대신 관리하지 않는다. CLI 설치·로그인 후 `refresh`로 다시 확인한다. 개발 앱이 이미 열려 있으면 트레이 메뉴에서 종료한 뒤 `corepack pnpm dev`를 다시 실행해 main process 변경도 반영한다. 기존 설치 파일은 개발 코드 변경으로 갱신되지 않는다.
 
 Claude가 로그인되지 않았으면 `sign in`, 전용 probe 폴더 승인이 필요하면 `prepare folder`를 누른다. 앱은 보이는 Windows Terminal만 열며 로그인과 폴더 trust 선택은 사용자가 Claude CLI에서 직접 완료한다. 완료 후 트레이 팝오버를 다시 열어 `refresh`를 누른다.
 

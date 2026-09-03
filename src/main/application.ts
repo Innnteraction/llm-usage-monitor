@@ -12,8 +12,10 @@ import path from "node:path";
 import {
   ClaudeQuotaProvider,
   CodexQuotaProvider,
+  AntigravityQuotaProvider,
   createClaudeInitialSnapshot,
   createCodexInitialSnapshot,
+  createAntigravityInitialSnapshot,
 } from "../providers/index";
 import type { ProviderId } from "../shared/index";
 import {
@@ -141,10 +143,12 @@ export const startApplication = (): void => {
     );
     const setupWasReady = await pathExists(markerPath);
     const initialTime = new Date();
-    const providers = [new CodexQuotaProvider(), new ClaudeQuotaProvider()];
+    const antigravityProvider = new AntigravityQuotaProvider();
+    const providers = [new CodexQuotaProvider(), new ClaudeQuotaProvider(), antigravityProvider];
     const defaultSnapshots = [
       createCodexInitialSnapshot(initialTime),
       createClaudeInitialSnapshot(initialTime),
+      createAntigravityInitialSnapshot(initialTime),
     ];
     const snapshotCache = useFakeProviders
       ? undefined
@@ -307,6 +311,7 @@ export const startApplication = (): void => {
         ipcController.dispose();
         try {
           await Promise.allSettled([
+            antigravityProvider.close(),
             poller?.stop(),
             localUsageCoordinator?.stop(),
             ...pendingBackground,

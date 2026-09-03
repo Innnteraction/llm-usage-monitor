@@ -188,7 +188,7 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
 - [ ] Step 7.3 — 아키텍처·보안·테스트·민감정보 최종 관문을 통과한다.
 - [ ] Step 7.4 — README·SHA-256·`v0.1.0` 로컬 release candidate를 완성한다.
 
-## Phase 5.5 — Antigravity (`agy`) 선택 provider (수집기 검증 완료·화면 연결 예정)
+## Phase 5.5 — Antigravity (`agy`) 선택 provider (구현·개발 화면 검증 완료)
 
 2026-09-03 사용자 요청으로 Phase 7보다 먼저 검토를 재개했다. 이전 보류 결정은 이 순서 변경으로 대체하지만 v1 필수 수용 기준에는 아직 포함하지 않는다. 이전 소비자용 CLI에 대한 호환 계층을 두지 않고 Google의 `agy` 실행 파일만 대상으로 한다. [재개 계획과 승인 경계](phase5-5-antigravity.md)에 공식 근거·미확인 위험·실행 순서를 기록한다.
 
@@ -206,20 +206,22 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
   - OS keyring, credential, token과 Antigravity 설정 파일을 앱이 직접 읽거나 쓰지 않는다.
   - quota backend나 비공개 endpoint를 직접 호출하지 않고 로그인·refresh·logout은 `agy`에 맡긴다.
   - 공식 statusline JSON은 향후 사용자 opt-in 대안으로만 검토하며 앱이 `statusLine.command`를 자동 설정하지 않는다.
-- [ ] Step 5.5.4 — 선택 provider 카드와 fake·실제 smoke를 연결한다.
+- [x] Step 5.5.4 — 선택 provider 카드와 fake·실제 smoke를 연결한다.
   - 공개 `ProviderId`·schema 변경은 Architecture Guard impact plan과 사용자 승인을 거쳐 `antigravity`로만 추가한다.
   - `agy` 미설치·미인증·timeout·출력 변경을 다른 provider와 격리하고 마지막 정상값을 stale로 유지한다.
   - 실제 smoke는 계정과 quota 수치를 출력하거나 fixture에 저장하지 않고 성공 여부만 확인한다.
 
-2026-09-03 수집기 관문: Guard·typecheck·lint·26개 파일의 단위/통합 158개 및 production provider의 실제 읽기 전용 smoke 1개를 통과했다. 실제 smoke는 fresh·창 존재·사용률 범위·source·reset·5h/주간 kind를 Boolean으로만 검증했다. 화면 등록과 Electron 검증은 다음 단계다.
+2026-09-03 수집기를 `cbb1de1`로 커밋한 뒤 main의 polling·cache·종료 정리와 TUI 카드에 연결했다. Guard·typecheck·lint·26개 파일의 단위/통합 159개 및 production provider의 실제 읽기 전용 smoke 1개를 통과했다. 실제 smoke는 fresh·창 존재·사용률 범위·source·reset·5h/주간 kind를 Boolean으로만 검증했다. Antigravity 전용 개발 Electron 5개에서 다크·라이트 × 100%·150%, 스크롤, 툴팁, 토큰 토글과 empty/error 격리를 확인했다. 상세 변경과 배포 제외 범위는 [검증 기록](phase5-5-antigravity.md#화면-연결과-배포-범위)을 따른다.
 
 ### Phase 5.5 관문
 
-- [ ] Antigravity 카드에서 CLI가 실제 제공한 모델별 quota와 reset을 표시하며 `5h`·`Weekly`가 없으면 만들지 않는다.
-- [ ] `agy` 장애가 Codex·Claude와 로컬 토큰 집계를 중단시키지 않는다.
-- [ ] 앱 코드에 Antigravity credential·keyring·설정 파일 직접 접근이나 비공개 quota API 호출이 없다.
-- [ ] 실제 `/usage` smoke가 agent 작업과 모델 prompt를 생성하지 않았음을 확인한다.
-- [ ] Antigravity 로컬 토큰은 안정된 공식 집계 계약이 확인되기 전까지 제공하지 않는다.
+- [x] Antigravity 카드에서 CLI가 실제 제공한 모델별 quota와 reset을 표시하며 `5h`·`Weekly`가 없으면 만들지 않는다.
+- [x] `agy` 장애가 Codex·Claude와 로컬 토큰 집계를 중단시키지 않는다.
+- [x] 앱 코드에 Antigravity credential·keyring·설정 파일 직접 접근이나 비공개 quota API 호출이 없다.
+- [x] 실제 `/usage` smoke에서 CLI-direct 성공과 `num_turns: 0`을 확인한다. 전역 startup 부작용의 완전한 부재를 입증한 것으로 확대하지 않는다.
+- [x] Antigravity 로컬 토큰은 안정된 공식 집계 계약이 확인되기 전까지 제공하지 않는다.
+
+새 packaged 앱·설치 파일 검증은 Phase 7에 남는다. Phase 6 수동 인수와 사용자 확인 전에는 `main`에 병합하지 않는다.
 
 ## v1 제외 범위
 

@@ -218,6 +218,7 @@ h2 {
 }
 
 .quota {
+  position: relative;
   display: grid;
   grid-template-columns: 40px minmax(80px, 1fr) 42px 94px;
   align-items: center;

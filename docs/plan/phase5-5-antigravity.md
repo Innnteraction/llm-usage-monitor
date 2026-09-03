@@ -5,7 +5,7 @@
 - 목표: 기존 Codex·Claude 화면을 보존하며 Antigravity quota 선택 확장의 공식 수집 경로를 검증한다.
 - 완료 모습: 인증정보 직접 접근 없이 CLI가 제공한 quota만 표시하며, 미설치·출력 변경·실패가 다른 provider를 중단시키지 않는다.
 - 핵심 접근: 공식 CLI-direct JSON 보고서를 검증하고 승인된 경계 안에서 Terra medium에게 단계별 구현을 위임한다. v1 필수 수용 범위와 로컬 토큰은 확대하지 않는다.
-- 검증: 실제 CLI 계약 확인과 fake fixture 검사를 분리한다. 수집기의 Guard·타입·린트·158개 단위/통합·실제 읽기 전용 smoke를 통과했으며 화면 연결·Electron 관문은 남아 있다.
+- 검증: 실제 CLI 계약 확인과 fake fixture 검사를 분리한다. Guard·타입·린트·159개 단위/통합·실제 읽기 전용 smoke와 Antigravity 전용 개발 Electron 5개를 통과했다. 설치 파일·Windows 수동 인수는 별도다.
 
 ## 기준선과 진행 상태
 
@@ -19,7 +19,10 @@
 - [x] 승인된 정책을 활성화하고 초기 진단 파일 두 개에 대한 새 Guard plan을 생성했다. provider 구현 전에 해당 실제 파일 목록으로 별도 plan을 생성한다.
 - [x] `.architecture-guard/plans/antigravity-provider.json`으로 구현 경계를 고정하고 새 위반 없이 검증했다. Terra medium의 코드에서 실행기 종료·미설치 오류·quota 미제공·실패 격리를 검토했다.
 - [x] 단위/통합 158개와 실제 production provider smoke 1개를 통과했다. 초기 구조 탐색용 코드는 제거하고 별도 smoke 명령에 성공 여부만 남겼다.
-- [ ] main 등록과 세 번째 TUI 카드·fake Electron 검증을 완료한다.
+- [x] 수집기를 `cbb1de1`로 커밋했다.
+- [x] main의 독립 polling·cache에 등록하고 종료 시 실행 중인 Antigravity 조회를 닫는다. 로컬 scanner는 Codex·Claude만 유지한다.
+- [x] 세 번째 TUI 카드에 현재 제공된 모델군별 4개 창을 표시하고 긴 제목은 별도 줄로 분리한다. 계정명·로컬 토큰은 추가하지 않으며 empty 응답은 generic 미제공으로 표시한다.
+- [x] fake Electron의 세 카드·스크롤·compact·테마·배율 검증을 완료했다. 기본 2개 provider fixture는 보존했다.
 
 ## 확인한 수집 경로와 남은 위험
 
@@ -60,3 +63,22 @@ MCP 설정은 전역과 workspace에 각각 존재한다. 이 앱은 해당 파�
 4. **관문:** Guard verify → typecheck → lint → 단위/통합 → fake Electron → 별도 실제 읽기 전용 smoke → diff·민감정보 검사. 실제 계정·원문·수치는 출력하지 않는다. 단계별 검토·커밋은 Sol이 맡고 subagent는 추가 agent나 커밋을 만들지 않는다.
 
 Phase 6의 Narrator·네이티브 트레이·혼합 배율 수동 인수와 Phase 7의 설치·업그레이드·제거는 별도로 남는다. Antigravity의 v1 정식 포함 여부는 실제 계약·선택 카드 검증 뒤 확정한다.
+
+## 화면 연결과 배포 범위
+
+Antigravity 카드는 기존 480×360 팝오버의 세 번째 항목이다. 목록만 세로 스크롤하고 헤더·하단 조작부와 토큰 숨김 시 480×304 크기를 유지한다. 전용 표시 설정이나 계정 관리 UI는 추가하지 않았다. 미설치·미인증은 기존 오류 표현을 사용하고 사용자에게 CLI 자체에서 준비하도록 안내한다.
+
+세 카드 화면 검사에서 숨겨진 `.quota-remaining` 접근성 텍스트의 absolute 배치가 문서 높이를 360px에서 440px로 늘리는 문제를 발견했다. `.quota`를 containing block으로 지정해 텍스트가 해당 게이지의 스크롤 영역 안에 머물게 했다. 시각 디자인과 접근성 설명은 유지하며 문서 높이 검사를 완화하지 않았다.
+
+기본 fake fixture는 기존 두 provider를 유지한다. Antigravity 화면 검사는 `LLM_USAGE_MONITOR_E2E_ANTIGRAVITY`를 명시한 별도 fixture로 실행하며 실제 CLI를 시작하지 않는다. 정상 4개 창, 빈 quota, 오류를 구분하고 실제 수치나 계정은 사용하지 않는다.
+
+진행 중인 개발 서버의 `.vite` 산출물을 패키징으로 덮어쓰지 않기 위해 이번 화면 관문은 개발 Electron으로 실행한다. 새 설치 파일과 packaged smoke는 이번 결과에 포함하지 않고 Phase 7의 배포 관문에 남긴다. 기존 설치 파일에 이 변경이 반영됐다고 간주하지 않는다.
+
+### 최종 검증 기록 — 2026-09-03
+
+- [x] 활성 정책 변경 없이 `antigravity-provider.json` Guard verify를 통과했다.
+- [x] `corepack pnpm typecheck`, `corepack pnpm lint`, `corepack pnpm test` — 26개 파일·159개 테스트 통과.
+- [x] `LLM_USAGE_MONITOR_E2E_DEV=1`에서 `corepack pnpm exec playwright test` — Antigravity 5개와 기존 UI·트레이 14개, 총 19개 통과.
+- [x] Antigravity의 dark/light × 100%/150% 화면·툴팁 캡처를 허구 값으로 생성했다. 확대 화면에서도 reset 열·footer가 범위 안에 있고 가로 overflow가 없다.
+- [x] production provider의 별도 실제 smoke 1개를 통과했다. 실제 값·계정·응답을 저장하지 않았고 종료 후 남은 `agy` 프로세스가 없음을 확인했다.
+- [ ] 최신 packaged 앱·설치·업그레이드·제거, Windows Narrator·혼합 배율 모니터의 수동 인수는 후속 관문에 남는다.

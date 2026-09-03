@@ -359,6 +359,9 @@ const LocalUsage = ({
 };
 
 const selectDisplayWindows = (provider: ProviderSnapshot): QuotaWindow[] => {
+  if (provider.providerId === "antigravity") {
+    return provider.quotaWindows;
+  }
   const find = (kind: QuotaWindow["kind"]) =>
     provider.quotaWindows.find((window) => window.kind === kind);
 
@@ -387,6 +390,7 @@ const hasFableWindow = (provider: ProviderSnapshot): boolean =>
   );
 
 const missingCoreLabels = (provider: ProviderSnapshot): string[] => {
+  if (provider.providerId === "antigravity") return [];
   const expectedKinds: QuotaWindow["kind"][] =
     provider.providerId === "codex" ? ["weekly"] : ["five_hour", "weekly"];
   const displayedKinds = new Set(
@@ -517,6 +521,9 @@ const ProviderCard = ({
   const sources = [
     ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
   ];
+  if (provider.providerId === "antigravity" && sources.length === 0) {
+    sources.push("Antigravity CLI");
+  }
   const primaryWindows = selectDisplayWindows(provider);
   const missingCores = missingCoreLabels(provider);
   const additionalWindows = selectAdditionalWindows(provider, primaryWindows);
@@ -577,7 +584,12 @@ const ProviderCard = ({
         </div>
       ) : null}
       <div className="quota-grid">
-        {primaryWindows.map((window) => (
+        {provider.providerId === "antigravity" ? primaryWindows.map((window) => (
+          <div className="additional-quota" key={window.id}>
+            <h3>{window.label}</h3>
+            <Quota providerId={provider.providerId} window={window} now={now} activeHelp={activeHelp} onActiveHelpChange={onActiveHelpChange} />
+          </div>
+        )) : primaryWindows.map((window) => (
           <Quota
             key={window.id}
             providerId={provider.providerId}
@@ -593,6 +605,12 @@ const ProviderCard = ({
             <span>not provided</span>
           </p>
         ))}
+        {provider.providerId === "antigravity" && primaryWindows.length === 0 ? (
+          <p className="quota-unavailable">
+            <strong>Quota</strong>
+            <span>not provided</span>
+          </p>
+        ) : null}
         {provider.providerId === "claude" && !hasFableWindow(provider) ? (
           <p className="quota-unavailable">
             <strong>Fable</strong>
@@ -629,7 +647,7 @@ const ProviderCard = ({
         </div>
       ) : null}
       <footer>
-        {tokensVisible ? (
+        {tokensVisible && provider.providerId !== "antigravity" ? (
           <LocalUsage
             providerId={provider.providerId}
             usage={provider.localUsage}
