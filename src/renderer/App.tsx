@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type {
   AppSnapshot,
   ClaudeSetupAction,
@@ -8,6 +8,8 @@ import type {
 } from "../shared/index";
 import {
   formatQuotaCountdown,
+  formatCompactCountdown,
+  formatCompactWindowLabel,
   formatResetAt,
   isResetPending,
   placeTooltip,
@@ -23,6 +25,12 @@ const authKindNames = {
 const providerNames: Record<ProviderSnapshot["providerId"], string> = {
   codex: "Codex",
   claude: "Claude Code",
+  antigravity: "Antigravity",
+};
+
+const compactProviderNames: Record<ProviderSnapshot["providerId"], string> = {
+  codex: "Codex",
+  claude: "Claude",
   antigravity: "Antigravity",
 };
 
@@ -111,7 +119,7 @@ const HelpTrigger = ({
   id: string;
   label: string;
   value?: string;
-  description: string;
+  description: ReactNode;
   tone?: "neutral" | "input" | "output" | "cache" | "partial";
   className?: string;
   testId?: string;
@@ -515,6 +523,72 @@ const Quota = ({
   );
 };
 
+const CompactQuotaTable = ({
+  providers,
+  now,
+}: {
+  providers: ProviderSnapshot[];
+  now: number;
+}) => {
+  return (
+    <div className="compact-table" role="table" aria-label="간이 사용량 요약">
+      {providers.map((provider) => {
+        const windows = selectDisplayWindows(provider);
+        const weeklyWindow =
+          provider.providerId === "antigravity"
+            ? provider.quotaWindows.find((w) => w.id === "agy-gemini-weekly") ??
+              provider.quotaWindows.find((w) => w.kind === "weekly")
+            : provider.quotaWindows.find((w) => w.kind === "weekly");
+        const weeklyUsed = weeklyWindow?.usedPercent;
+        const weeklyTone = usageTone(weeklyUsed);
+
+        const usedPercents = windows.map((w) =>
+          w.usedPercent !== undefined ? `${w.usedPercent}%` : "--",
+        );
+        const windowLabels = windows.map((w) => formatCompactWindowLabel(w));
+        const resets = windows.map((w) =>
+          formatCompactCountdown(w.resetsAt, now),
+        );
+
+        return (
+          <div key={provider.providerId} className="compact-row" role="row">
+            <span className="compact-name">
+              <span
+                className={`status-dot status-${provider.status}`}
+                aria-hidden="true"
+              >
+                ●
+              </span>
+              {compactProviderNames[provider.providerId]}
+            </span>
+            <div className="compact-gauge-cell">
+              {weeklyUsed === undefined || weeklyWindow?.status === "unavailable" ? (
+                <span className="quota-not-provided-text">--</span>
+              ) : (
+                <progress
+                  className={`quota-meter tone-${weeklyTone}`}
+                  max={100}
+                  value={weeklyUsed}
+                  title={`주간 한도 (${formatCompactCountdown(weeklyWindow?.resetsAt, now)}): ${weeklyUsed}%`}
+                />
+              )}
+            </div>
+            <span className="compact-percent">
+              {usedPercents.length > 0 ? usedPercents.join("/") : "--"}
+            </span>
+            <span className="compact-window">
+              {windowLabels.length > 0 ? windowLabels.join("/") : "--"}
+            </span>
+            <span className="compact-reset">
+              {resets.length > 0 ? resets.join("/") : "--"}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 const ProviderCard = ({
   provider,
   index,
@@ -755,6 +829,7 @@ export const App = () => {
   const [activeHelp, setActiveHelp] = useState<string>();
   const [notice, setNotice] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const [compactMode, setCompactMode] = useState(false);
   const [tokensVisible, setTokensVisible] = useState(false);
   const [tokenVisibilityPending, setTokenVisibilityPending] = useState(false);
   const [displayError, setDisplayError] = useState("");
@@ -772,6 +847,11 @@ export const App = () => {
   const resizeFrame = useRef<number | undefined>(undefined);
   const lastWindowSizeRequest = useRef<string | undefined>(undefined);
   const effectiveTheme = themeOverride ?? systemTheme;
+
+  const toggleCompactMode = useCallback((): void => {
+    setActiveHelp(undefined);
+    setCompactMode((prev) => !prev);
+  }, []);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -825,7 +905,7 @@ export const App = () => {
               4,
           ),
         );
-        const requestKey = `${tokensVisible}:${contentHeight}`;
+        const requestKey = `${compactMode}:${tokensVisible}:${contentHeight}`;
         if (lastWindowSizeRequest.current === requestKey) return;
         lastWindowSizeRequest.current = requestKey;
         void window.usageMonitor
@@ -854,7 +934,7 @@ export const App = () => {
       }
       observer.disconnect();
     };
-  }, [displayError, error, tokensVisible]);
+  }, [compactMode, displayError, error, tokensVisible]);
 
   useEffect(() => {
     const updateClock = (): void => setNow(Date.now());
@@ -897,7 +977,10 @@ export const App = () => {
       ) {
         return;
       }
-      if (event.code === "KeyT") {
+      if (event.code === "KeyC") {
+        event.preventDefault();
+        toggleCompactMode();
+      } else if (event.code === "KeyT") {
         event.preventDefault();
         toggleTokenVisibility();
       } else if (event.code === "KeyL") {
@@ -908,7 +991,7 @@ export const App = () => {
     };
     window.addEventListener("keydown", handleKeyboard);
     return () => window.removeEventListener("keydown", handleKeyboard);
-  }, [effectiveTheme, toggleTokenVisibility]);
+  }, [effectiveTheme, toggleCompactMode, toggleTokenVisibility]);
 
   useEffect(() => {
     let active = true;
@@ -1004,18 +1087,22 @@ export const App = () => {
       <section ref={providerListRef} className="provider-list">
         <div ref={providerListContentRef} className="provider-list-content">
           {snapshot ? (
-            snapshot.providers.map((provider, index) => (
-              <ProviderCard
-                key={provider.providerId}
-                provider={provider}
-                index={index}
-                onOpenClaudeSetup={openClaudeSetup}
-                now={now}
-                activeHelp={activeHelp}
-                onActiveHelpChange={setActiveHelp}
-                tokensVisible={tokensVisible}
-              />
-            ))
+            compactMode ? (
+              <CompactQuotaTable providers={snapshot.providers} now={now} />
+            ) : (
+              snapshot.providers.map((provider, index) => (
+                <ProviderCard
+                  key={provider.providerId}
+                  provider={provider}
+                  index={index}
+                  onOpenClaudeSetup={openClaudeSetup}
+                  now={now}
+                  activeHelp={activeHelp}
+                  onActiveHelpChange={setActiveHelp}
+                  tokensVisible={tokensVisible}
+                />
+              ))
+            )
           ) : (
             <p className="loading">사용량을 불러오는 중…</p>
           )}
@@ -1031,6 +1118,17 @@ export const App = () => {
           <div className="footer-controls">
             <button
               type="button"
+              className="display-toggle compact-toggle"
+              aria-label={compactMode ? "상세 모드로 펼치기" : "간이 모드로 접기"}
+              aria-pressed={compactMode}
+              aria-keyshortcuts="Control+Shift+C"
+              title={compactMode ? "상세 모드로 펼치기 (Ctrl+Shift+C)" : "간이 모드로 접기 (Ctrl+Shift+C)"}
+              onClick={toggleCompactMode}
+            >
+              <span aria-hidden="true">{compactMode ? "⊞" : "⊟"}</span>
+            </button>
+            <button
+              type="button"
               className="display-toggle token-toggle"
               aria-label="Tokens"
               aria-pressed={tokensVisible}
@@ -1039,7 +1137,7 @@ export const App = () => {
               onClick={toggleTokenVisibility}
               disabled={tokenVisibilityPending}
             >
-              <span aria-hidden="true">🪙</span>
+              <span aria-hidden="true">◎</span>
             </button>
             <button
               type="button"
@@ -1050,17 +1148,53 @@ export const App = () => {
               title={`${effectiveTheme === "dark" ? "Dark" : "Light"} theme (Ctrl+Shift+L)`}
               onClick={toggleTheme}
             >
-              <span aria-hidden="true">{effectiveTheme === "dark" ? "🌙" : "☀️"}</span>
+              <span aria-hidden="true">{effectiveTheme === "dark" ? "☾" : "☼"}</span>
             </button>
             <HelpTrigger
               id="keyboard-help"
-              label="? Help"
-              description="The theme follows your OS setting at launch. Ctrl+Shift+L changes the theme for this session only, and Ctrl+Shift+T shows or hides local tokens for this PC. Use Tab/Shift+Tab to move and Enter or Space to activate. Hover or focus an item for help, and press Escape to hide the popover (the app runs in the tray). Right-click the tray icon for launch-at-login and quit."
+              label="?"
+              className="help-trigger-toggle"
+              testId="keyboard-help-trigger"
+              description={
+                <div className="help-content">
+                  <h3 className="help-heading">단축키 안내</h3>
+                  <ul className="help-shortcuts">
+                    <li className="help-shortcut-row">
+                      <span className="help-keys">
+                        <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>
+                      </span>
+                      <span className="help-desc">간이 모드 접기 / 펼치기</span>
+                    </li>
+                    <li className="help-shortcut-row">
+                      <span className="help-keys">
+                        <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>
+                      </span>
+                      <span className="help-desc">로컬 토큰 사용량 토글</span>
+                    </li>
+                    <li className="help-shortcut-row">
+                      <span className="help-keys">
+                        <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd>
+                      </span>
+                      <span className="help-desc">다크 / 라이트 테마 전환</span>
+                    </li>
+                    <li className="help-shortcut-row">
+                      <span className="help-keys">
+                        <kbd>Esc</kbd>
+                      </span>
+                      <span className="help-desc">팝오버 닫기 (트레이 상주)</span>
+                    </li>
+                  </ul>
+                  <h3 className="help-heading">조작 안내</h3>
+                  <ul className="help-notes">
+                    <li>항목 호버/포커스: 상세 사용량 안내</li>
+                    <li>트레이 우클릭: 자동 실행, 새로고침, 종료</li>
+                  </ul>
+                </div>
+              }
               activeHelp={activeHelp}
               onActiveHelpChange={setActiveHelp}
             />
           </div>
-          <span className="footer-shortcuts">Ctrl⇧T tokens · Ctrl⇧L theme</span>
         </div>
       </footer>
     </main>

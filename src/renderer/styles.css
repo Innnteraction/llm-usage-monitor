@@ -573,7 +573,10 @@ h2 {
 }
 
 .footer-controls .display-toggle > span {
-  font-family: "Segoe UI Emoji", sans-serif;
+  font-family: inherit;
+  font-size: 0.90rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .footer-controls .display-toggle[aria-pressed="true"] {
@@ -583,7 +586,182 @@ h2 {
 
 .footer-controls .token-toggle[aria-pressed="false"] {
   filter: grayscale(1);
-  text-decoration: line-through;
+  opacity: 0.4;
+}
+
+.footer-controls .help-trigger-toggle {
+  display: inline-flex;
+}
+
+.footer-controls .help-trigger-toggle .local-token-trigger {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 0.90rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.footer-controls .help-trigger-toggle .local-token-trigger > span {
+  font-family: inherit;
+}
+
+/* 개조식 도움말 툴팁 */
+.help-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 0;
+  min-width: 250px;
+  max-width: 320px;
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.help-heading {
+  margin: 0;
+  padding-bottom: 3px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 1px solid var(--track);
+}
+
+.help-shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.help-shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.help-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.help-keys kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-family: inherit;
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text);
+  background: var(--track);
+  border-radius: 3px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.help-desc {
+  color: var(--muted);
+  text-align: right;
+  flex: 1;
+}
+
+.help-notes {
+  margin: 0;
+  padding-left: 14px;
+  color: var(--muted);
+  font-size: 0.64rem;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* 초 간소화 (간이) 모드 테이블 */
+.compact-table {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+  padding: 4px 0;
+  font-size: 0.68rem;
+  letter-spacing: -0.015em;
+}
+
+.compact-row {
+  display: grid;
+  grid-template-columns: 88px 56px 82px 70px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  line-height: 1.35;
+}
+
+.compact-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.compact-name .status-dot {
+  font-size: 0.55rem;
+  line-height: 1;
+}
+
+.compact-name .status-dot.status-fresh {
+  color: var(--low);
+}
+
+.compact-name .status-dot.status-stale {
+  color: var(--medium);
+}
+
+.compact-name .status-dot.status-error {
+  color: var(--high);
+}
+
+.compact-gauge-cell {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.compact-gauge-cell .quota-meter {
+  width: 100%;
+  height: 4px;
+  margin: 0;
+}
+
+.compact-percent {
+  font-weight: 700;
+  text-align: left;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.compact-window {
+  color: var(--muted);
+  text-align: left;
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.compact-reset {
+  color: var(--muted);
+  text-align: left;
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .footer-shortcuts {

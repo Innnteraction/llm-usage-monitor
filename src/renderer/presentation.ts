@@ -23,6 +23,47 @@ export const isResetPending = (
 ): boolean =>
   resetsAt !== undefined && new Date(resetsAt).getTime() <= now;
 
+export const formatCompactCountdown = (
+  resetsAt: string | undefined,
+  now: number,
+): string => {
+  if (!resetsAt) return "--";
+
+  const remainingMinutes = Math.max(
+    0,
+    Math.floor((new Date(resetsAt).getTime() - now) / 60_000),
+  );
+  const days = Math.floor(remainingMinutes / (24 * 60));
+  const hours = Math.floor((remainingMinutes % (24 * 60)) / 60);
+  const minutes = remainingMinutes % 60;
+
+  const pad = (val: number): string => String(val).padStart(2, "0");
+
+  if (days > 0) return `${days}d ${pad(hours)}h`;
+  if (hours > 0) return `${hours}h ${pad(minutes)}m`;
+  return `${minutes}m`;
+};
+
+export const formatCompactWindowLabel = (window: {
+  id?: string;
+  kind: string;
+  label: string;
+}): string => {
+  if (window.id === "agy-gemini-5h" || window.kind === "five_hour") {
+    return "5h";
+  }
+  if (window.id === "agy-gemini-weekly" || window.kind === "weekly") {
+    return "7d";
+  }
+  if (/\bfable\b/i.test(window.label)) {
+    return "fable";
+  }
+  if (window.kind === "model_weekly") {
+    return window.label.replace(/\s+Weekly$/i, "").toLowerCase();
+  }
+  return window.label;
+};
+
 export const formatResetAt = (value: string): string =>
   new Intl.DateTimeFormat("en-US", {
     year: "numeric",

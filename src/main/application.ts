@@ -81,6 +81,8 @@ const positionNearTray = (
   window.setPosition(position.x, position.y, false);
 };
 
+const MINI_WINDOW_HEIGHT = 160;
+
 const resizeWindowNearTray = (
   window: BrowserWindow,
   trayBounds: Electron.Rectangle | undefined,
@@ -93,9 +95,15 @@ const resizeWindowNearTray = (
     screen.getCursorScreenPoint(),
   );
   const display = screen.getDisplayNearestPoint(anchor);
+  const minHeight =
+    contentHeight && contentHeight < COMPACT_WINDOW_HEIGHT
+      ? Math.max(MINI_WINDOW_HEIGHT, contentHeight)
+      : visible
+        ? WINDOW_SIZE.height
+        : COMPACT_WINDOW_HEIGHT;
   const height = clampPopoverHeight(
     contentHeight,
-    visible ? WINDOW_SIZE.height : COMPACT_WINDOW_HEIGHT,
+    minHeight,
     display.workArea.height,
   );
   const [currentWidth, currentHeight] = window.getContentSize();

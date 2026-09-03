@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   formatQuotaCountdown,
+  formatCompactCountdown,
+  formatCompactWindowLabel,
   formatResetAt,
   isResetPending,
   placeTooltip,
@@ -16,6 +18,59 @@ describe("quota presentation", () => {
     expect(formatQuotaCountdown("2026-09-04T03:00:00.000Z", now)).toBe(
       "2d 3h",
     );
+  });
+
+  it("formats compact countdowns with zero-padded hours and minutes", () => {
+    const now = Date.parse("2026-09-02T00:00:00.000Z");
+
+    expect(formatCompactCountdown("2026-09-04T02:00:00.000Z", now)).toBe(
+      "2d 02h",
+    );
+    expect(formatCompactCountdown("2026-09-02T01:05:00.000Z", now)).toBe(
+      "1h 05m",
+    );
+    expect(formatCompactCountdown("2026-09-06T05:00:00.000Z", now)).toBe(
+      "4d 05h",
+    );
+    expect(formatCompactCountdown("2026-09-02T00:25:00.000Z", now)).toBe(
+      "25m",
+    );
+    expect(formatCompactCountdown(undefined, now)).toBe("--");
+  });
+
+  it("formats compact window labels for providers", () => {
+    expect(
+      formatCompactWindowLabel({
+        kind: "weekly",
+        label: "Weekly",
+      }),
+    ).toBe("7d");
+    expect(
+      formatCompactWindowLabel({
+        id: "agy-gemini-5h",
+        kind: "five_hour",
+        label: "5h Limit",
+      }),
+    ).toBe("5h");
+    expect(
+      formatCompactWindowLabel({
+        id: "agy-gemini-weekly",
+        kind: "weekly",
+        label: "Weekly Limit",
+      }),
+    ).toBe("7d");
+    expect(
+      formatCompactWindowLabel({
+        kind: "model_weekly",
+        label: "Claude 3.5 Fable Weekly",
+      }),
+    ).toBe("fable");
+    expect(
+      formatCompactWindowLabel({
+        kind: "model_weekly",
+        label: "Sonnet Weekly",
+      }),
+    ).toBe("sonnet");
   });
 
   it("keeps the displayed quota pending after its reset time", () => {
