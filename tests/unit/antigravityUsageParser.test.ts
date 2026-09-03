@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
   AntigravityUsageParseError,
+  extractAccountFromLog,
   parseAntigravityUsage,
+  parseAntigravityUsageReport,
 } from "../../src/providers/antigravity/index";
 
-const usage = (groups: unknown[] = []) =>
+const usage = (
+  groups: unknown[] = [],
+  extra: { commandData?: Record<string, unknown>; root?: Record<string, unknown> } = {},
+) =>
   JSON.stringify({
     status: " SUCCESS ",
     num_turns: 0,
-    command: { name: " /USAGE ", data: { groups } },
+    command: { name: " /USAGE ", data: { groups, ...(extra.commandData ?? {}) } },
     ignored_private_field: "ignored",
+    ...(extra.root ?? {}),
   });
 
 const group = (name: string, buckets: unknown[]) => ({ name, buckets });
@@ -28,6 +34,45 @@ describe("Antigravity usage parser", () => {
       { id: "agy-claude-gpt-5h", kind: "five_hour", label: "Claude/GPT 5h", usedPercent: 0, source: "antigravity_cli", status: "fresh" },
     ]);
     expect(JSON.stringify(windows)).not.toContain("private");
+  });
+
+  it("extracts accountLabel from command.data.email, user, or root fields", () => {
+    const fromCommandEmail = parseAntigravityUsageReport(
+      usage([], { commandData: { email: "developer@example.com" } }),
+    );
+    expect(fromCommandEmail.accountLabel).toBe("developer@example.com");
+
+    const fromCommandUserObj = parseAntigravityUsageReport(
+      usage([], { commandData: { user: { email: "user@example.com" } } }),
+    );
+    expect(fromCommandUserObj.accountLabel).toBe("user@example.com");
+
+    const fromRootEmail = parseAntigravityUsageReport(
+      usage([], { root: { email: "root@example.com" } }),
+    );
+    expect(fromRootEmail.accountLabel).toBe("root@example.com");
+
+    const longEmail = "a".repeat(100) + "@example.com";
+    const truncated = parseAntigravityUsageReport(
+      usage([], { commandData: { email: longEmail } }),
+    );
+    expect(truncated.accountLabel).toHaveLength(80);
+
+    const noAccount = parseAntigravityUsageReport(usage([]));
+    expect(noAccount.accountLabel).toBeUndefined();
+  });
+
+  it("extracts account email from CLI log content", () => {
+    const log1 = "server_oauth.go:192] applyAuthResult: email=engineer@example.com, authMethod=consumer";
+    expect(extractAccountFromLog(log1)).toBe("engineer@example.com");
+
+    const log2 = "server_oauth.go:197] OAuth: authenticated successfully as dev-team@company.org";
+    expect(extractAccountFromLog(log2)).toBe("dev-team@company.org");
+
+    const logMulti = `${log1}\nsome intermediate log\nserver_oauth.go:192] applyAuthResult: email=latest@example.com, authMethod=consumer`;
+    expect(extractAccountFromLog(logMulti)).toBe("latest@example.com");
+
+    expect(extractAccountFromLog("plain log without auth")).toBeUndefined();
   });
 
   it("keeps empty groups valid and marks missing vendor quota unavailable", () => {

@@ -1,3 +1,6 @@
+import { open, stat } from "node:fs/promises";
+import { homedir } from "node:os";
+import path from "node:path";
 import {
   providerSnapshotSchema,
   type ProviderSnapshot,
@@ -9,7 +12,7 @@ import {
 } from "./processRunner";
 import {
   AntigravityUsageParseError,
-  parseAntigravityUsage,
+  parseAntigravityUsageReport,
 } from "./usageParser";
 
 const ERROR_MESSAGES: Record<
@@ -25,20 +28,63 @@ const ERROR_MESSAGES: Record<
   process_failed: "Antigravity CLI stopped during quota refresh.",
 };
 
+const MAX_LOG_TAIL_BYTES = 20_480;
+
+export function extractAccountFromLog(text: string): string | undefined {
+  const matches = [
+    ...text.matchAll(/applyAuthResult:\s*email=([^\s,]+)/g),
+    ...text.matchAll(/OAuth:\s*authenticated successfully as ([^\s,]+)/g),
+  ];
+  if (matches.length > 0) {
+    const last = matches[matches.length - 1];
+    if (last && last[1]) {
+      const email = last[1].trim();
+      if (email.includes("@") && email.length <= 80) {
+        return email;
+      }
+    }
+  }
+  return undefined;
+}
+
+export async function readDefaultAntigravityAccountLabel(): Promise<string | undefined> {
+  try {
+    const logPath = path.join(homedir(), ".gemini", "antigravity-cli", "cli.log");
+    const fileStat = await stat(logPath);
+    if (fileStat.size === 0) {
+      return undefined;
+    }
+    const readLength = Math.min(fileStat.size, MAX_LOG_TAIL_BYTES);
+    const buffer = Buffer.alloc(readLength);
+    const fd = await open(logPath, "r");
+    try {
+      await fd.read(buffer, 0, readLength, fileStat.size - readLength);
+    } finally {
+      await fd.close();
+    }
+    return extractAccountFromLog(buffer.toString("utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
 export interface AntigravityQuotaProviderOptions {
   runnerFactory?: () => AntigravityProcessRunner;
+  accountReader?: () => Promise<string | undefined>;
   clock?: () => Date;
 }
 
 export class AntigravityQuotaProvider {
   readonly id = "antigravity" as const;
   private readonly runnerFactory: () => AntigravityProcessRunner;
+  private readonly accountReader: () => Promise<string | undefined>;
   private readonly clock: () => Date;
   private readonly activeRunners = new Set<AntigravityProcessRunner>();
   private closed = false;
 
   constructor(options: AntigravityQuotaProviderOptions = {}) {
     this.runnerFactory = options.runnerFactory ?? (() => new AntigravityCliRunner());
+    this.accountReader = options.accountReader ?? readDefaultAntigravityAccountLabel;
     this.clock = options.clock ?? (() => new Date());
   }
 
@@ -54,14 +100,16 @@ export class AntigravityQuotaProvider {
         return this.failureSnapshot(this.clock().toISOString(), "process_failed");
       }
       this.activeRunners.add(runner);
-      const quotaWindows = parseAntigravityUsage(await runner.readUsage());
+      const report = parseAntigravityUsageReport(await runner.readUsage());
+      const accountLabel = report.accountLabel ?? (await this.accountReader());
       const fetchedAt = this.clock().toISOString();
       return providerSnapshotSchema.parse({
         providerId: this.id,
         status: "fresh",
         fetchedAt,
         lastSuccessfulAt: fetchedAt,
-        quotaWindows,
+        quotaWindows: report.quotaWindows,
+        ...(accountLabel ? { accountLabel } : {}),
       });
     } catch (error) {
       return this.failureSnapshot(this.clock().toISOString(), errorCode(error));

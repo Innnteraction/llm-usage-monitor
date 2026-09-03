@@ -19,9 +19,39 @@ const clock = () => new Date("2026-09-01T00:00:00.000Z");
 describe("Antigravity provider integration", () => {
   it("normalizes a fake CLI response and always closes its runner", async () => {
     const runner = new FakeRunner(raw);
-    const snapshot = await new AntigravityQuotaProvider({ runnerFactory: () => runner, clock }).fetchQuota();
+    const snapshot = await new AntigravityQuotaProvider({
+      runnerFactory: () => runner,
+      accountReader: async () => undefined,
+      clock,
+    }).fetchQuota();
     expect(snapshot).toMatchObject({ providerId: "antigravity", status: "fresh", lastSuccessfulAt: "2026-09-01T00:00:00.000Z", quotaWindows: [] });
+    expect(snapshot.accountLabel).toBeUndefined();
     expect(runner.closed).toBe(true);
+  });
+
+  it("includes accountLabel in snapshot when CLI usage contains email", async () => {
+    const rawWithEmail = JSON.stringify({
+      status: "success",
+      num_turns: 0,
+      command: { name: "usage", data: { groups: [], email: "developer@example.com" } },
+    });
+    const runner = new FakeRunner(rawWithEmail);
+    const snapshot = await new AntigravityQuotaProvider({
+      runnerFactory: () => runner,
+      accountReader: async () => undefined,
+      clock,
+    }).fetchQuota();
+    expect(snapshot.accountLabel).toBe("developer@example.com");
+  });
+
+  it("includes accountLabel in snapshot when accountReader returns an email", async () => {
+    const runner = new FakeRunner(raw);
+    const snapshot = await new AntigravityQuotaProvider({
+      runnerFactory: () => runner,
+      accountReader: async () => "logged-in@example.com",
+      clock,
+    }).fetchQuota();
+    expect(snapshot.accountLabel).toBe("logged-in@example.com");
   });
 
   it.each(["not_installed", "not_authenticated", "rate_limited", "network", "timeout", "unsupported", "process_failed"] as const)("maps %s without retaining raw errors", async (reason) => {

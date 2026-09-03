@@ -19,6 +19,7 @@ describe("Antigravity CLI smoke", () => {
       ), "Antigravity quota smoke returned invalid windows").toBe(true);
       expect(snapshot.quotaWindows.some(({ kind }) => kind === "five_hour"), "Antigravity quota smoke omitted 5h quota").toBe(true);
       expect(snapshot.quotaWindows.some(({ kind }) => kind === "model_weekly"), "Antigravity quota smoke omitted weekly quota").toBe(true);
+      expect(typeof snapshot.accountLabel === "string" && snapshot.accountLabel.includes("@"), "Antigravity smoke omitted accountLabel").toBe(true);
     } finally {
       await provider.close();
     }
