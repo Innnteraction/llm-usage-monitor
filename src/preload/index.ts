@@ -51,8 +51,8 @@ const api: UsageMonitorAPI = {
       await ipcRenderer.invoke(IPC_CHANNELS.setLaunchAtLogin, payload),
     );
   },
-  async setTokensVisible(visible) {
-    const payload = setTokensVisiblePayloadSchema.parse({ visible });
+  async setTokensVisible(visible, contentHeight) {
+    const payload = setTokensVisiblePayloadSchema.parse({ visible, contentHeight });
     return refreshResultSchema.parse(
       await ipcRenderer.invoke(IPC_CHANNELS.setTokensVisible, payload),
     );

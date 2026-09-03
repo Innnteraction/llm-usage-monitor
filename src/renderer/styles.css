@@ -95,15 +95,18 @@ h2 {
 }
 
 .provider-list {
-  display: grid;
   flex: 1;
   min-height: 0;
-  gap: 7px;
   margin-top: 12px;
   overflow-x: hidden;
   overflow-y: auto;
   padding-right: 8px;
   scrollbar-gutter: stable;
+}
+
+.provider-list-content {
+  display: grid;
+  gap: 7px;
 }
 
 .provider-list::-webkit-scrollbar,
@@ -464,6 +467,19 @@ h2 {
   font-size: 0.62rem;
   font-weight: 500;
   line-height: 1.3;
+}
+
+.additional-quota-group h3 {
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.additional-quota-rows {
+  display: grid;
+  gap: 4px;
 }
 
 .additional-quota .quota {

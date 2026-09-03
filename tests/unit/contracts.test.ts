@@ -3,6 +3,7 @@ import {
   appSnapshotSchema,
   localTokenUsageSchema,
   quotaWindowSchema,
+  setTokensVisiblePayloadSchema,
 } from "../../src/shared/index";
 
 describe("public snapshot contracts", () => {
@@ -77,5 +78,14 @@ describe("public snapshot contracts", () => {
         calculatedAt: "2026-09-01T00:00:00.000Z",
       }),
     ).toThrow();
+  });
+
+  it("accepts only a finite bounded integer content height for token visibility", () => {
+    expect(setTokensVisiblePayloadSchema.parse({ visible: false, contentHeight: 304 }))
+      .toEqual({ visible: false, contentHeight: 304 });
+    for (const contentHeight of [0, 4097, 304.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => setTokensVisiblePayloadSchema.parse({ visible: false, contentHeight }))
+        .toThrow();
+    }
   });
 });

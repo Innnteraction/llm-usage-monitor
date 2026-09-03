@@ -82,3 +82,21 @@ Antigravity 카드는 기존 480×360 팝오버의 세 번째 항목이다. 목�
 - [x] Antigravity의 dark/light × 100%/150% 화면·툴팁 캡처를 허구 값으로 생성했다. 확대 화면에서도 reset 열·footer가 범위 안에 있고 가로 overflow가 없다.
 - [x] production provider의 별도 실제 smoke 1개를 통과했다. 실제 값·계정·응답을 저장하지 않았고 종료 후 남은 `agy` 프로세스가 없음을 확인했다.
 - [ ] 최신 packaged 앱·설치·업그레이드·제거, Windows Narrator·혼합 배율 모니터의 수동 인수는 후속 관문에 남는다.
+
+### 후속 표시 개선 — 2026-09-03
+
+앞선 480×360 고정 높이와 토큰 기본 표시 동작을 다음 사용자 요청으로 변경한다. 수집기·인증·로컬 집계는 변경하지 않는다.
+
+- [x] Antigravity의 Gemini 한도는 기본 표시하고 Claude/GPT 한도는 기존 추가 한도 버튼에 접어 둔다. 펼침은 실행 중 메모리에만 유지한다.
+- [x] 토큰을 기본 숨김으로 바꾸고 기존 버튼·단축키로 다시 켤 수 있게 한다.
+- [x] 펼침·접힘·토큰 표시의 실제 콘텐츠 높이에 맞춰 창을 조절한다. 폭은 480px로 유지하고 모니터 작업 영역보다 길 때만 스크롤을 사용한다.
+- [x] 기존 `setTokensVisible`에 선택적인 정수 높이 힌트만 추가한다. preload·main의 strict schema와 sender 검증을 유지하고 main에서 작업 영역 상한을 적용한다.
+- [x] Guard·타입·린트·단위·개발 Electron과 허구 화면 검증을 통과했다.
+
+Guard 계획은 `.architecture-guard/plans/agy-fold-autosize.json`이며 main·shared·preload·renderer·테스트를 기존 정책 안에서 다룬다. 새 IPC channel, 의존성, provider 경계나 인증 경로는 추가하지 않는다. 정책 변경 없이 impact 검사를 통과했다.
+
+후속 라벨 요청에서는 Antigravity 기본 행을 `5h` → `7d` 순서로 고정하고 별도 모델명 제목을 제거한다. 추가 한도는 `Claude/GPT` 제목 하나 아래 같은 순서로 정렬한다. 공유 모델군 값을 Claude·GPT 각각의 독립 한도로 분리하지 않으며, 원래 모델명은 접근성 이름과 설명에 보존한다. renderer·테스트만 `.architecture-guard/plans/agy-compact-labels.json`으로 검증하고 CSS는 직접 검토한다. 앞선 토큰 기본 숨김과 콘텐츠 기반 자동 높이는 유지한다.
+
+라벨 변경 검증: Guard·typecheck·lint·단위/통합 161개와 Antigravity 개발 Electron 5개를 통과했다. dark/light × 100%/150%에서 기본·추가 행의 순서, 모델군 접근성 이름·툴팁, 자동 높이·토큰 토글을 확인하고 empty/error 격리도 검사했다. 허구 데이터 캡처를 시각 검토했으며 실제 계정 호출과 설치 파일 재생성은 하지 않았다.
+
+최종 검증은 단위/통합 161개, 개발 Electron 19개, Guard·typecheck·lint·diff 공백 검사·gitleaks를 통과했다. dark/light × 100%/150%에서 접힘·동시 펼침·토큰 켜기/끄기·refresh·재시작 기본값을 검사했다. 허구 3개 카드의 100% 예시 높이는 기본 428px, Antigravity 펼침 501px, 토큰 표시 560px였으며 모든 내용이 스크롤 없이 보였다. 이 수치는 고정 규격이 아니라 해당 fixture의 관측값이다. 새 설치 파일이나 실제 계정 smoke는 이번 표시 변경을 위해 다시 실행하지 않았다.

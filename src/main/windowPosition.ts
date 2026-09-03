@@ -21,6 +21,21 @@ const overlaps = (first: WindowRect, second: WindowRect): boolean =>
 const clamp = (value: number, minimum: number, maximum: number): number =>
   Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
 
+export const clampPopoverHeight = (
+  requestedHeight: number | undefined,
+  minimumHeight: number,
+  workAreaHeight: number,
+): number => {
+  const maximumHeight = finite(workAreaHeight) && workAreaHeight > 0
+    ? Math.floor(workAreaHeight)
+    : minimumHeight;
+  const naturalHeight =
+    requestedHeight !== undefined && finite(requestedHeight) && requestedHeight > 0
+      ? Math.ceil(requestedHeight)
+      : minimumHeight;
+  return Math.min(Math.max(minimumHeight, naturalHeight), maximumHeight);
+};
+
 export const selectPopoverAnchor = (
   trayBounds: WindowRect | undefined,
   displays: readonly WindowRect[],

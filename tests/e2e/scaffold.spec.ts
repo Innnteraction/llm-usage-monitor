@@ -35,14 +35,10 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
     await expect(page.getByText("codex.user@example.com")).toBeVisible();
     await expect(page.getByText("claude.user@example.com")).toBeVisible();
     await expect(page.getByText("Fable", { exact: true })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "total 1.2M" }),
-    ).toBeVisible();
-    await expect(page.getByRole("button", { name: "partial 1" })).toBeVisible();
     const tokenToggle = page.getByRole("button", { name: "Tokens" });
     const themeToggle = page.getByRole("button", { name: "Dark theme" });
-    await expect(tokenToggle).toHaveAttribute("aria-pressed", "true");
-    await expect(tokenToggle).toHaveAttribute("title", "Tokens: on (Ctrl+Shift+T)");
+    await expect(tokenToggle).toHaveAttribute("aria-pressed", "false");
+    await expect(tokenToggle).toHaveAttribute("title", "Tokens: off (Ctrl+Shift+T)");
     await expect(tokenToggle.locator("span[aria-hidden=true]")).toHaveText("🪙");
     await expect(themeToggle).toHaveAttribute("aria-pressed", "true");
     await expect(themeToggle).toHaveAttribute("title", "Dark theme (Ctrl+Shift+L)");
@@ -73,9 +69,9 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
       additionalSummaries: 1,
       stylesheets: 1,
       background: "rgb(16, 16, 16)",
-      localUsageLines: 2,
+      localUsageLines: 0,
     });
-    expect(layout.viewportHeight).toBe(360);
+    expect(layout.viewportHeight).toBe(304);
     expect(layout.scrollHeight).toBe(layout.viewportHeight);
     await expect(page.getByText("+2 additional limits")).toBeVisible();
     const reserveInSnapshot = await page.evaluate(async () => {
@@ -88,6 +84,19 @@ test("tray popover refresh, layout, hide and quit flow", async () => {
     await expect(
       page.getByText(/updated \d{1,2}:\d{2} (AM|PM)/).first(),
     ).toBeVisible();
+    await tokenToggle.click();
+    await expect(page.locator(".local-usage")).toHaveCount(2);
+    await expect(
+      page.getByRole("button", { name: "total 1.2M" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "partial 1" })).toBeVisible();
+    await expect
+      .poll(() =>
+        electronApp.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0]?.getContentSize(),
+        ),
+      )
+      .toEqual([480, 360]);
     await page.screenshot({
       path: test.info().outputPath("tui-quota-overview-normal.png"),
     });
@@ -398,7 +407,6 @@ test("keeps display choices through refresh and popover visibility changes", asy
     await additional.click();
     await expect(additional).toHaveAttribute("aria-expanded", "true");
 
-    await page.getByRole("button", { name: "Tokens" }).click();
     await expect(page.locator(".local-usage")).toHaveCount(0);
     await page.getByRole("button", { name: "refresh" }).click();
     await expect(page.locator(".local-usage")).toHaveCount(0);
@@ -487,6 +495,7 @@ test("explains stale, unavailable, missing cache and pending reset states", asyn
     await expect(page.getByText("네트워크 연결을 확인합니다.")).toBeVisible();
     await expect(page.getByText(/마지막 성공 \d{1,2}:\d{2} (AM|PM)/)).toBeVisible();
     await expect(page.getByRole("button", { name: "reset pending" })).toBeVisible();
+    await page.getByRole("button", { name: "Tokens" }).click();
     await page.getByRole("button", { name: "reset pending" }).hover();
     await expect(page.getByRole("tooltip")).toContainText("reset 확인 대기");
     await page.getByRole("button", { name: "cache read --" }).first().hover();
@@ -624,11 +633,14 @@ test("uses accessible dark and light TUI colors at 100 and 150 percent", async (
           path: test.info().outputPath(`tui-${colorScheme}-${scale}-footer-help.png`),
         });
         await page.getByRole("button", { name: "refresh" }).focus();
+        await page.locator(".app-header").hover({ position: { x: 2, y: 2 } });
         await expect(page.getByRole("tooltip")).toHaveCount(0);
         await help.focus();
         await page.keyboard.press("Space");
         await expect(page.getByRole("tooltip")).toContainText("Escape to hide the popover");
 
+        await page.getByRole("button", { name: "Tokens" }).click();
+        await expect(page.locator(".local-usage")).toHaveCount(2);
         const claudeTotal = page.getByTestId("claude-local-total");
         await claudeTotal.scrollIntoViewIfNeeded();
         await claudeTotal.focus();
@@ -700,8 +712,6 @@ test("uses accessible dark and light TUI colors at 100 and 150 percent", async (
             tooltipSurface: color("--tooltip-surface"),
           };
         });
-        expect(scrollbars.listScrollable).toBe(true);
-        expect(scrollbars.listScrolled).toBe(true);
         expect(scrollbars.listScrollbarGutter).toBe("stable");
         expect(scrollbars.listScrollbarWidth).toBe("8px");
         expect(scrollbars.listThumbColor).toBe(scrollbars.muted);
@@ -709,9 +719,8 @@ test("uses accessible dark and light TUI colors at 100 and 150 percent", async (
         expect(scrollbars.tooltipScrollbarWidth).toBe("8px");
         expect(scrollbars.tooltipThumbColor).toBe(scrollbars.muted);
         expect(scrollbars.tooltipTrackColor).toBe(scrollbars.tooltipSurface);
-        await page.evaluate(() => {
-          document.querySelector<HTMLElement>(".provider-list")!.scrollTop = 0;
-        });
+        await page.getByRole("button", { name: "refresh" }).focus();
+        await page.locator(".app-header").hover({ position: { x: 2, y: 2 } });
         await expect(page.getByRole("tooltip")).toHaveCount(0);
         await account.focus();
         await expect(page.getByRole("tooltip")).toBeVisible();
@@ -819,6 +828,8 @@ test("captures normal dark and light quota overviews at 100 and 150 percent", as
         const nativeWidth = await electronApp.evaluate(
           ({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.getContentSize()[0],
         );
+        await page.getByRole("button", { name: "Tokens" }).click();
+        await expect(page.locator(".local-usage")).toHaveCount(2);
         const layout = await page.evaluate(() => {
           const list = document.querySelector<HTMLElement>(".provider-list")!;
           const listBounds = list.getBoundingClientRect();
@@ -937,7 +948,7 @@ test("captures normal dark and light quota overviews at 100 and 150 percent", as
   }
 });
 
-test("expands additional limits with the keyboard and keeps only providers scrollable", async () => {
+test("expands additional limits with the keyboard and auto-sizes the popover", async () => {
   const electronApp = await electron.launch({
     args: [appPath],
     env: {
@@ -952,9 +963,11 @@ test("expands additional limits with the keyboard and keeps only providers scrol
     const page = await electronApp.firstWindow();
     const toggle = page.getByRole("button", { name: "+2 additional limits" });
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const collapsedHeight = await page.evaluate(() => window.innerHeight);
     await toggle.focus();
     await page.keyboard.press("Enter");
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect.poll(() => page.evaluate(() => window.innerHeight)).toBeGreaterThan(collapsedHeight);
     await expect(
       page.getByRole("heading", {
         name: "Example Codex model with a deliberately long primary label",
@@ -990,7 +1003,6 @@ test("expands additional limits with the keyboard and keeps only providers scrol
         header: header.getBoundingClientRect().top,
         footer: footer.getBoundingClientRect().bottom,
       };
-      list.scrollTop = list.scrollHeight;
       return {
         listScrollable: list.scrollHeight > list.clientHeight,
         listAtBottom: list.scrollTop > 0,
@@ -1017,8 +1029,8 @@ test("expands additional limits with the keyboard and keeps only providers scrol
       };
     });
     expect(layout).toEqual({
-      listScrollable: true,
-      listAtBottom: true,
+      listScrollable: false,
+      listAtBottom: false,
       listScrollWidth: expect.any(Number),
       listClientWidth: expect.any(Number),
       resetOverflow: true,
@@ -1057,6 +1069,10 @@ test("starts with additional limits collapsed after a fresh launch", async () =>
     await expect(
       page.getByRole("button", { name: "+2 additional limits" }),
     ).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByRole("button", { name: "Tokens" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
     await expect(
       page.getByRole("heading", {
         name: "Example Codex model with a deliberately long primary label",
@@ -1080,6 +1096,7 @@ test("shows calculating local usage state", async () => {
 
   try {
     const page = await electronApp.firstWindow();
+    await page.getByRole("button", { name: "Tokens" }).click();
     await expect(
       page.getByText("this PC calculating", { exact: true }).first(),
     ).toBeVisible();
@@ -1101,6 +1118,7 @@ test("shows no local logs state", async () => {
 
   try {
     const page = await electronApp.firstWindow();
+    await page.getByRole("button", { name: "Tokens" }).click();
     await expect(
       page.getByText("this PC no local logs", { exact: true }).first(),
     ).toBeVisible();
@@ -1141,11 +1159,15 @@ test("keeps the TUI inside the popover at 150 percent scale", async ({
     expect(layout.width).toBeGreaterThanOrEqual(480);
     expect(layout.width).toBeLessThanOrEqual(484);
     expect(layout.width).toBe(nativeWidth);
-    expect(layout.height).toBeGreaterThanOrEqual(360);
-    expect(layout.height).toBeLessThanOrEqual(364);
+    expect(layout.height).toBeGreaterThanOrEqual(304);
+    expect(layout.height).toBeLessThanOrEqual(308);
     expect(layout.scrollWidth).toBe(layout.width);
     expect(layout.scrollHeight).toBe(layout.height);
     expect(layout.scale).toBeGreaterThanOrEqual(1.4);
+    await page.getByRole("button", { name: "Tokens" }).click();
+    await expect(page.locator(".local-usage")).toHaveCount(2);
+    await expect.poll(() => page.evaluate(() => window.innerHeight)).toBeGreaterThanOrEqual(360);
+    await expect.poll(() => page.evaluate(() => window.innerHeight)).toBeLessThanOrEqual(364);
     const input = page.getByRole("button", { name: "input 900K" });
     await input.focus();
     await expect(page.getByRole("tooltip")).toContainText(

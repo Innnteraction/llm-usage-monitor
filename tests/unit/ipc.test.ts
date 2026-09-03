@@ -96,15 +96,22 @@ describe("restricted IPC handlers", () => {
     expect(dependencies.openClaudeSetup).toHaveBeenCalledTimes(1);
   });
 
-  it("accepts only a strict boolean token visibility payload", async () => {
+  it("accepts a strict token visibility payload with an optional bounded height", async () => {
     const { dependencies, handlers, trustedEvent } = createHarness();
     const handler = handlers.get(IPC_CHANNELS.setTokensVisible);
 
     await expect(handler?.(trustedEvent, { visible: false })).resolves.toBeUndefined();
+    await expect(handler?.(trustedEvent, { visible: false, contentHeight: 304 })).resolves.toBeUndefined();
+    await expect(handler?.(trustedEvent, { visible: false, contentHeight: 0 })).rejects.toThrow();
+    await expect(handler?.(trustedEvent, { visible: false, contentHeight: 304.5 })).rejects.toThrow();
+    await expect(handler?.(trustedEvent, { visible: false, contentHeight: 4097 })).rejects.toThrow();
+    await expect(handler?.(trustedEvent, { visible: false, contentHeight: Number.NaN })).rejects.toThrow();
+    await expect(handler?.(trustedEvent, { visible: false, contentHeight: Number.POSITIVE_INFINITY })).rejects.toThrow();
     await expect(handler?.(trustedEvent, { visible: false, height: 1 })).rejects.toThrow();
     await expect(handler?.(trustedEvent, { visible: "false" })).rejects.toThrow();
-    expect(dependencies.setTokensVisible).toHaveBeenCalledTimes(1);
-    expect(dependencies.setTokensVisible).toHaveBeenCalledWith(false);
+    expect(dependencies.setTokensVisible).toHaveBeenCalledTimes(2);
+    expect(dependencies.setTokensVisible).toHaveBeenNthCalledWith(1, false, undefined);
+    expect(dependencies.setTokensVisible).toHaveBeenNthCalledWith(2, false, 304);
   });
 
   it("rejects untrusted token visibility requests before changing the window", async () => {

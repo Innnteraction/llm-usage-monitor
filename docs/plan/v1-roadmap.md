@@ -210,6 +210,11 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
   - 공개 `ProviderId`·schema 변경은 Architecture Guard impact plan과 사용자 승인을 거쳐 `antigravity`로만 추가한다.
   - `agy` 미설치·미인증·timeout·출력 변경을 다른 provider와 격리하고 마지막 정상값을 stale로 유지한다.
   - 실제 smoke는 계정과 quota 수치를 출력하거나 fixture에 저장하지 않고 성공 여부만 확인한다.
+- [x] Step 5.5.5 — 사용자 피드백에 맞춰 기본 표시와 창 높이를 조절한다.
+  - Antigravity Claude/GPT quota는 추가 한도 버튼에 기본 접힘으로 두고 Gemini quota는 유지한다.
+  - 토큰 기본값을 숨김으로 변경한다. 버튼·단축키·실행 중 선택 유지는 보존한다.
+  - 폭 480px와 기존 TUI를 유지하고 펼침·접힘·토큰 표시의 실제 높이에 맞춰 창을 늘이거나 줄인다. 모니터 작업 영역보다 길 때만 목록을 스크롤한다.
+  - 기존 제한된 IPC에 선택적 높이 힌트만 추가하고 Zod·sender 검증과 main의 화면 상한을 유지한다. 상세 변경은 [후속 표시 개선](phase5-5-antigravity.md#후속-표시-개선--2026-09-03)에 기록한다.
 
 2026-09-03 수집기를 `cbb1de1`로 커밋한 뒤 main의 polling·cache·종료 정리와 TUI 카드에 연결했다. Guard·typecheck·lint·26개 파일의 단위/통합 159개 및 production provider의 실제 읽기 전용 smoke 1개를 통과했다. 실제 smoke는 fresh·창 존재·사용률 범위·source·reset·5h/주간 kind를 Boolean으로만 검증했다. Antigravity 전용 개발 Electron 5개에서 다크·라이트 × 100%·150%, 스크롤, 툴팁, 토큰 토글과 empty/error 격리를 확인했다. 상세 변경과 배포 제외 범위는 [검증 기록](phase5-5-antigravity.md#화면-연결과-배포-범위)을 따른다.
 

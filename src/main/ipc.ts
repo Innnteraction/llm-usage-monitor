@@ -25,7 +25,7 @@ export interface IpcDependencies {
   refresh(providerId?: ProviderId): Promise<void>;
   getPreferences(): Promise<UserPreferences>;
   setLaunchAtLogin(enabled: boolean): Promise<UserPreferences>;
-  setTokensVisible(visible: boolean): Promise<void>;
+  setTokensVisible(visible: boolean, contentHeight?: number): Promise<void>;
   openClaudeSetup(action: ClaudeSetupAction): Promise<{ opened: boolean }>;
 }
 
@@ -85,8 +85,8 @@ export const registerIpcHandlers = (
 
   ipcMain.handle(IPC_CHANNELS.setTokensVisible, async (event, ...args) => {
     assertTrustedSender(event, window);
-    const { visible } = singlePayload(setTokensVisiblePayloadSchema, args);
-    await dependencies.setTokensVisible(visible);
+    const { visible, contentHeight } = singlePayload(setTokensVisiblePayloadSchema, args);
+    await dependencies.setTokensVisible(visible, contentHeight);
     return refreshResultSchema.parse(undefined);
   });
 

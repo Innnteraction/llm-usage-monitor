@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculatePopoverPosition,
+  clampPopoverHeight,
   selectPopoverAnchor,
 } from "../../src/main";
 
@@ -48,5 +49,12 @@ describe("popover positioning", () => {
     const negative = { x: -1600, y: -100, width: 1200, height: 900 };
     expect(calculatePopoverPosition({ x: -1600, y: 350 }, negative, size)).toEqual({ x: -1600, y: 190 });
     expect(calculatePopoverPosition({ x: 20, y: 20 }, { x: 10, y: 20, width: 200, height: 100 }, size)).toEqual({ x: 10, y: 20 });
+  });
+
+  it("clamps natural content height to the active work area", () => {
+    expect(clampPopoverHeight(640, 304, 1080)).toBe(640);
+    expect(clampPopoverHeight(undefined, 360, 1080)).toBe(360);
+    expect(clampPopoverHeight(Number.NaN, 304, 200)).toBe(200);
+    expect(clampPopoverHeight(640, 304, 200)).toBe(200);
   });
 });

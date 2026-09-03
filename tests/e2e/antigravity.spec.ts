@@ -27,24 +27,73 @@ for (const colorScheme of ["dark", "light"] as const) {
           has: page.getByRole("heading", { name: "Antigravity" }),
         });
         await expect(antigravity).toBeVisible();
-        await expect(antigravity.locator("h3")).toHaveText([
-          "Gemini 5h",
-          "Gemini Weekly",
-          "Claude/GPT 5h",
-          "Claude/GPT Weekly",
+        const tokenToggle = page.getByRole("button", { name: "Tokens" });
+        const agyAdditional = antigravity.getByRole("button", {
+          name: "+2 additional limits",
+        });
+        await expect(tokenToggle).toHaveAttribute("aria-pressed", "false");
+        await expect(antigravity.locator(".quota-grid .quota-label")).toHaveText([
+          "5h",
+          "7d",
         ]);
-        await expect(antigravity.locator(".quota-meter")).toHaveCount(4);
+        await expect(
+          antigravity.locator("h3").filter({ hasText: "Claude/GPT" }),
+        ).toHaveCount(0);
+        await expect(agyAdditional).toHaveAttribute("aria-expanded", "false");
+        await expect(antigravity.locator(".quota-meter")).toHaveCount(2);
+        await expect(
+          antigravity.getByRole("progressbar", { name: "Gemini 5h 사용률" }),
+        ).toBeVisible();
+        await expect(
+          antigravity.getByRole("progressbar", { name: "Gemini Weekly 사용률" }),
+        ).toBeVisible();
+        await antigravity.getByTestId("antigravity-five_hour-value").focus();
+        await expect(page.getByRole("tooltip")).toContainText("Gemini 5h");
+        await page.getByRole("button", { name: "refresh" }).focus();
+        await expect(page.getByRole("tooltip")).toHaveCount(0);
         await expect(antigravity.locator(".local-usage")).toHaveCount(0);
-        await expect(page.locator(".local-usage")).toHaveCount(2);
+        await expect(page.locator(".local-usage")).toHaveCount(0);
         await expect(
           antigravity.locator("footer").getByText("source Antigravity CLI", {
             exact: true,
           }),
         ).toBeVisible();
+        const workAreaHeight = await app.evaluate(({ BrowserWindow, screen }) => {
+          const bounds = BrowserWindow.getAllWindows()[0]?.getBounds();
+          return bounds ? screen.getDisplayMatching(bounds).workArea.height : 0;
+        });
+        const waitForSize = async (): Promise<void> => {
+          await expect.poll(() => page.evaluate((activeWorkAreaHeight) => {
+            const list = document.querySelector<HTMLElement>(".provider-list")!;
+            return document.documentElement.scrollHeight === window.innerHeight &&
+              list.scrollWidth <= list.clientWidth &&
+              (list.scrollHeight <= list.clientHeight ||
+                window.innerHeight >= activeWorkAreaHeight - 4);
+          }, workAreaHeight)).toBe(true);
+        };
 
+        await waitForSize();
+        await page.screenshot({
+          path: test.info().outputPath(`agy-${colorScheme}-${scale}-collapsed.png`),
+        });
+        const collapsedHeight = await page.evaluate(() => window.innerHeight);
+        await agyAdditional.focus();
+        await page.keyboard.press("Enter");
+        await expect(agyAdditional).toHaveAttribute("aria-expanded", "true");
+        await expect(antigravity.locator("h3")).toHaveText(["Claude/GPT"]);
+        await expect(
+          antigravity.locator(".additional-quota-rows .quota-label"),
+        ).toHaveText(["5h", "7d"]);
+        await expect.poll(() => page.evaluate(() => window.innerHeight)).toBeGreaterThan(collapsedHeight);
+        await waitForSize();
+        const codexAdditional = page.locator(".provider-card").filter({
+          has: page.getByRole("heading", { name: "Codex" }),
+        }).getByRole("button", { name: "+2 additional limits" });
+        await codexAdditional.click();
+        await expect(codexAdditional).toHaveAttribute("aria-expanded", "true");
+        await waitForSize();
         const layout = await page.evaluate(() => {
           const list = document.querySelector<HTMLElement>(".provider-list")!;
-          list.scrollTop = list.scrollHeight;
           const card = [...document.querySelectorAll<HTMLElement>(".provider-card")]
             .find((element) => element.querySelector("h2")?.textContent === "Antigravity")!;
           const footer = card.querySelector<HTMLElement>("footer")!;
@@ -54,7 +103,7 @@ for (const colorScheme of ["dark", "light"] as const) {
             nativeScrollWidth: document.documentElement.scrollWidth,
             documentFits:
               document.documentElement.scrollHeight === window.innerHeight,
-            listScrolled: list.scrollTop > 0,
+            listFits: list.scrollHeight <= list.clientHeight,
             footer: footer.getBoundingClientRect().toJSON(),
             resetFits: [...document.querySelectorAll<HTMLElement>(".quota-reset")]
               .every((element) => element.scrollWidth <= element.clientWidth),
@@ -65,23 +114,23 @@ for (const colorScheme of ["dark", "light"] as const) {
         );
         if (scale === 1) {
           expect(layout.width).toBe(480);
-          expect(layout.height).toBe(360);
           expect(nativeWidth).toBe(480);
         } else {
           expect(layout.width).toBeGreaterThanOrEqual(480);
           expect(layout.width).toBeLessThanOrEqual(484);
-          expect(layout.height).toBeGreaterThanOrEqual(360);
-          expect(layout.height).toBeLessThanOrEqual(364);
           expect(nativeWidth).toBeGreaterThanOrEqual(480);
           expect(nativeWidth).toBeLessThanOrEqual(484);
         }
         expect(layout.width).toBe(nativeWidth);
         expect(layout.nativeScrollWidth).toBe(layout.width);
         expect(layout.documentFits).toBe(true);
-        expect(layout.listScrolled).toBe(true);
+        if (layout.height < workAreaHeight) expect(layout.listFits).toBe(true);
         expect(layout.footer.top).toBeGreaterThanOrEqual(0);
         expect(layout.footer.bottom).toBeLessThanOrEqual(layout.height);
         expect(layout.resetFits).toBe(true);
+        await page.screenshot({
+          path: test.info().outputPath(`agy-${colorScheme}-${scale}-expanded.png`),
+        });
 
         const themeToggle = page.locator(".theme-toggle");
         const expectedThemePressed = String(colorScheme === "dark");
@@ -134,22 +183,19 @@ for (const colorScheme of ["dark", "light"] as const) {
         ).toBeVisible();
         await expect(page.getByRole("button", { name: "refresh" })).toBeEnabled();
 
-        await page.getByRole("button", { name: "Tokens" }).click();
-        await expect(page.locator(".local-usage")).toHaveCount(0);
-        if (scale === 1) {
-          await expect.poll(() => page.evaluate(() => window.innerHeight)).toBe(304);
-        } else {
-          await expect.poll(() => page.evaluate(() => window.innerHeight)).toBeGreaterThanOrEqual(304);
-          await expect.poll(() => page.evaluate(() => window.innerHeight)).toBeLessThanOrEqual(308);
-        }
-        await page.getByRole("button", { name: "Tokens" }).click();
+        const expandedHeight = await page.evaluate(() => window.innerHeight);
+        await tokenToggle.click();
         await expect(page.locator(".local-usage")).toHaveCount(2);
-        if (scale === 1) {
-          await expect.poll(() => page.evaluate(() => window.innerHeight)).toBe(360);
-        } else {
-          await expect.poll(() => page.evaluate(() => window.innerHeight)).toBeGreaterThanOrEqual(360);
-          await expect.poll(() => page.evaluate(() => window.innerHeight)).toBeLessThanOrEqual(364);
-        }
+        await expect.poll(() => page.evaluate(() => window.innerHeight)).toBeGreaterThan(expandedHeight);
+        await waitForSize();
+        await tokenToggle.click();
+        await expect(page.locator(".local-usage")).toHaveCount(0);
+        await expect(agyAdditional).toHaveAttribute("aria-expanded", "true");
+        await waitForSize();
+        await agyAdditional.click();
+        await expect(agyAdditional).toHaveAttribute("aria-expanded", "false");
+        await expect.poll(() => page.evaluate(() => window.innerHeight)).toBeLessThan(expandedHeight);
+        await waitForSize();
       } finally {
         await app.close().catch(() => undefined);
       }
@@ -190,6 +236,8 @@ test("keeps other providers fresh when the Antigravity fixture is empty or fails
           scenario === "empty" ? ".status-fresh" : ".status-unavailable",
         ),
       ).toHaveCount(1);
+      await expect(page.locator(".local-usage")).toHaveCount(0);
+      await page.getByRole("button", { name: "Tokens" }).click();
       await expect(page.locator(".local-usage")).toHaveCount(2);
       await page.getByRole("button", { name: "refresh" }).click();
       await expect(page.getByTestId("codex-weekly-value")).toHaveText("64%");

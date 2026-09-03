@@ -35,6 +35,7 @@ export const setLaunchAtLoginPayloadSchema = z
 export const setTokensVisiblePayloadSchema = z
   .object({
     visible: z.boolean(),
+    contentHeight: z.number().finite().int().min(1).max(4096).optional(),
   })
   .strict();
 export const openClaudeSetupPayloadSchema = z
@@ -53,6 +54,6 @@ export interface UsageMonitorAPI {
   subscribe(listener: (state: AppSnapshot) => void): () => void;
   getPreferences(): Promise<UserPreferences>;
   setLaunchAtLogin(enabled: boolean): Promise<UserPreferences>;
-  setTokensVisible(visible: boolean): Promise<void>;
+  setTokensVisible(visible: boolean, contentHeight?: number): Promise<void>;
   openClaudeSetup(action: ClaudeSetupAction): Promise<{ opened: boolean }>;
 }

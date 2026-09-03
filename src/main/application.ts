@@ -38,7 +38,11 @@ import {
 import { createFakeUsageStore } from "./fakeUsage";
 import { createTrayIcon } from "./trayIcon";
 import { createBeforeQuitHandler, createTrayMenuTemplate } from "./trayMenu";
-import { calculatePopoverPosition, selectPopoverAnchor } from "./windowPosition";
+import {
+  calculatePopoverPosition,
+  clampPopoverHeight,
+  selectPopoverAnchor,
+} from "./windowPosition";
 
 const WINDOW_SIZE = { width: 480, height: 360 };
 const COMPACT_WINDOW_HEIGHT = 304;
@@ -77,6 +81,30 @@ const positionNearTray = (
   window.setPosition(position.x, position.y, false);
 };
 
+const resizeWindowNearTray = (
+  window: BrowserWindow,
+  trayBounds: Electron.Rectangle | undefined,
+  visible: boolean,
+  contentHeight: number | undefined,
+): void => {
+  const anchor = selectPopoverAnchor(
+    trayBounds,
+    screen.getAllDisplays().map(({ bounds }) => bounds),
+    screen.getCursorScreenPoint(),
+  );
+  const display = screen.getDisplayNearestPoint(anchor);
+  const height = clampPopoverHeight(
+    contentHeight,
+    visible ? WINDOW_SIZE.height : COMPACT_WINDOW_HEIGHT,
+    display.workArea.height,
+  );
+  const [currentWidth, currentHeight] = window.getContentSize();
+  if (currentWidth !== WINDOW_SIZE.width || currentHeight !== height) {
+    window.setContentSize(WINDOW_SIZE.width, height);
+  }
+  positionNearTray(window, trayBounds);
+};
+
 const loadRenderer = (window: BrowserWindow): void => {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     void window.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
@@ -94,6 +122,8 @@ export const startApplication = (): void => {
   let beforeQuit: ((event: { preventDefault(): void }) => void) | undefined;
   let mainWindow: BrowserWindow | undefined;
   let tray: Tray | undefined;
+  let tokensVisible = false;
+  let requestedContentHeight: number | undefined;
 
   const packagedSmoke =
     process.env.LLM_USAGE_MONITOR_CLAUDE_PACKAGED_SMOKE === "1";
@@ -117,7 +147,12 @@ export const startApplication = (): void => {
     if (isQuitting || !mainWindow) {
       return;
     }
-    positionNearTray(mainWindow, tray?.getBounds());
+    resizeWindowNearTray(
+      mainWindow,
+      tray?.getBounds(),
+      tokensVisible,
+      requestedContentHeight,
+    );
     mainWindow.show();
     mainWindow.focus();
   };
@@ -190,7 +225,8 @@ export const startApplication = (): void => {
           ],
         });
     mainWindow = new BrowserWindow({
-      ...WINDOW_SIZE,
+      width: WINDOW_SIZE.width,
+      height: COMPACT_WINDOW_HEIGHT,
       useContentSize: true,
       show: false,
       frame: false,
@@ -268,13 +304,11 @@ export const startApplication = (): void => {
         app.setLoginItemSettings({ openAtLogin: enabled });
         return { launchAtLogin: app.getLoginItemSettings().openAtLogin };
       },
-      setTokensVisible: async (visible) => {
+      setTokensVisible: async (visible, contentHeight) => {
         if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return;
-        mainWindow.setContentSize(
-          WINDOW_SIZE.width,
-          visible ? WINDOW_SIZE.height : COMPACT_WINDOW_HEIGHT,
-        );
-        positionNearTray(mainWindow, tray?.getBounds());
+        tokensVisible = visible;
+        requestedContentHeight = contentHeight;
+        resizeWindowNearTray(mainWindow, tray?.getBounds(), visible, contentHeight);
       },
       openClaudeSetup,
     });

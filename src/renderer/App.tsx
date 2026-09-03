@@ -360,7 +360,10 @@ const LocalUsage = ({
 
 const selectDisplayWindows = (provider: ProviderSnapshot): QuotaWindow[] => {
   if (provider.providerId === "antigravity") {
-    return provider.quotaWindows;
+    return selectWindowsById(provider.quotaWindows, [
+      "agy-gemini-5h",
+      "agy-gemini-weekly",
+    ]);
   }
   const find = (kind: QuotaWindow["kind"]) =>
     provider.quotaWindows.find((window) => window.kind === kind);
@@ -382,6 +385,15 @@ const selectDisplayWindows = (provider: ProviderSnapshot): QuotaWindow[] => {
   );
   return fable ? [...primary, fable] : primary;
 };
+
+const selectWindowsById = (
+  windows: QuotaWindow[],
+  ids: readonly string[],
+): QuotaWindow[] =>
+  ids.flatMap((id) => {
+    const window = windows.find((candidate) => candidate.id === id);
+    return window ? [window] : [];
+  });
 
 const hasFableWindow = (provider: ProviderSnapshot): boolean =>
   provider.quotaWindows.some(
@@ -430,12 +442,14 @@ const selectAdditionalWindows = (
 const Quota = ({
   providerId,
   window,
+  displayLabel,
   now,
   activeHelp,
   onActiveHelpChange,
 }: {
   providerId: ProviderSnapshot["providerId"];
   window: QuotaWindow;
+  displayLabel?: string;
   now: number;
   activeHelp?: string;
   onActiveHelpChange(id?: string): void;
@@ -445,12 +459,12 @@ const Quota = ({
   const remaining = used === undefined ? undefined : 100 - used;
   const tone = usageTone(used);
   const resetPending = isResetPending(window.resetsAt, now);
-  const label =
-    window.kind === "weekly"
+  const identity = displayLabel ? `${window.label}: ` : "";
+  const label = displayLabel ?? (window.kind === "weekly"
       ? "7d"
       : window.kind === "model_weekly"
         ? window.label.replace(/\s+Weekly$/i, "")
-        : window.label;
+        : window.label);
 
   return (
     <section className={`quota${unavailable ? " quota-not-provided" : ""}`}>
@@ -468,7 +482,7 @@ const Quota = ({
           <HelpTrigger
             id={`${providerId}-${window.id}-usage`}
             label={`${used}%`}
-            description={`사용률 ${used}%, 남은 비율 ${remaining}%입니다.`}
+            description={`${identity}사용률 ${used}%, 남은 비율 ${remaining}%입니다.`}
             className={`quota-value tone-${tone}`}
             testId={`${providerId}-${window.kind}-value`}
             activeHelp={activeHelp}
@@ -483,10 +497,10 @@ const Quota = ({
             }
             description={
               resetPending
-                ? `reset 확인 대기: 로컬 reset 시각은 ${formatResetAt(window.resetsAt!)}이며 마지막 quota 수치를 유지한 채 다음 provider 갱신을 기다립니다.`
+                ? `${identity}reset 확인 대기: 로컬 reset 시각은 ${formatResetAt(window.resetsAt!)}이며 마지막 quota 수치를 유지한 채 다음 provider 갱신을 기다립니다.`
                 : window.resetsAt
-                  ? `로컬 reset 시각: ${formatResetAt(window.resetsAt)}.`
-                  : "reset 시각이 제공되지 않았습니다."
+                  ? `${identity}로컬 reset 시각: ${formatResetAt(window.resetsAt)}.`
+                  : `${identity}reset 시각이 제공되지 않았습니다.`
             }
             className="quota-reset"
             activeHelp={activeHelp}
@@ -584,16 +598,18 @@ const ProviderCard = ({
         </div>
       ) : null}
       <div className="quota-grid">
-        {provider.providerId === "antigravity" ? primaryWindows.map((window) => (
-          <div className="additional-quota" key={window.id}>
-            <h3>{window.label}</h3>
-            <Quota providerId={provider.providerId} window={window} now={now} activeHelp={activeHelp} onActiveHelpChange={onActiveHelpChange} />
-          </div>
-        )) : primaryWindows.map((window) => (
+        {primaryWindows.map((window) => (
           <Quota
             key={window.id}
             providerId={provider.providerId}
             window={window}
+            displayLabel={
+              provider.providerId === "antigravity"
+                ? window.id === "agy-gemini-weekly"
+                  ? "7d"
+                  : "5h"
+                : undefined
+            }
             now={now}
             activeHelp={activeHelp}
             onActiveHelpChange={onActiveHelpChange}
@@ -605,7 +621,7 @@ const ProviderCard = ({
             <span>not provided</span>
           </p>
         ))}
-        {provider.providerId === "antigravity" && primaryWindows.length === 0 ? (
+        {provider.providerId === "antigravity" && provider.quotaWindows.length === 0 ? (
           <p className="quota-unavailable">
             <strong>Quota</strong>
             <span>not provided</span>
@@ -630,7 +646,15 @@ const ProviderCard = ({
           </button>
           {additionalExpanded ? (
             <div id={additionalId} className="additional-quota-grid">
-              {additionalWindows.map((window) => (
+              {provider.providerId === "antigravity" ? (
+                <AntigravityAdditionalQuotas
+                  providerId={provider.providerId}
+                  windows={additionalWindows}
+                  now={now}
+                  activeHelp={activeHelp}
+                  onActiveHelpChange={onActiveHelpChange}
+                />
+              ) : additionalWindows.map((window) => (
                 <div className="additional-quota" key={window.id}>
                   <h3>{window.label}</h3>
                   <Quota
@@ -669,13 +693,69 @@ const ProviderCard = ({
   );
 };
 
+const AntigravityAdditionalQuotas = ({
+  providerId,
+  windows,
+  now,
+  activeHelp,
+  onActiveHelpChange,
+}: {
+  providerId: ProviderSnapshot["providerId"];
+  windows: QuotaWindow[];
+  now: number;
+  activeHelp?: string;
+  onActiveHelpChange(id?: string): void;
+}) => {
+  const sharedWindows = selectWindowsById(windows, [
+    "agy-claude-gpt-5h",
+    "agy-claude-gpt-weekly",
+  ]);
+  const sharedIds = new Set(sharedWindows.map(({ id }) => id));
+  return (
+    <>
+      {sharedWindows.length > 0 ? (
+        <div className="additional-quota-group">
+          <h3>Claude/GPT</h3>
+          <div className="additional-quota-rows">
+            {sharedWindows.map((window) => (
+              <Quota
+                key={window.id}
+                providerId={providerId}
+                window={window}
+                displayLabel={
+                  window.id === "agy-claude-gpt-weekly" ? "7d" : "5h"
+                }
+                now={now}
+                activeHelp={activeHelp}
+                onActiveHelpChange={onActiveHelpChange}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {windows.filter(({ id }) => !sharedIds.has(id)).map((window) => (
+        <div className="additional-quota" key={window.id}>
+          <h3>{window.label}</h3>
+          <Quota
+            providerId={providerId}
+            window={window}
+            now={now}
+            activeHelp={activeHelp}
+            onActiveHelpChange={onActiveHelpChange}
+          />
+        </div>
+      ))}
+    </>
+  );
+};
+
 export const App = () => {
   const [snapshot, setSnapshot] = useState<AppSnapshot>();
   const [error, setError] = useState(false);
   const [activeHelp, setActiveHelp] = useState<string>();
   const [notice, setNotice] = useState("");
   const [now, setNow] = useState(() => Date.now());
-  const [tokensVisible, setTokensVisible] = useState(true);
+  const [tokensVisible, setTokensVisible] = useState(false);
   const [tokenVisibilityPending, setTokenVisibilityPending] = useState(false);
   const [displayError, setDisplayError] = useState("");
   const [systemTheme, setSystemTheme] = useState<"light" | "dark">(() =>
@@ -684,6 +764,13 @@ export const App = () => {
   const [themeOverride, setThemeOverride] = useState<"light" | "dark">();
   const previousSnapshot = useRef<AppSnapshot | undefined>(undefined);
   const tokenVisibilityInFlight = useRef(false);
+  const appShellRef = useRef<HTMLElement>(null);
+  const providerListRef = useRef<HTMLElement>(null);
+  const providerListContentRef = useRef<HTMLDivElement>(null);
+  const appHeaderRef = useRef<HTMLElement>(null);
+  const appFooterRef = useRef<HTMLElement>(null);
+  const resizeFrame = useRef<number | undefined>(undefined);
+  const lastWindowSizeRequest = useRef<string | undefined>(undefined);
   const effectiveTheme = themeOverride ?? systemTheme;
 
   useEffect(() => {
@@ -707,26 +794,67 @@ export const App = () => {
     setTokenVisibilityPending(true);
     setDisplayError("");
     setActiveHelp(undefined);
-    void window.usageMonitor
-      .setTokensVisible(visible)
-      .then(() => setTokensVisible(visible))
-      .catch(() => setDisplayError("로컬 토큰 표시를 변경하지 못했습니다."))
-      .finally(() => {
-        tokenVisibilityInFlight.current = false;
-        setTokenVisibilityPending(false);
-      });
+    setTokensVisible(visible);
   }, [tokensVisible]);
 
-  useEffect(() => {
-    tokenVisibilityInFlight.current = true;
-    void window.usageMonitor
-      .setTokensVisible(true)
-      .catch(() => setDisplayError("로컬 토큰 표시를 초기화하지 못했습니다."))
-      .finally(() => {
-        tokenVisibilityInFlight.current = false;
-        setTokenVisibilityPending(false);
+  useLayoutEffect(() => {
+    const shell = appShellRef.current;
+    const providerList = providerListRef.current;
+    const content = providerListContentRef.current;
+    const header = appHeaderRef.current;
+    const footer = appFooterRef.current;
+    if (!shell || !providerList || !content || !header || !footer) return;
+    let active = true;
+
+    const requestSize = (): void => {
+      if (resizeFrame.current !== undefined) {
+        window.cancelAnimationFrame(resizeFrame.current);
+      }
+      resizeFrame.current = window.requestAnimationFrame(() => {
+        const shellBounds = shell.getBoundingClientRect();
+        const listBounds = providerList.getBoundingClientRect();
+        const footerBounds = footer.getBoundingClientRect();
+        const shellStyle = getComputedStyle(shell);
+        const contentHeight = Math.min(
+          4096,
+          Math.ceil(
+            listBounds.top - shellBounds.top +
+              content.scrollHeight +
+              footerBounds.height +
+              Number.parseFloat(shellStyle.paddingBottom) +
+              4,
+          ),
+        );
+        const requestKey = `${tokensVisible}:${contentHeight}`;
+        if (lastWindowSizeRequest.current === requestKey) return;
+        lastWindowSizeRequest.current = requestKey;
+        void window.usageMonitor
+          .setTokensVisible(tokensVisible, contentHeight)
+          .catch(() => {
+            if (active) setDisplayError("창 높이를 변경하지 못했습니다.");
+          })
+          .finally(() => {
+            if (active) {
+              tokenVisibilityInFlight.current = false;
+              setTokenVisibilityPending(false);
+            }
+          });
       });
-  }, []);
+    };
+
+    requestSize();
+    const observer = new ResizeObserver(requestSize);
+    observer.observe(content);
+    observer.observe(header);
+    observer.observe(footer);
+    return () => {
+      active = false;
+      if (resizeFrame.current !== undefined) {
+        window.cancelAnimationFrame(resizeFrame.current);
+      }
+      observer.disconnect();
+    };
+  }, [displayError, error, tokensVisible]);
 
   useEffect(() => {
     const updateClock = (): void => setNow(Date.now());
@@ -845,8 +973,8 @@ export const App = () => {
   };
 
   return (
-    <main className="app-shell">
-      <header className="app-header">
+    <main ref={appShellRef} className="app-shell">
+      <header ref={appHeaderRef} className="app-header">
         <h1>watching quota providers</h1>
         <button
           type="button"
@@ -873,26 +1001,28 @@ export const App = () => {
         {notice}
       </p>
 
-      <section className="provider-list">
-        {snapshot ? (
-          snapshot.providers.map((provider, index) => (
-            <ProviderCard
-              key={provider.providerId}
-              provider={provider}
-              index={index}
-              onOpenClaudeSetup={openClaudeSetup}
-              now={now}
-              activeHelp={activeHelp}
-              onActiveHelpChange={setActiveHelp}
-              tokensVisible={tokensVisible}
-            />
-          ))
-        ) : (
-          <p className="loading">사용량을 불러오는 중…</p>
-        )}
+      <section ref={providerListRef} className="provider-list">
+        <div ref={providerListContentRef} className="provider-list-content">
+          {snapshot ? (
+            snapshot.providers.map((provider, index) => (
+              <ProviderCard
+                key={provider.providerId}
+                provider={provider}
+                index={index}
+                onOpenClaudeSetup={openClaudeSetup}
+                now={now}
+                activeHelp={activeHelp}
+                onActiveHelpChange={setActiveHelp}
+                tokensVisible={tokensVisible}
+              />
+            ))
+          ) : (
+            <p className="loading">사용량을 불러오는 중…</p>
+          )}
+        </div>
       </section>
 
-      <footer className="app-footer">
+      <footer ref={appFooterRef} className="app-footer">
         <p className="scope-note">
           <span>quota: account · tokens: this PC</span>
           <span>Claude Desktop: not inspected</span>
