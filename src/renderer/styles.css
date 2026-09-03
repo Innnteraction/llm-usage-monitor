@@ -431,12 +431,14 @@ h2 {
 .local-token-tooltip {
   position: fixed;
   z-index: 2;
-  width: min(300px, calc(100vw - 40px));
+  width: max-content;
+  max-width: min(320px, calc(100vw - 40px));
   padding: 6px 7px;
   color: var(--text);
   background: var(--tooltip-surface);
   border: 1px solid var(--tooltip-border);
   box-shadow: 0 2px 8px rgb(0 0 0 / 45%);
+  font-family: inherit;
   font-size: 0.58rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -561,6 +563,10 @@ h2 {
 }
 
 .footer-controls .display-toggle {
+  display: inline-flex;
+}
+
+.footer-controls .display-toggle .local-token-trigger {
   display: inline-grid;
   width: 24px;
   height: 24px;
@@ -568,64 +574,50 @@ h2 {
   place-items: center;
   border: 1px solid transparent;
   border-radius: 4px;
-  font-size: 0.78rem;
+  color: var(--muted);
+  font-size: 0.90rem;
+  font-weight: 700;
   line-height: 1;
 }
 
-.footer-controls .display-toggle > span {
+.footer-controls .display-toggle .local-token-trigger > span {
   font-family: inherit;
   font-size: 0.90rem;
   font-weight: 700;
   line-height: 1;
 }
 
-.footer-controls .display-toggle[aria-pressed="true"] {
+.footer-controls .display-toggle .local-token-trigger:hover,
+.footer-controls .display-toggle .local-token-trigger:focus-visible {
+  color: var(--text);
+}
+
+.footer-controls .display-toggle .local-token-trigger[aria-pressed="true"] {
   border-color: var(--muted);
   box-shadow: inset 0 -1px 0 var(--text);
 }
 
-.footer-controls .token-toggle[aria-pressed="false"] {
+.footer-controls .token-toggle .local-token-trigger[aria-pressed="false"] {
   filter: grayscale(1);
   opacity: 0.4;
-}
-
-.footer-controls .help-trigger-toggle {
-  display: inline-flex;
-}
-
-.footer-controls .help-trigger-toggle .local-token-trigger {
-  display: inline-grid;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  place-items: center;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  font-size: 0.90rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.footer-controls .help-trigger-toggle .local-token-trigger > span {
-  font-family: inherit;
 }
 
 /* 개조식 도움말 툴팁 */
 .help-content {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   padding: 2px 0;
-  min-width: 250px;
-  max-width: 320px;
-  font-size: 0.68rem;
-  line-height: 1.4;
+  min-width: 220px;
+  max-width: 280px;
+  font-size: 0.58rem;
+  line-height: 1.35;
 }
 
 .help-heading {
   margin: 0;
-  padding-bottom: 3px;
-  font-size: 0.72rem;
+  padding-bottom: 2px;
+  font-size: 0.60rem;
   font-weight: 700;
   color: var(--text);
   border-bottom: 1px solid var(--track);
@@ -634,7 +626,7 @@ h2 {
 .help-shortcuts {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -650,15 +642,15 @@ h2 {
 .help-keys {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   flex-shrink: 0;
 }
 
 .help-keys kbd {
   display: inline-block;
-  padding: 1px 5px;
+  padding: 1px 4px;
   font-family: inherit;
-  font-size: 0.62rem;
+  font-size: 0.56rem;
   font-weight: 600;
   line-height: 1.2;
   color: var(--text);
@@ -671,13 +663,14 @@ h2 {
   color: var(--muted);
   text-align: right;
   flex: 1;
+  font-size: 0.58rem;
 }
 
 .help-notes {
   margin: 0;
   padding-left: 14px;
   color: var(--muted);
-  font-size: 0.64rem;
+  font-size: 0.56rem;
   display: flex;
   flex-direction: column;
   gap: 3px;

@@ -64,16 +64,16 @@ const isEditableTarget = (target: EventTarget | null): boolean =>
     target.closest("[contenteditable]") !== null);
 
 const providerErrorHelp: Record<NonNullable<ProviderSnapshot["error"]>["code"], string> = {
-  not_installed: "CLI가 설치되지 않았습니다.",
-  not_authenticated: "CLI 로그인이 필요합니다.",
-  workspace_trust_required: "전용 폴더 trust 확인이 필요합니다.",
-  unsupported_output: "CLI 출력 형식을 해석하지 못했습니다.",
-  rate_limited: "요청 한도에 도달했습니다.",
-  network: "네트워크 연결을 확인합니다.",
-  timeout: "CLI 응답 시간이 초과했습니다.",
-  process_failed: "CLI 실행에 실패했습니다.",
-  unavailable: "현재 quota를 제공하지 않습니다.",
-  unexpected: "예상하지 못한 오류가 발생했습니다.",
+  not_installed: "CLI is not installed.",
+  not_authenticated: "Sign in with the CLI to view quota.",
+  workspace_trust_required: "Workspace trust confirmation required.",
+  unsupported_output: "Unsupported CLI response format.",
+  rate_limited: "Request limit reached.",
+  network: "Check network connection.",
+  timeout: "CLI request timed out.",
+  process_failed: "CLI process execution failed.",
+  unavailable: "Quota is currently unavailable.",
+  unexpected: "An unexpected error occurred.",
 };
 
 export const formatLocalTokens = (value: number): string => {
@@ -115,6 +115,11 @@ const HelpTrigger = ({
   testId,
   activeHelp,
   onActiveHelpChange,
+  onClick,
+  ariaLabel,
+  ariaPressed,
+  ariaKeyshortcuts,
+  disabled,
 }: {
   id: string;
   label: string;
@@ -125,6 +130,11 @@ const HelpTrigger = ({
   testId?: string;
   activeHelp?: string;
   onActiveHelpChange(id?: string): void;
+  onClick?: () => void;
+  ariaLabel?: string;
+  ariaPressed?: boolean;
+  ariaKeyshortcuts?: string;
+  disabled?: boolean;
 }) => {
   const tooltipId = `${id}-tooltip`;
   const isOpen = activeHelp === id;
@@ -240,8 +250,18 @@ const HelpTrigger = ({
         type="button"
         className="local-token-trigger"
         data-testid={testId}
+        aria-label={ariaLabel}
+        aria-pressed={ariaPressed}
+        aria-keyshortcuts={ariaKeyshortcuts}
         aria-describedby={isOpen ? tooltipId : undefined}
-        onClick={show}
+        disabled={disabled}
+        onClick={() => {
+          if (onClick) {
+            onClick();
+          } else {
+            show();
+          }
+        }}
         onFocus={show}
         onBlur={closeLater}
       >
@@ -300,34 +320,34 @@ const LocalUsage = ({
     />
   );
   return (
-    <div className="local-usage" aria-label="이 PC 로컬 토큰 세부 정보">
+    <div className="local-usage" aria-label="Local tokens detail for this PC">
       <div className="local-usage-row">
         {help(
           "scope",
           "this PC",
           undefined,
-          "이 PC에 현재 남아 있는 로그 전체의 누적 토큰입니다. 계정 전체 값이나 5h/7d quota 기간 값이 아닙니다.",
+          "Cumulative tokens from local logs remaining on this PC. Not account-wide or 5h/7d quota window values.",
         )}
         {help(
           "total",
           "total",
           formatLocalTokens(usage.totalTokens),
-          `축약 전 합계: ${exactLocalTokens(usage.totalTokens)} tokens. total = input + output이며 cache 토큰을 다시 더하지 않습니다. K=1,000, M=1,000,000, B=1,000,000,000입니다.`,
+          `Unabbreviated total: ${exactLocalTokens(usage.totalTokens)} tokens. total = input + output (cache tokens not added twice). K=1,000, M=1,000,000, B=1,000,000,000.`,
         )}
         {help(
           "since",
           "since",
           observed,
           usage.observedFrom
-            ? `로컬 로그에서 관측한 가장 이른 이벤트 날짜: ${formatLocalDate(usage.observedFrom)}. quota reset 또는 구독 시작일이 아니며, 그 이후 로그가 완전하다는 보장도 아닙니다. 계산 시각: ${formatLocalCalculatedAt(usage.calculatedAt)}.`
-            : `가장 이른 관측 이벤트 날짜가 제공되지 않았습니다. 계산 시각: ${formatLocalCalculatedAt(usage.calculatedAt)}.`,
+            ? `Earliest event observed in local logs: ${formatLocalDate(usage.observedFrom)}. Not a quota reset or subscription start date. Calculated at: ${formatLocalCalculatedAt(usage.calculatedAt)}.`
+            : `Earliest observed event date not provided. Calculated at: ${formatLocalCalculatedAt(usage.calculatedAt)}.`,
         )}
         {usage.partial
           ? help(
               "partial",
               "partial",
               String(usage.failedFileCount),
-              `확인된 부분 합계입니다. 읽기 또는 일부 레코드 처리에 문제가 있는 파일은 ${exactLocalTokens(usage.failedFileCount)}개입니다. 다음 스캔에서 상태를 다시 확인합니다.`,
+              `Verified partial total. ${exactLocalTokens(usage.failedFileCount)} file(s) had read or record processing issues. Will retry on next scan.`,
               "partial",
             )
           : null}
@@ -337,28 +357,28 @@ const LocalUsage = ({
           "input",
           "input",
           formatLocalTokens(usage.inputTokens),
-          `정확한 input: ${exactLocalTokens(usage.inputTokens)} tokens. 모델에 전달한 입력 토큰이며 cache 토큰이 포함됩니다.`,
+          `Exact input: ${exactLocalTokens(usage.inputTokens)} tokens. Input tokens delivered to the model, including cache tokens.`,
           "input",
         )}
         {help(
           "output",
           "output",
           formatLocalTokens(usage.outputTokens),
-          `정확한 output: ${exactLocalTokens(usage.outputTokens)} tokens. 모델이 생성한 출력 토큰입니다.`,
+          `Exact output: ${exactLocalTokens(usage.outputTokens)} tokens. Output tokens generated by the model.`,
           "output",
         )}
         {help(
           "cache-read",
           "cache read",
           usage.cacheReadTokens === undefined ? "--" : formatLocalTokens(usage.cacheReadTokens),
-          usage.cacheReadTokens === undefined ? "cache read 값이 제공되지 않았습니다." : `정확한 cache read: ${exactLocalTokens(usage.cacheReadTokens)} tokens. 재사용한 cache 입력 토큰이며 input에 이미 포함되므로 total에 다시 더하지 않습니다.`,
+          usage.cacheReadTokens === undefined ? "Cache read value not provided." : `Exact cache read: ${exactLocalTokens(usage.cacheReadTokens)} tokens. Reused cache input tokens, already included in input.`,
           "cache",
         )}
         {help(
           "cache-write",
           "cache write",
           usage.cacheWriteTokens === undefined ? "--" : formatLocalTokens(usage.cacheWriteTokens),
-          usage.cacheWriteTokens === undefined ? "cache write 값이 제공되지 않았습니다." : `정확한 cache write: ${exactLocalTokens(usage.cacheWriteTokens)} tokens. cache에 새로 기록한 입력 토큰이며 input에 이미 포함되므로 total에 다시 더하지 않습니다.`,
+          usage.cacheWriteTokens === undefined ? "Cache write value not provided." : `Exact cache write: ${exactLocalTokens(usage.cacheWriteTokens)} tokens. Newly written cache input tokens, already included in input.`,
           "cache",
         )}
       </div>
@@ -485,12 +505,12 @@ const Quota = ({
             className={`quota-meter tone-${tone}`}
             max={100}
             value={used}
-            aria-label={`${window.label} 사용률`}
+            aria-label={`${window.label} usage`}
           />
           <HelpTrigger
             id={`${providerId}-${window.id}-usage`}
             label={`${used}%`}
-            description={`${identity}사용률 ${used}%, 남은 비율 ${remaining}%입니다.`}
+            description={`${identity}Used ${used}%, remaining ${remaining}%.`}
             className={`quota-value tone-${tone}`}
             testId={`${providerId}-${window.kind}-value`}
             activeHelp={activeHelp}
@@ -505,10 +525,10 @@ const Quota = ({
             }
             description={
               resetPending
-                ? `${identity}reset 확인 대기: 로컬 reset 시각은 ${formatResetAt(window.resetsAt!)}이며 마지막 quota 수치를 유지한 채 다음 provider 갱신을 기다립니다.`
+                ? `${identity}Reset pending verification: local reset time is ${formatResetAt(window.resetsAt!)}. Retaining last quota until next provider refresh.`
                 : window.resetsAt
-                  ? `${identity}로컬 reset 시각: ${formatResetAt(window.resetsAt)}.`
-                  : `${identity}reset 시각이 제공되지 않았습니다.`
+                  ? `${identity}Local reset time: ${formatResetAt(window.resetsAt)}.`
+                  : `${identity}Reset time not provided.`
             }
             className="quota-reset"
             activeHelp={activeHelp}
@@ -531,7 +551,7 @@ const CompactQuotaTable = ({
   now: number;
 }) => {
   return (
-    <div className="compact-table" role="table" aria-label="간이 사용량 요약">
+    <div className="compact-table" role="table" aria-label="Compact quota summary">
       {providers.map((provider) => {
         const windows = selectDisplayWindows(provider);
         const weeklyWindow =
@@ -569,7 +589,7 @@ const CompactQuotaTable = ({
                   className={`quota-meter tone-${weeklyTone}`}
                   max={100}
                   value={weeklyUsed}
-                  title={`주간 한도 (${formatCompactCountdown(weeklyWindow?.resetsAt, now)}): ${weeklyUsed}%`}
+                  title={`Weekly limit (${formatCompactCountdown(weeklyWindow?.resetsAt, now)}): ${weeklyUsed}%`}
                 />
               )}
             </div>
@@ -637,7 +657,7 @@ const ProviderCard = ({
               id={`${provider.providerId}-account`}
               label={provider.accountLabel}
               className="account-label"
-              description={`현재 ${providerNames[provider.providerId]} CLI가 제공한 계정 식별자: ${provider.accountLabel}. 이 값은 이 화면의 메모리에만 유지됩니다.`}
+              description={`Account identifier provided by ${providerNames[provider.providerId]} CLI: ${provider.accountLabel}. Kept in memory only.`}
               activeHelp={activeHelp}
               onActiveHelpChange={onActiveHelpChange}
             />
@@ -657,7 +677,7 @@ const ProviderCard = ({
           <p className="provider-error">
             {providerErrorHelp[provider.error.code]}
             {provider.status === "stale"
-              ? ` 마지막 성공 ${formatUpdatedAt(provider.lastSuccessfulAt ?? provider.fetchedAt)}.`
+              ? ` Last successful ${formatUpdatedAt(provider.lastSuccessfulAt ?? provider.fetchedAt)}.`
               : ""}
           </p>
           {setupAction ? (
@@ -911,7 +931,7 @@ export const App = () => {
         void window.usageMonitor
           .setTokensVisible(tokensVisible, contentHeight)
           .catch(() => {
-            if (active) setDisplayError("창 높이를 변경하지 못했습니다.");
+            if (active) setDisplayError("Failed to adjust window height.");
           })
           .finally(() => {
             if (active) {
@@ -1002,8 +1022,8 @@ export const App = () => {
         if (previous?.refreshing.length && !next.refreshing.length) {
           setNotice(
             next.providers.some((provider) => provider.error)
-              ? "사용량 갱신 실패: 마지막 값을 유지합니다."
-              : "사용량 갱신 완료.",
+              ? "Refresh failed: keeping last known quota."
+              : "Quota refreshed.",
           );
         }
         if (!next.providers.some((provider) => provider.error)) setError(false);
@@ -1016,13 +1036,13 @@ export const App = () => {
         if (active) {
           setSnapshot(next);
           previousSnapshot.current = next;
-          setNotice("사용량을 불러왔습니다.");
+          setNotice("Quota loaded.");
         }
       })
       .catch(() => {
         if (active) {
           setError(true);
-          setNotice("사용량을 불러오지 못했습니다.");
+          setNotice("Failed to load quota.");
         }
       });
 
@@ -1070,7 +1090,7 @@ export const App = () => {
 
       {error ? (
         <p className="error-banner" role="alert">
-          사용량을 갱신하지 못했습니다. 마지막 값을 유지합니다.
+          Failed to refresh quota. Retaining last known values.
         </p>
       ) : null}
 
@@ -1104,7 +1124,7 @@ export const App = () => {
               ))
             )
           ) : (
-            <p className="loading">사용량을 불러오는 중…</p>
+            <p className="loading">Loading quota…</p>
           )}
         </div>
       </section>
@@ -1116,40 +1136,47 @@ export const App = () => {
         </p>
         <div className="footer-help">
           <div className="footer-controls">
-            <button
-              type="button"
+            <HelpTrigger
+              id="compact-mode-toggle"
+              label={compactMode ? "⊞" : "⊟"}
               className="display-toggle compact-toggle"
-              aria-label={compactMode ? "상세 모드로 펼치기" : "간이 모드로 접기"}
-              aria-pressed={compactMode}
-              aria-keyshortcuts="Control+Shift+C"
-              title={compactMode ? "상세 모드로 펼치기 (Ctrl+Shift+C)" : "간이 모드로 접기 (Ctrl+Shift+C)"}
+              ariaLabel={compactMode ? "Expand to detailed mode" : "Collapse to compact mode"}
+              ariaPressed={compactMode}
+              ariaKeyshortcuts="Control+Shift+C"
               onClick={toggleCompactMode}
-            >
-              <span aria-hidden="true">{compactMode ? "⊞" : "⊟"}</span>
-            </button>
-            <button
-              type="button"
+              description={
+                compactMode
+                  ? "Expand to detailed mode (Ctrl+Shift+C)"
+                  : "Collapse to compact mode (Ctrl+Shift+C)"
+              }
+              activeHelp={activeHelp}
+              onActiveHelpChange={setActiveHelp}
+            />
+            <HelpTrigger
+              id="token-visibility-toggle"
+              label="◎"
               className="display-toggle token-toggle"
-              aria-label="Tokens"
-              aria-pressed={tokensVisible}
-              aria-keyshortcuts="Control+Shift+T"
-              title={`Tokens: ${tokensVisible ? "on" : "off"} (Ctrl+Shift+T)`}
-              onClick={toggleTokenVisibility}
+              ariaLabel="Tokens"
+              ariaPressed={tokensVisible}
+              ariaKeyshortcuts="Control+Shift+T"
               disabled={tokenVisibilityPending}
-            >
-              <span aria-hidden="true">◎</span>
-            </button>
-            <button
-              type="button"
+              onClick={toggleTokenVisibility}
+              description={`Tokens: ${tokensVisible ? "on" : "off"} (Ctrl+Shift+T)`}
+              activeHelp={activeHelp}
+              onActiveHelpChange={setActiveHelp}
+            />
+            <HelpTrigger
+              id="theme-toggle"
+              label={effectiveTheme === "dark" ? "☾" : "☼"}
               className="display-toggle theme-toggle"
-              aria-label="Dark theme"
-              aria-pressed={effectiveTheme === "dark"}
-              aria-keyshortcuts="Control+Shift+L"
-              title={`${effectiveTheme === "dark" ? "Dark" : "Light"} theme (Ctrl+Shift+L)`}
+              ariaLabel="Theme"
+              ariaPressed={effectiveTheme === "dark"}
+              ariaKeyshortcuts="Control+Shift+L"
               onClick={toggleTheme}
-            >
-              <span aria-hidden="true">{effectiveTheme === "dark" ? "☾" : "☼"}</span>
-            </button>
+              description={`${effectiveTheme === "dark" ? "Dark" : "Light"} theme (Ctrl+Shift+L)`}
+              activeHelp={activeHelp}
+              onActiveHelpChange={setActiveHelp}
+            />
             <HelpTrigger
               id="keyboard-help"
               label="?"
@@ -1157,37 +1184,37 @@ export const App = () => {
               testId="keyboard-help-trigger"
               description={
                 <div className="help-content">
-                  <h3 className="help-heading">단축키 안내</h3>
+                  <h3 className="help-heading">Shortcuts</h3>
                   <ul className="help-shortcuts">
                     <li className="help-shortcut-row">
                       <span className="help-keys">
                         <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>
                       </span>
-                      <span className="help-desc">간이 모드 접기 / 펼치기</span>
+                      <span className="help-desc">Toggle compact mode</span>
                     </li>
                     <li className="help-shortcut-row">
                       <span className="help-keys">
                         <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>
                       </span>
-                      <span className="help-desc">로컬 토큰 사용량 토글</span>
+                      <span className="help-desc">Toggle local tokens</span>
                     </li>
                     <li className="help-shortcut-row">
                       <span className="help-keys">
                         <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd>
                       </span>
-                      <span className="help-desc">다크 / 라이트 테마 전환</span>
+                      <span className="help-desc">Toggle theme (dark/light)</span>
                     </li>
                     <li className="help-shortcut-row">
                       <span className="help-keys">
                         <kbd>Esc</kbd>
                       </span>
-                      <span className="help-desc">팝오버 닫기 (트레이 상주)</span>
+                      <span className="help-desc">Close popover (stay in tray)</span>
                     </li>
                   </ul>
-                  <h3 className="help-heading">조작 안내</h3>
+                  <h3 className="help-heading">Tips</h3>
                   <ul className="help-notes">
-                    <li>항목 호버/포커스: 상세 사용량 안내</li>
-                    <li>트레이 우클릭: 자동 실행, 새로고침, 종료</li>
+                    <li>Hover/focus items for detailed info</li>
+                    <li>Right-click tray icon for options & exit</li>
                   </ul>
                 </div>
               }
