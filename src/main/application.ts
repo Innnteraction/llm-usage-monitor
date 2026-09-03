@@ -138,6 +138,11 @@ export const startApplication = (): void => {
     app.setPath("userData", path.resolve(e2eUserData));
   }
 
+  const isDevMode = Boolean(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  if (isDevMode) {
+    app.commandLine.appendSwitch("disable-http-cache");
+  }
+
   if (!app.requestSingleInstanceLock()) {
     app.quit();
     return;
@@ -409,7 +414,7 @@ export const startApplication = (): void => {
     });
 
     mainWindow.once("ready-to-show", () => {
-      if (keepVisibleForTest || !setupWasReady) {
+      if (keepVisibleForTest || isDevMode || !setupWasReady) {
         showWindow();
       }
     });
