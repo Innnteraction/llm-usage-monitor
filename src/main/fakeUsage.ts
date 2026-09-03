@@ -152,6 +152,17 @@ const buildProvider = (
               source: "local_fixture" as const,
               status: "fresh" as const,
             },
+            {
+              id: "codex-limit-gpt-reserve-weekly",
+              kind: "model_weekly" as const,
+              label: "gpt-reserve Weekly",
+              usedPercent: Math.min(24 + generation, 100),
+              resetsAt: new Date(
+                now.getTime() + 7 * 24 * 60 * 60 * 1000,
+              ).toISOString(),
+              source: "local_fixture" as const,
+              status: "fresh" as const,
+            },
           ]
         : process.env.LLM_USAGE_MONITOR_E2E_CLAUDE_NO_FABLE === "1"
           ? []

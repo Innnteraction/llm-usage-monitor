@@ -37,7 +37,8 @@ import { createTrayIcon } from "./trayIcon";
 import { createBeforeQuitHandler, createTrayMenuTemplate } from "./trayMenu";
 import { calculatePopoverPosition, selectPopoverAnchor } from "./windowPosition";
 
-const WINDOW_SIZE = { width: 420, height: 320 };
+const WINDOW_SIZE = { width: 480, height: 360 };
+const COMPACT_WINDOW_HEIGHT = 304;
 const CLAUDE_SETUP_READY_MARKER = "claude-setup-ready-v1";
 
 const pathExists = async (filePath: string): Promise<boolean> => {
@@ -65,7 +66,11 @@ const positionNearTray = (
     cursor,
   );
   const display = screen.getDisplayNearestPoint(anchor);
-  const position = calculatePopoverPosition(anchor, display.workArea, WINDOW_SIZE);
+  const [contentWidth, contentHeight] = window.getContentSize();
+  const position = calculatePopoverPosition(anchor, display.workArea, {
+    width: contentWidth ?? WINDOW_SIZE.width,
+    height: contentHeight ?? WINDOW_SIZE.height,
+  });
   window.setPosition(position.x, position.y, false);
 };
 
@@ -255,6 +260,14 @@ export const startApplication = (): void => {
         }
         app.setLoginItemSettings({ openAtLogin: enabled });
         return { launchAtLogin: app.getLoginItemSettings().openAtLogin };
+      },
+      setTokensVisible: async (visible) => {
+        if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return;
+        mainWindow.setContentSize(
+          WINDOW_SIZE.width,
+          visible ? WINDOW_SIZE.height : COMPACT_WINDOW_HEIGHT,
+        );
+        positionNearTray(mainWindow, tray?.getBounds());
       },
       openClaudeSetup,
     });

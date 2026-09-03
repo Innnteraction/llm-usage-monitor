@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type {
   AppSnapshot,
   ClaudeSetupAction,
@@ -10,6 +10,7 @@ import {
   formatQuotaCountdown,
   formatResetAt,
   isResetPending,
+  placeTooltip,
 } from "./presentation";
 
 const authKindNames = {
@@ -46,6 +47,11 @@ const formatUpdatedAt = (value: string): string =>
     minute: "2-digit",
     hour12: true,
   }).format(new Date(value));
+
+const isEditableTarget = (target: EventTarget | null): boolean =>
+  target instanceof Element &&
+  (target.closest("input, textarea, select, [contenteditable=true]") !== null ||
+    target.closest("[contenteditable]") !== null);
 
 const providerErrorHelp: Record<NonNullable<ProviderSnapshot["error"]>["code"], string> = {
   not_installed: "CLI가 설치되지 않았습니다.",
@@ -113,12 +119,89 @@ const HelpTrigger = ({
   const tooltipId = `${id}-tooltip`;
   const isOpen = activeHelp === id;
   const helpRef = useRef<HTMLSpanElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
   const closeTimer = useRef<number | undefined>(undefined);
   const activeHelpRef = useRef<string | undefined>(undefined);
+  const [tooltipStyle, setTooltipStyle] = useState<CSSProperties>();
   useEffect(() => {
     activeHelpRef.current = activeHelp;
   }, [activeHelp]);
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+  useLayoutEffect(() => {
+    if (!isOpen || !buttonRef.current || !tooltipRef.current) return;
+
+    const updatePosition = (closeWhenHidden = false): void => {
+      const anchor = buttonRef.current?.getBoundingClientRect();
+      const tooltipElement = tooltipRef.current;
+      if (!anchor || !tooltipElement) return;
+      const providerList = document.querySelector<HTMLElement>(".provider-list");
+      const listBounds = providerList?.getBoundingClientRect();
+      if (
+        closeWhenHidden &&
+        providerList?.contains(buttonRef.current) &&
+        listBounds &&
+        (anchor.bottom <= listBounds.top || anchor.top >= listBounds.bottom)
+      ) {
+        onActiveHelpChange(undefined);
+        return;
+      }
+      const previousMaxHeight = tooltipElement.style.maxHeight;
+      tooltipElement.style.maxHeight = "none";
+      const tooltipBounds = tooltipElement.getBoundingClientRect();
+      const tooltipStyle = getComputedStyle(tooltipElement);
+      const naturalHeight = Math.max(
+        tooltipBounds.height,
+        tooltipElement.scrollHeight +
+          Number.parseFloat(tooltipStyle.borderTopWidth) +
+          Number.parseFloat(tooltipStyle.borderBottomWidth),
+      );
+      tooltipElement.style.maxHeight = previousMaxHeight;
+      const footerTop = document.querySelector<HTMLElement>(".app-footer")?.getBoundingClientRect().top;
+      let next = placeTooltip({
+        anchor,
+        tooltip: { width: tooltipBounds.width, height: naturalHeight },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        footerTop,
+      });
+      const overlapsAnotherTrigger = next.placement === "below" &&
+        [...document.querySelectorAll<HTMLElement>(".local-token-trigger")].some(
+          (trigger) => {
+            if (trigger === buttonRef.current) return false;
+            const bounds = trigger.getBoundingClientRect();
+            return bounds.left < next.left + tooltipBounds.width &&
+              bounds.right > next.left &&
+              bounds.top < next.top + naturalHeight &&
+              bounds.bottom > next.top;
+          },
+        );
+      if (overlapsAnotherTrigger) {
+        next = placeTooltip({
+          anchor,
+          tooltip: { width: tooltipBounds.width, height: naturalHeight },
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          footerTop,
+          preferAbove: true,
+        });
+      }
+      setTooltipStyle({ left: next.left, top: next.top, maxHeight: next.maxHeight });
+    };
+
+    updatePosition();
+    const providerList = document.querySelector<HTMLElement>(".provider-list");
+    const closeIfScrolledOut = (): void => updatePosition(true);
+    providerList?.addEventListener("scroll", closeIfScrolledOut, true);
+    const reposition = (): void => updatePosition();
+    window.addEventListener("resize", reposition);
+    const observer = new ResizeObserver(reposition);
+    observer.observe(buttonRef.current);
+    observer.observe(tooltipRef.current);
+    return () => {
+      providerList?.removeEventListener("scroll", closeIfScrolledOut, true);
+      window.removeEventListener("resize", reposition);
+      observer.disconnect();
+    };
+  }, [description, isOpen, onActiveHelpChange]);
   const show = (): void => {
     window.clearTimeout(closeTimer.current);
     onActiveHelpChange(id);
@@ -128,7 +211,8 @@ const HelpTrigger = ({
     closeTimer.current = window.setTimeout(() => {
       if (
         activeHelpRef.current === id &&
-        !helpRef.current?.contains(document.activeElement)
+        !helpRef.current?.contains(document.activeElement) &&
+        !helpRef.current?.matches(":hover")
       ) {
         onActiveHelpChange(undefined);
       }
@@ -142,6 +226,7 @@ const HelpTrigger = ({
       onMouseLeave={closeLater}
     >
       <button
+        ref={buttonRef}
         type="button"
         className="local-token-trigger"
         data-testid={testId}
@@ -154,7 +239,13 @@ const HelpTrigger = ({
         {value ? <strong>{value}</strong> : null}
       </button>
       {isOpen ? (
-        <span id={tooltipId} className="local-token-tooltip" role="tooltip">
+        <span
+          ref={tooltipRef}
+          id={tooltipId}
+          className="local-token-tooltip"
+          role="tooltip"
+          style={tooltipStyle}
+        >
           {description}
         </span>
       ) : null}
@@ -193,6 +284,7 @@ const LocalUsage = ({
       value={value}
       description={description}
       tone={tone}
+      testId={id(kind)}
       activeHelp={activeHelp}
       onActiveHelpChange={onActiveHelpChange}
     />
@@ -314,6 +406,13 @@ const selectAdditionalWindows = (
       return false;
     }
     seenIds.add(window.id);
+    if (
+      provider.providerId === "codex" &&
+      window.kind === "model_weekly" &&
+      window.label.trim().toLowerCase() === "gpt-reserve weekly"
+    ) {
+      return false;
+    }
     if (provider.providerId !== "codex") return true;
     return (
       window.kind === "model_weekly" ||
@@ -403,6 +502,7 @@ const ProviderCard = ({
   now,
   activeHelp,
   onActiveHelpChange,
+  tokensVisible,
 }: {
   provider: ProviderSnapshot;
   index: number;
@@ -410,6 +510,7 @@ const ProviderCard = ({
   now: number;
   activeHelp?: string;
   onActiveHelpChange(id?: string): void;
+  tokensVisible: boolean;
 }) => {
   const sources = [
     ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
@@ -526,12 +627,14 @@ const ProviderCard = ({
         </div>
       ) : null}
       <footer>
-        <LocalUsage
-          providerId={provider.providerId}
-          usage={provider.localUsage}
-          activeHelp={activeHelp}
-          onActiveHelpChange={onActiveHelpChange}
-        />
+        {tokensVisible ? (
+          <LocalUsage
+            providerId={provider.providerId}
+            usage={provider.localUsage}
+            activeHelp={activeHelp}
+            onActiveHelpChange={onActiveHelpChange}
+          />
+        ) : null}
         <span>source {sources.join(", ")}</span>
         <span>
           updated{" "}
@@ -552,7 +655,58 @@ export const App = () => {
   const [activeHelp, setActiveHelp] = useState<string>();
   const [notice, setNotice] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const [tokensVisible, setTokensVisible] = useState(true);
+  const [tokenVisibilityPending, setTokenVisibilityPending] = useState(false);
+  const [displayError, setDisplayError] = useState("");
+  const [systemTheme, setSystemTheme] = useState<"light" | "dark">(() =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+  );
+  const [themeOverride, setThemeOverride] = useState<"light" | "dark">();
   const previousSnapshot = useRef<AppSnapshot | undefined>(undefined);
+  const tokenVisibilityInFlight = useRef(false);
+  const effectiveTheme = themeOverride ?? systemTheme;
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const updateSystemTheme = (): void => {
+      if (!themeOverride) setSystemTheme(media.matches ? "dark" : "light");
+    };
+    updateSystemTheme();
+    media.addEventListener("change", updateSystemTheme);
+    return () => media.removeEventListener("change", updateSystemTheme);
+  }, [themeOverride]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = effectiveTheme;
+  }, [effectiveTheme]);
+
+  const toggleTokenVisibility = useCallback((): void => {
+    if (tokenVisibilityInFlight.current) return;
+    const visible = !tokensVisible;
+    tokenVisibilityInFlight.current = true;
+    setTokenVisibilityPending(true);
+    setDisplayError("");
+    setActiveHelp(undefined);
+    void window.usageMonitor
+      .setTokensVisible(visible)
+      .then(() => setTokensVisible(visible))
+      .catch(() => setDisplayError("로컬 토큰 표시를 변경하지 못했습니다."))
+      .finally(() => {
+        tokenVisibilityInFlight.current = false;
+        setTokenVisibilityPending(false);
+      });
+  }, [tokensVisible]);
+
+  useEffect(() => {
+    tokenVisibilityInFlight.current = true;
+    void window.usageMonitor
+      .setTokensVisible(true)
+      .catch(() => setDisplayError("로컬 토큰 표시를 초기화하지 못했습니다."))
+      .finally(() => {
+        tokenVisibilityInFlight.current = false;
+        setTokenVisibilityPending(false);
+      });
+  }, []);
 
   useEffect(() => {
     const updateClock = (): void => setNow(Date.now());
@@ -579,12 +733,34 @@ export const App = () => {
   }, []);
 
   useEffect(() => {
-    const closeHelpOnEscape = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") setActiveHelp(undefined);
+    const handleKeyboard = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        setActiveHelp(undefined);
+        return;
+      }
+      if (
+        event.repeat ||
+        event.isComposing ||
+        isEditableTarget(event.target) ||
+        !event.ctrlKey ||
+        !event.shiftKey ||
+        event.altKey ||
+        event.metaKey
+      ) {
+        return;
+      }
+      if (event.code === "KeyT") {
+        event.preventDefault();
+        toggleTokenVisibility();
+      } else if (event.code === "KeyL") {
+        event.preventDefault();
+        setActiveHelp(undefined);
+        setThemeOverride(effectiveTheme === "dark" ? "light" : "dark");
+      }
     };
-    window.addEventListener("keydown", closeHelpOnEscape);
-    return () => window.removeEventListener("keydown", closeHelpOnEscape);
-  }, []);
+    window.addEventListener("keydown", handleKeyboard);
+    return () => window.removeEventListener("keydown", handleKeyboard);
+  }, [effectiveTheme, toggleTokenVisibility]);
 
   useEffect(() => {
     let active = true;
@@ -631,6 +807,11 @@ export const App = () => {
     void window.usageMonitor.refresh().catch(() => setError(true));
   };
 
+  const toggleTheme = (): void => {
+    setActiveHelp(undefined);
+    setThemeOverride(effectiveTheme === "dark" ? "light" : "dark");
+  };
+
   const openClaudeSetup = (action: ClaudeSetupAction): void => {
     setError(false);
     void window.usageMonitor
@@ -662,6 +843,12 @@ export const App = () => {
         </p>
       ) : null}
 
+      {displayError ? (
+        <p className="display-error" role="alert">
+          {displayError}
+        </p>
+      ) : null}
+
       <p className="update-notice" role="status" aria-live="polite">
         {notice}
       </p>
@@ -677,6 +864,7 @@ export const App = () => {
               now={now}
               activeHelp={activeHelp}
               onActiveHelpChange={setActiveHelp}
+              tokensVisible={tokensVisible}
             />
           ))
         ) : (
@@ -684,10 +872,47 @@ export const App = () => {
         )}
       </section>
 
-      <p className="scope-note">
-        <span>quota: account · tokens: this PC</span>
-        <span>Claude Desktop: not inspected</span>
-      </p>
+      <footer className="app-footer">
+        <p className="scope-note">
+          <span>quota: account · tokens: this PC</span>
+          <span>Claude Desktop: not inspected</span>
+        </p>
+        <div className="footer-help">
+          <div className="footer-controls">
+            <button
+              type="button"
+              className="display-toggle token-toggle"
+              aria-label="Tokens"
+              aria-pressed={tokensVisible}
+              aria-keyshortcuts="Control+Shift+T"
+              title={`Tokens: ${tokensVisible ? "on" : "off"} (Ctrl+Shift+T)`}
+              onClick={toggleTokenVisibility}
+              disabled={tokenVisibilityPending}
+            >
+              <span aria-hidden="true">🪙</span>
+            </button>
+            <button
+              type="button"
+              className="display-toggle theme-toggle"
+              aria-label="Dark theme"
+              aria-pressed={effectiveTheme === "dark"}
+              aria-keyshortcuts="Control+Shift+L"
+              title={`${effectiveTheme === "dark" ? "Dark" : "Light"} theme (Ctrl+Shift+L)`}
+              onClick={toggleTheme}
+            >
+              <span aria-hidden="true">{effectiveTheme === "dark" ? "🌙" : "☀️"}</span>
+            </button>
+            <HelpTrigger
+              id="keyboard-help"
+              label="? Help"
+              description="The theme follows your OS setting at launch. Ctrl+Shift+L changes the theme for this session only, and Ctrl+Shift+T shows or hides local tokens for this PC. Use Tab/Shift+Tab to move and Enter or Space to activate. Hover or focus an item for help, and press Escape to hide the popover (the app runs in the tray). Right-click the tray icon for launch-at-login and quit."
+              activeHelp={activeHelp}
+              onActiveHelpChange={setActiveHelp}
+            />
+          </div>
+          <span className="footer-shortcuts">Ctrl⇧T tokens · Ctrl⇧L theme</span>
+        </div>
+      </footer>
     </main>
   );
 };

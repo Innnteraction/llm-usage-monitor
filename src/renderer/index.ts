@@ -3,4 +3,5 @@ export {
   formatQuotaCountdown,
   formatResetAt,
   isResetPending,
+  placeTooltip,
 } from "./presentation";

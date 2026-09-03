@@ -3,6 +3,7 @@ import {
   formatQuotaCountdown,
   formatResetAt,
   isResetPending,
+  placeTooltip,
 } from "../../src/renderer";
 
 describe("quota presentation", () => {
@@ -38,5 +39,52 @@ describe("quota presentation", () => {
 
     expect(formatResetAt(value)).toBe(expected);
     expect(formatResetAt(value)).toMatch(/(AM|PM)/);
+  });
+});
+
+describe("tooltip placement", () => {
+  const viewport = { width: 420, height: 320 };
+  const tooltip = { width: 160, height: 48 };
+
+  it("places a tooltip below its anchor when it fits before the footer", () => {
+    expect(placeTooltip({
+      anchor: { left: 40, top: 80, right: 100, bottom: 100 }, tooltip, viewport, footerTop: 280,
+    })).toMatchObject({ left: 40, top: 106, placement: "below" });
+  });
+
+  it("flips a lower tooltip above the protected footer", () => {
+    expect(placeTooltip({
+      anchor: { left: 40, top: 230, right: 100, bottom: 250 }, tooltip, viewport, footerTop: 280,
+    })).toMatchObject({ top: 176, placement: "above" });
+  });
+
+  it("prefers above when another trigger would be covered and space fits", () => {
+    expect(placeTooltip({
+      anchor: { left: 40, top: 120, right: 100, bottom: 140 },
+      tooltip,
+      viewport,
+      footerTop: 280,
+      preferAbove: true,
+    })).toMatchObject({ top: 66, placement: "above" });
+  });
+
+  it("keeps below when preferred above does not fit", () => {
+    expect(placeTooltip({
+      anchor: { left: 40, top: 30, right: 100, bottom: 50 },
+      tooltip,
+      viewport,
+      footerTop: 280,
+      preferAbove: true,
+    })).toMatchObject({ top: 56, placement: "below" });
+  });
+
+  it("clamps multiline tooltip geometry inside viewport edges", () => {
+    const result = placeTooltip({
+      anchor: { left: 390, top: 30, right: 410, bottom: 50 },
+      tooltip: { width: 300, height: 400 }, viewport, footerTop: 280,
+    });
+    expect(result.left).toBe(100);
+    expect(result.top).toBe(20);
+    expect(result.maxHeight).toBe(254);
   });
 });

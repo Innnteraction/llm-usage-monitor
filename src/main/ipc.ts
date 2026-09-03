@@ -12,6 +12,7 @@ import {
   refreshPayloadSchema,
   refreshResultSchema,
   setLaunchAtLoginPayloadSchema,
+  setTokensVisiblePayloadSchema,
   userPreferencesSchema,
   type AppSnapshot,
   type ClaudeSetupAction,
@@ -24,6 +25,7 @@ export interface IpcDependencies {
   refresh(providerId?: ProviderId): Promise<void>;
   getPreferences(): Promise<UserPreferences>;
   setLaunchAtLogin(enabled: boolean): Promise<UserPreferences>;
+  setTokensVisible(visible: boolean): Promise<void>;
   openClaudeSetup(action: ClaudeSetupAction): Promise<{ opened: boolean }>;
 }
 
@@ -81,6 +83,13 @@ export const registerIpcHandlers = (
     );
   });
 
+  ipcMain.handle(IPC_CHANNELS.setTokensVisible, async (event, ...args) => {
+    assertTrustedSender(event, window);
+    const { visible } = singlePayload(setTokensVisiblePayloadSchema, args);
+    await dependencies.setTokensVisible(visible);
+    return refreshResultSchema.parse(undefined);
+  });
+
   ipcMain.handle(IPC_CHANNELS.openClaudeSetup, async (event, ...args) => {
     assertTrustedSender(event, window);
     const { action } = singlePayload(openClaudeSetupPayloadSchema, args);
@@ -101,6 +110,7 @@ export const registerIpcHandlers = (
       ipcMain.removeHandler(IPC_CHANNELS.refresh);
       ipcMain.removeHandler(IPC_CHANNELS.getPreferences);
       ipcMain.removeHandler(IPC_CHANNELS.setLaunchAtLogin);
+      ipcMain.removeHandler(IPC_CHANNELS.setTokensVisible);
       ipcMain.removeHandler(IPC_CHANNELS.openClaudeSetup);
     },
   };

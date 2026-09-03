@@ -11,6 +11,7 @@ import {
   refreshPayloadSchema,
   refreshResultSchema,
   setLaunchAtLoginPayloadSchema,
+  setTokensVisiblePayloadSchema,
   userPreferencesSchema,
   type UsageMonitorAPI,
 } from "../shared/index";
@@ -48,6 +49,12 @@ const api: UsageMonitorAPI = {
     const payload = setLaunchAtLoginPayloadSchema.parse({ enabled });
     return userPreferencesSchema.parse(
       await ipcRenderer.invoke(IPC_CHANNELS.setLaunchAtLogin, payload),
+    );
+  },
+  async setTokensVisible(visible) {
+    const payload = setTokensVisiblePayloadSchema.parse({ visible });
+    return refreshResultSchema.parse(
+      await ipcRenderer.invoke(IPC_CHANNELS.setTokensVisible, payload),
     );
   },
   async openClaudeSetup(action) {

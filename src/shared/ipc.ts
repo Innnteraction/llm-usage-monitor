@@ -17,6 +17,7 @@ export const IPC_CHANNELS = {
   stateChanged: "usage-monitor:state-changed",
   getPreferences: "usage-monitor:get-preferences",
   setLaunchAtLogin: "usage-monitor:set-launch-at-login",
+  setTokensVisible: "usage-monitor:set-tokens-visible",
   openClaudeSetup: "usage-monitor:open-claude-setup",
 } as const;
 
@@ -29,6 +30,11 @@ export const refreshPayloadSchema = z
 export const setLaunchAtLoginPayloadSchema = z
   .object({
     enabled: z.boolean(),
+  })
+  .strict();
+export const setTokensVisiblePayloadSchema = z
+  .object({
+    visible: z.boolean(),
   })
   .strict();
 export const openClaudeSetupPayloadSchema = z
@@ -47,5 +53,6 @@ export interface UsageMonitorAPI {
   subscribe(listener: (state: AppSnapshot) => void): () => void;
   getPreferences(): Promise<UserPreferences>;
   setLaunchAtLogin(enabled: boolean): Promise<UserPreferences>;
+  setTokensVisible(visible: boolean): Promise<void>;
   openClaudeSetup(action: ClaudeSetupAction): Promise<{ opened: boolean }>;
 }

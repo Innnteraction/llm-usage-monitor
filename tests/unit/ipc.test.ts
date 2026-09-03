@@ -45,6 +45,7 @@ const createHarness = () => {
     setLaunchAtLogin: vi.fn(async (enabled: boolean) => ({
       launchAtLogin: enabled,
     })),
+    setTokensVisible: vi.fn(async () => undefined),
     openClaudeSetup: vi.fn(async () => ({ opened: true })),
   };
 
@@ -93,6 +94,37 @@ describe("restricted IPC handlers", () => {
       handler?.(trustedEvent, { action: "arbitrary-command" }),
     ).rejects.toThrow();
     expect(dependencies.openClaudeSetup).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts only a strict boolean token visibility payload", async () => {
+    const { dependencies, handlers, trustedEvent } = createHarness();
+    const handler = handlers.get(IPC_CHANNELS.setTokensVisible);
+
+    await expect(handler?.(trustedEvent, { visible: false })).resolves.toBeUndefined();
+    await expect(handler?.(trustedEvent, { visible: false, height: 1 })).rejects.toThrow();
+    await expect(handler?.(trustedEvent, { visible: "false" })).rejects.toThrow();
+    expect(dependencies.setTokensVisible).toHaveBeenCalledTimes(1);
+    expect(dependencies.setTokensVisible).toHaveBeenCalledWith(false);
+  });
+
+  it("rejects untrusted token visibility requests before changing the window", async () => {
+    const { dependencies, handlers } = createHarness();
+    const handler = handlers.get(IPC_CHANNELS.setTokensVisible);
+
+    await expect(
+      handler?.({ sender: {}, senderFrame: {} }, { visible: false }),
+    ).rejects.toThrow("Untrusted IPC sender");
+    expect(dependencies.setTokensVisible).not.toHaveBeenCalled();
+  });
+
+  it("propagates token visibility dependency failures", async () => {
+    const { dependencies, handlers, trustedEvent } = createHarness();
+    const handler = handlers.get(IPC_CHANNELS.setTokensVisible);
+    dependencies.setTokensVisible.mockRejectedValueOnce(new Error("resize failed"));
+
+    await expect(handler?.(trustedEvent, { visible: true })).rejects.toThrow(
+      "resize failed",
+    );
   });
 
   it("publishes only schema-valid state and removes handlers", () => {
