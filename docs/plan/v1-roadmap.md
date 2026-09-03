@@ -2,7 +2,7 @@
 
 ## 요약
 
-- 목표: Codex·Claude Code의 quota와 로컬 토큰을 보여 주는 Windows 트레이 앱을 완성한다. Antigravity는 v1 이후에 검토한다.
+- 목표: Codex·Claude Code의 quota와 로컬 토큰을 보여 주는 Windows 트레이 앱을 완성한다. Antigravity는 선택 확장으로 검토를 재개하되 v1 필수 완료 조건과 분리한다.
 - 완료 모습: CSWAP처럼 짧은 시선 이동으로 `5h`·`Weekly`를 읽고 각 provider 아래에서 이 PC의 로컬 토큰 합계를 보조 정보로 확인할 수 있는 TUI형 팝오버와 설치 파일이 동작한다.
 - 핵심 접근: Phase별 기능 브랜치와 Step별 커밋을 유지하고, quota·로컬 토큰·선택 provider를 분리된 경계와 검증 관문으로 점진적으로 연결한다.
 - 검증: 각 Step의 가까운 테스트와 Phase 관문, 실제 provider smoke, 패키지 설치·제거 검사를 통과한다.
@@ -188,16 +188,18 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
 - [ ] Step 7.3 — 아키텍처·보안·테스트·민감정보 최종 관문을 통과한다.
 - [ ] Step 7.4 — README·SHA-256·`v0.1.0` 로컬 release candidate를 완성한다.
 
-## Phase 5.5 — Antigravity (`agy`) 선택 provider (보류·v1 제외)
+## Phase 5.5 — Antigravity (`agy`) 선택 provider (검토 재개·구현 승인 대기)
 
-v1 완료 이후에만 검토하는 보류 항목이다. 이전 소비자용 CLI에 대한 호환 계층을 두지 않고, Google이 제공하는 Antigravity CLI의 `agy` 실행 파일만 대상으로 한다.
+2026-09-03 사용자 요청으로 Phase 7보다 먼저 검토를 재개했다. 이전 보류 결정은 이 순서 변경으로 대체하지만 v1 필수 수용 기준에는 아직 포함하지 않는다. 이전 소비자용 CLI에 대한 호환 계층을 두지 않고 Google의 `agy` 실행 파일만 대상으로 한다. [재개 계획과 승인 경계](phase5-5-antigravity.md)에 공식 근거·미확인 위험·실행 순서를 기록한다.
 
-- [ ] Step 5.5.1 — Windows에 설치된 `agy` 버전·로그인 상태와 격리 PTY의 `/usage` 실행 가능성을 확인한다.
+- [ ] Step 5.5.1 — 설치 버전과 공식 headless `/usage`의 안전성·실제 출력 계약을 확인한다.
+  - [x] 로컬 `agy --version`과 `--help`로 1.1.23을 확인하고 공식 headless·usage 문서를 검토했다. 실제 로그인·quota smoke는 아직 실행하지 않았다.
+  - PTY보다 공식 `agy --print /usage`의 독립 text report를 우선 검증한다. 이 경로는 Claude의 `/usage` 수집 방식에 적용하지 않는다.
   - 고정된 빈 앱 전용 probe 폴더에서 공식 `agy`만 실행한다.
   - `/usage` 또는 `/quota`가 agent 작업이나 모델 prompt를 만들지 않고 quota 화면만 여는지 실제 환경에서 검증한다.
   - 안정적으로 자동화할 수 없으면 이 Phase를 중단하고 내부 API나 credential 직접 읽기로 전환하지 않는다.
-- [ ] Step 5.5.2 — Antigravity PTY 어댑터와 quota 파서를 구현한다.
-  - CLI가 제공한 모델 그룹별 `5h`·`Weekly`, 사용률·남은 비율과 reset만 정규화한다.
+- [ ] Step 5.5.2 — 검증된 Antigravity CLI 프로세스 어댑터와 quota 파서를 구현한다.
+  - CLI가 제공한 모델 그룹별 quota·남은 비율·reset만 정규화한다. `5h`·`Weekly`라는 창 의미까지 확인된 경우에만 해당 kind를 사용하고, 그 외는 `other`로 보존한다. reset까지 남은 시간만으로 창 길이를 추정하지 않는다.
   - 계정 이메일과 plan tier는 CLI가 공식 출력으로 제공할 때만 메모리 UI에 전달하고 로그·오류·stale cache에는 저장하지 않는다.
   - 알 수 없는 모델 그룹과 출력 변경은 값을 추정하지 않고 명시적 `unsupported_output`으로 처리한다.
 - [ ] Step 5.5.3 — 인증·설정 무변조 경계를 고정한다.
@@ -211,7 +213,7 @@ v1 완료 이후에만 검토하는 보류 항목이다. 이전 소비자용 CLI
 
 ### Phase 5.5 관문
 
-- [ ] Antigravity 카드에서 CLI가 제공한 모델 그룹별 `5h`·`Weekly`와 reset을 추정 없이 표시한다.
+- [ ] Antigravity 카드에서 CLI가 실제 제공한 모델별 quota와 reset을 표시하며 `5h`·`Weekly`가 없으면 만들지 않는다.
 - [ ] `agy` 장애가 Codex·Claude와 로컬 토큰 집계를 중단시키지 않는다.
 - [ ] 앱 코드에 Antigravity credential·keyring·설정 파일 직접 접근이나 비공개 quota API 호출이 없다.
 - [ ] 실제 `/usage` smoke가 agent 작업과 모델 prompt를 생성하지 않았음을 확인한다.
@@ -219,4 +221,4 @@ v1 완료 이후에만 검토하는 보류 항목이다. 이전 소비자용 CLI
 
 ## v1 제외 범위
 
-Antigravity와 Antigravity 로컬 토큰, 다중 계정, 계정 전환, 비용 추정, 차트, 알림, 코드 서명, 자동 업데이트, CI 릴리스와 원격 게시는 v1 이후 로드맵으로 분리한다. Claude 구독 OAuth credential 재사용은 후속 기능이 아니라 공식 지원 또는 서면 허가 전까지 금지된 경계다.
+Antigravity quota는 현재 선택 확장 승인 대기이며 v1 필수 완료 조건에서 제외한다. Antigravity 로컬 토큰, 다중 계정, 계정 전환, 비용 추정, 차트, 알림, 코드 서명, 자동 업데이트, CI 릴리스와 원격 게시는 후속 로드맵으로 분리한다. Claude 구독 OAuth credential 재사용은 후속 기능이 아니라 공식 지원 또는 서면 허가 전까지 금지된 경계다.

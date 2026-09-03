@@ -82,4 +82,6 @@ Guard·typecheck·lint·단위/통합 125개·packaged Electron 13개를 통과�
 
 사용자가 직접 확인한 결과와 환경을 이 문서에 추가하기 전에는 Phase 6 전체 인수를 완료로 표시하지 않는다. 설치·업그레이드·제거 최종 검증은 Phase 7의 별도 관문이다.
 
-Phase 6 구현은 `feat/phase-6-tui-polish`에 Step별로 커밋했으며 사용자 확인 전에는 `main`에 병합하지 않는다. Antigravity는 [로드맵](v1-roadmap.md)의 Phase 7 뒤 보류 항목으로 유지한다.
+2026-09-03 사용자 요청으로 후속 UI 변경을 `0d6081d` (`feat(ui): 표시 토글과 트레이 가독성 마감`)에 커밋했다. 직전 Guard·typecheck·lint·단위/통합 128개·개발 Electron 14개와 staged diff·gitleaks 검사를 다시 통과했다. 위의 커밋 전 기록은 당시 상태다.
+
+Phase 6은 `feat/phase-6-tui-polish`에 보존하며 수동 인수와 `main` 병합은 아직 수행하지 않았다. 같은 날 사용자 요청에 따라 Antigravity 검토를 재개했다. 기존 보류 순서는 [재개 계획](phase5-5-antigravity.md)으로 대체하며 Phase 6 수동 인수나 Phase 7 설치 검증을 완료로 간주하지 않는다.
