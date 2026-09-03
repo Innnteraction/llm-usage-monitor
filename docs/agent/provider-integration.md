@@ -22,7 +22,7 @@ provider 작업을 시작하기 전에 다음을 코드·설정·공식 문서�
 | --- | --- | --- |
 | Codex | `codex app-server` RPC | `auth.json`을 직접 사용하지 않고 로그인·refresh를 Codex CLI에 위임한다. |
 | Claude Code | 격리 PTY의 `/usage` | CLI 소유를 유지한다. 구독 OAuth token·credential을 직접 읽거나 비공개 usage API에 중계하지 않는다. |
-| Antigravity (`agy`) | 공식 headless `/usage` 검토 중·미구현 | credential·keyring·설정 파일을 직접 읽거나 쓰지 않는다. CLI 직접 보고서의 실행·출력 계약과 승인 경계를 먼저 확인한다. |
+| Antigravity (`agy`) | 공식 CLI-direct `/usage` JSON | credential·keyring·설정 파일을 직접 읽거나 쓰지 않는다. [수집 계약](../providers/antigravity.md)의 버전·창·실패 경계를 유지한다. |
 
 Claude Code의 구독 credential에는 opt-in 직접 읽기 예외를 두지 않는다. 다른 provider에서 자격증 읽기 경로가 필요해도 별도 공식 계약과 사용자 승인을 먼저 확보하고, 최소 필드만 메모리에서 사용하며 renderer나 영구 캐시에 전달하지 않는다. 자격증 파일의 원문, 크기, hash, token 일부를 로그하지 않는다.
 

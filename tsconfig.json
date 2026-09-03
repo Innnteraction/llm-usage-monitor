@@ -21,6 +21,7 @@
     "tests",
     "forge.config.ts",
     "vite.*.config.mts",
+    "vitest.antigravity-smoke.config.mts",
     "vitest.config.mts",
     "vitest.claude-smoke.config.mts",
     "vitest.smoke.config.mts",

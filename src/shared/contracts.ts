@@ -3,7 +3,7 @@ import { z } from "zod";
 const timestampSchema = z.string().datetime({ offset: true });
 const tokenCountSchema = z.number().int().nonnegative().safe();
 
-export const providerIdSchema = z.enum(["codex", "claude"]);
+export const providerIdSchema = z.enum(["codex", "claude", "antigravity"]);
 export type ProviderId = z.infer<typeof providerIdSchema>;
 export type LocalUsageProviderId = Extract<ProviderId, "codex" | "claude">;
 
@@ -33,6 +33,7 @@ export type ProviderAuthKind = z.infer<typeof providerAuthKindSchema>;
 export const providerSourceSchema = z.enum([
   "codex_app_server",
   "claude_cli",
+  "antigravity_cli",
   "local_fixture",
 ]);
 export type ProviderSource = z.infer<typeof providerSourceSchema>;

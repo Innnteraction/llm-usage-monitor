@@ -188,21 +188,21 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
 - [ ] Step 7.3 — 아키텍처·보안·테스트·민감정보 최종 관문을 통과한다.
 - [ ] Step 7.4 — README·SHA-256·`v0.1.0` 로컬 release candidate를 완성한다.
 
-## Phase 5.5 — Antigravity (`agy`) 선택 provider (검토 재개·구현 승인 대기)
+## Phase 5.5 — Antigravity (`agy`) 선택 provider (수집기 검증 완료·화면 연결 예정)
 
 2026-09-03 사용자 요청으로 Phase 7보다 먼저 검토를 재개했다. 이전 보류 결정은 이 순서 변경으로 대체하지만 v1 필수 수용 기준에는 아직 포함하지 않는다. 이전 소비자용 CLI에 대한 호환 계층을 두지 않고 Google의 `agy` 실행 파일만 대상으로 한다. [재개 계획과 승인 경계](phase5-5-antigravity.md)에 공식 근거·미확인 위험·실행 순서를 기록한다.
 
-- [ ] Step 5.5.1 — 설치 버전과 공식 headless `/usage`의 안전성·실제 출력 계약을 확인한다.
-  - [x] 로컬 `agy --version`과 `--help`로 1.1.23을 확인하고 공식 headless·usage 문서를 검토했다. 실제 로그인·quota smoke는 아직 실행하지 않았다.
-  - PTY보다 공식 `agy --print /usage`의 독립 text report를 우선 검증한다. 이 경로는 Claude의 `/usage` 수집 방식에 적용하지 않는다.
-  - 고정된 빈 앱 전용 probe 폴더에서 공식 `agy`만 실행한다.
+- [x] Step 5.5.1 — 설치 버전과 공식 headless `/usage`의 안전성·실제 출력 계약을 확인한다.
+  - [x] 공식 변경 기록의 CLI-direct JSON 지원을 확인하고 1.1.25에서 JSON 구조·창 의미·`num_turns: 0`을 실제 검증했다. [수집 계약](../providers/antigravity.md)에 원문과 수치 없이 기록했다.
+  - PTY보다 공식 `agy --print /usage --output-format json`을 사용한다. 이 경로는 Claude의 `/usage` 수집 방식에 적용하지 않는다.
+  - 새 빈 앱 전용 임시 probe 폴더에서 공식 `agy`만 실행한다.
   - `/usage` 또는 `/quota`가 agent 작업이나 모델 prompt를 만들지 않고 quota 화면만 여는지 실제 환경에서 검증한다.
   - 안정적으로 자동화할 수 없으면 이 Phase를 중단하고 내부 API나 credential 직접 읽기로 전환하지 않는다.
-- [ ] Step 5.5.2 — 검증된 Antigravity CLI 프로세스 어댑터와 quota 파서를 구현한다.
+- [x] Step 5.5.2 — 검증된 Antigravity CLI 프로세스 어댑터와 quota 파서를 구현한다.
   - CLI가 제공한 모델 그룹별 quota·남은 비율·reset만 정규화한다. `5h`·`Weekly`라는 창 의미까지 확인된 경우에만 해당 kind를 사용하고, 그 외는 `other`로 보존한다. reset까지 남은 시간만으로 창 길이를 추정하지 않는다.
   - 계정 이메일과 plan tier는 CLI가 공식 출력으로 제공할 때만 메모리 UI에 전달하고 로그·오류·stale cache에는 저장하지 않는다.
   - 알 수 없는 모델 그룹과 출력 변경은 값을 추정하지 않고 명시적 `unsupported_output`으로 처리한다.
-- [ ] Step 5.5.3 — 인증·설정 무변조 경계를 고정한다.
+- [x] Step 5.5.3 — 인증·설정 무변조 경계를 고정한다.
   - OS keyring, credential, token과 Antigravity 설정 파일을 앱이 직접 읽거나 쓰지 않는다.
   - quota backend나 비공개 endpoint를 직접 호출하지 않고 로그인·refresh·logout은 `agy`에 맡긴다.
   - 공식 statusline JSON은 향후 사용자 opt-in 대안으로만 검토하며 앱이 `statusLine.command`를 자동 설정하지 않는다.
@@ -210,6 +210,8 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
   - 공개 `ProviderId`·schema 변경은 Architecture Guard impact plan과 사용자 승인을 거쳐 `antigravity`로만 추가한다.
   - `agy` 미설치·미인증·timeout·출력 변경을 다른 provider와 격리하고 마지막 정상값을 stale로 유지한다.
   - 실제 smoke는 계정과 quota 수치를 출력하거나 fixture에 저장하지 않고 성공 여부만 확인한다.
+
+2026-09-03 수집기 관문: Guard·typecheck·lint·26개 파일의 단위/통합 158개 및 production provider의 실제 읽기 전용 smoke 1개를 통과했다. 실제 smoke는 fresh·창 존재·사용률 범위·source·reset·5h/주간 kind를 Boolean으로만 검증했다. 화면 등록과 Electron 검증은 다음 단계다.
 
 ### Phase 5.5 관문
 
@@ -221,4 +223,4 @@ Phase 5는 계정 전체 quota와 독립적으로 현재 장치에 보존된 Cod
 
 ## v1 제외 범위
 
-Antigravity quota는 현재 선택 확장 승인 대기이며 v1 필수 완료 조건에서 제외한다. Antigravity 로컬 토큰, 다중 계정, 계정 전환, 비용 추정, 차트, 알림, 코드 서명, 자동 업데이트, CI 릴리스와 원격 게시는 후속 로드맵으로 분리한다. Claude 구독 OAuth credential 재사용은 후속 기능이 아니라 공식 지원 또는 서면 허가 전까지 금지된 경계다.
+Antigravity quota는 선택 확장으로 정책 승인을 받았으며 v1 필수 완료 조건에서 제외한다. Antigravity 로컬 토큰, 다중 계정, 계정 전환, 비용 추정, 차트, 알림, 코드 서명, 자동 업데이트, CI 릴리스와 원격 게시는 후속 로드맵으로 분리한다. Claude 구독 OAuth credential 재사용은 후속 기능이 아니라 공식 지원 또는 서면 허가 전까지 금지된 경계다.

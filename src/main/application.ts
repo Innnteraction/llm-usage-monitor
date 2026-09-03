@@ -15,6 +15,7 @@ import {
   createClaudeInitialSnapshot,
   createCodexInitialSnapshot,
 } from "../providers/index";
+import type { ProviderId } from "../shared/index";
 import {
   createLocalUsageCoordinator,
   createUsagePoller,
@@ -237,11 +238,13 @@ export const startApplication = (): void => {
       );
       return operation;
     };
-    const refreshUsage = (providerId?: "codex" | "claude"): Promise<void> =>
+    const refreshUsage = (providerId?: ProviderId): Promise<void> =>
       trackBackground(
         Promise.all([
           poller?.refresh(providerId) ?? store.refresh(providerId),
-          localUsageCoordinator?.refresh(providerId),
+          providerId === "antigravity"
+            ? undefined
+            : localUsageCoordinator?.refresh(providerId),
         ]).then(() => undefined),
       );
 

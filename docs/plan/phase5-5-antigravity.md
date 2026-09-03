@@ -4,8 +4,8 @@
 
 - 목표: 기존 Codex·Claude 화면을 보존하며 Antigravity quota 선택 확장의 공식 수집 경로를 검증한다.
 - 완료 모습: 인증정보 직접 접근 없이 CLI가 제공한 quota만 표시하며, 미설치·출력 변경·실패가 다른 provider를 중단시키지 않는다.
-- 핵심 접근: 공식 headless 보고서를 우선 조사하고 정책 승인 후 Terra medium에게 단계별 구현을 위임한다. v1 필수 수용 범위와 로컬 토큰은 확대하지 않는다.
-- 검증: 실제 CLI 계약 확인과 fake fixture 검사를 분리하고 Guard·타입·린트·통합·Electron·민감정보 관문을 통과한다. 현재는 정책 승인 대기이며 실계정 smoke는 미실행이다.
+- 핵심 접근: 공식 CLI-direct JSON 보고서를 검증하고 승인된 경계 안에서 Terra medium에게 단계별 구현을 위임한다. v1 필수 수용 범위와 로컬 토큰은 확대하지 않는다.
+- 검증: 실제 CLI 계약 확인과 fake fixture 검사를 분리한다. 수집기의 Guard·타입·린트·158개 단위/통합·실제 읽기 전용 smoke를 통과했으며 화면 연결·Electron 관문은 남아 있다.
 
 ## 기준선과 진행 상태
 
@@ -14,25 +14,30 @@
 - [x] UI 후속 변경을 `0d6081d`로 커밋했다. Guard·타입·린트·128개 단위/통합·14개 개발 Electron·gitleaks 검사를 통과했다.
 - [x] 로컬 `agy --version`·`--help`로 1.1.23과 print/text 옵션을 확인했다.
 - [x] 공식 문서와 Guard impact를 검토했다. 새 provider 경계는 `approval-required` 판정이다.
-- [ ] 아래 정책 초안과 공개 계약 확장을 승인받는다.
-- [ ] 승인 후 `0d6081d`를 포함한 현재 커밋에서 `feat/phase-5-5-antigravity` 브랜치를 만든다. Phase 6 수동 검사가 남아 있으므로 이번에는 main에서 분기하는 원칙의 명시적 예외로 두며, 두 브랜치를 main에 자동 병합하지 않는다.
-- [ ] 승인된 정책을 활성화하고 실제 파일 목록으로 새 Guard plan을 생성한 뒤 구현한다.
+- [x] 2026-09-03 아래 정책 초안과 공개 계약 확장을 승인받았다.
+- [x] `06e54d1`에서 `feat/phase-5-5-antigravity` 브랜치를 만들었다. Phase 6 수동 검사가 남아 있어 main에서 분기하는 원칙의 승인된 예외로 두며, 두 브랜치를 main에 자동 병합하지 않는다.
+- [x] 승인된 정책을 활성화하고 초기 진단 파일 두 개에 대한 새 Guard plan을 생성했다. provider 구현 전에 해당 실제 파일 목록으로 별도 plan을 생성한다.
+- [x] `.architecture-guard/plans/antigravity-provider.json`으로 구현 경계를 고정하고 새 위반 없이 검증했다. Terra medium의 코드에서 실행기 종료·미설치 오류·quota 미제공·실패 격리를 검토했다.
+- [x] 단위/통합 158개와 실제 production provider smoke 1개를 통과했다. 초기 구조 탐색용 코드는 제거하고 별도 smoke 명령에 성공 여부만 남겼다.
+- [ ] main 등록과 세 번째 TUI 카드·fake Electron 검증을 완료한다.
 
 ## 확인한 수집 경로와 남은 위험
 
-공식 headless 문서는 `/usage`를 CLI가 직접 처리하는 text report로 설명한다. streaming input에 넣지 않고 독립 `agy --print /usage` 호출로 실행하는 경로를 우선 검증한다. 일반 print prompt와 혼동하지 않으며, slash command 처리를 끄는 옵션은 사용하지 않는다. 미인증 headless의 실패 계약도 확인 대상이다. [공식 headless 문서](https://antigravity.google/docs/cli/headless/)
+공식 headless 문서는 `/usage`를 CLI가 직접 처리하는 보고서로 설명한다. 더 구체적인 1.1.11 변경 기록(2026-08-07)은 print 모드의 read-only slash command가 JSON도 지원하며 에이전트 턴, quota 소비, 대화 생성 없이 실행된다고 명시한다. 따라서 텍스트 파싱 대신 `agy --print /usage --output-format json --print-timeout 20s`를 사용한다. streaming input이나 일반 모델 prompt로 전환하지 않으며 slash command를 끄는 옵션은 금지한다. [공식 headless 문서](https://antigravity.google/docs/cli/headless/), [공식 변경 기록](https://antigravity.google/changelog)
 
-`/usage`는 모델 구성과 quota를 backend에서 갱신한다. 공식 quota 안내는 모델별 잔여량을 설명하지만 고정 5시간·주간 창을 보장하지 않는다. 출력에서 창 의미를 확인하지 못하면 `other`를 사용하고 reset 카운트다운으로 주기를 역산하지 않는다. [공식 quota 문서](https://antigravity.google/docs/cli/commands/usage)
+`/usage`는 모델 구성과 quota를 backend에서 갱신한다. 공식 Models 문서는 Gemini 모델 그룹과 Claude/GPT 모델 그룹 각각의 주간·5시간 잔여 한도를 설명한다. 이는 Antigravity 내부의 모델 구분이지 별도 Gemini CLI provider의 복원이 아니다. 실제 JSON 필드까지 확인한 창만 매핑하고 reset 카운트다운으로 주기를 역산하지 않는다. [공식 quota 문서](https://antigravity.google/docs/cli/commands/usage), [공식 Models 문서](https://antigravity.google/docs/models/)
 
 빈 probe 디렉터리는 프로젝트 설정의 영향을 줄이는 수단이지 전역 환경 격리의 보장이 아니다. 전역 skill은 다른 디렉터리에서도 로드될 수 있고 hooks는 agent 동작에 연결된다. 전역 plugins·hooks를 이 조회에서 확실히 비활성화하는 공식 실행 옵션은 이번 조사에서 찾지 못했다. [공식 plugins 문서](https://antigravity.google/docs/cli/plugins/)
 
 MCP 설정은 전역과 workspace에 각각 존재한다. 이 앱은 해당 파일을 읽거나 수정하지 않으며 startup 영향이 없다고 단정하지 않는다. [공식 MCP 문서](https://antigravity.google/docs/cli/mcp/)
 
-문서는 CLI 직접 보고서 경로를 뒷받침하지만 현재 PC의 실제 응답, 로그인 상태, startup 동작과 모델 요청 부재를 대신 검증하지 않는다. 그래서 현재 Step 5.5.1은 완료가 아니다. 실제 출력은 메모리에서만 검사하고 계정·quota 수치·원문을 로그나 저장소에 남기지 않는다. 안전성을 확인하지 못하면 중단하며 credential·비공개 backend·PTY로 자동 우회하지 않는다.
+2026-09-03 현재 PC에서 1.1.24의 JSON 조회가 정상 종료되고 `num_turns`가 0임을 확인했다. 응답은 메모리에서만 검사하고 필드 타입·성공 여부만 출력했다. 최초 1.1.23에서 조사 중 1.1.24, 이후 1.1.25가 관측돼 버전 고정 검사가 중단되기도 했다. 앱은 업데이트 명령을 실행하지 않았으며 변경 원인은 확인되지 않았다. 버전 변경을 계약 검증 결과와 함께 기록한다.
 
-## 정책·공개 계약 승인 요청
+이 결과가 모든 전역 startup 동작의 부재를 증명하는 것은 아니다. 공식 CLI-direct 계약과 현재 응답을 근거로 수집을 구현하되 timeout·출력 상한·프로세스 정리를 적용한다. 미인증·장애는 fake process로 검증하고 현재 로그인 상태를 바꿔 시험하지 않는다. 실제 계정·quota 수치·원문은 저장하지 않으며 credential·비공개 backend·PTY로 자동 우회하지 않는다.
 
-활성 정책과 baseline은 변경하지 않았다. 별도 `.architecture-guard/policy-antigravity.draft.json`에 다음 차이만 둔다.
+## 승인된 정책·공개 계약 범위
+
+2026-09-03 사용자 승인 후 별도 `.architecture-guard/policy-antigravity.draft.json`의 아래 변경을 활성화했다. 기존 위반 수용 없이 baseline 위반 0개를 확인했다.
 
 | 항목 | 승인 요청 |
 | --- | --- |
@@ -43,13 +48,13 @@ MCP 설정은 전역과 workspace에 각각 존재한다. 이 앱은 해당 파�
 | 공개 타입 | `ProviderId`에 `antigravity`, `ProviderSource`에 `antigravity_cli` 추가; 기존 IPC method 유지 |
 | 로컬 집계 | `LocalUsageProviderId`는 Codex·Claude만 유지; Antigravity에서 calculating/no logs를 거짓 표시하지 않음 |
 
-승인용 draft의 canonical SHA-256은 `f097193b98a169061c1d8f96d7faf6d666a5c964f4de813ce70dbbece75e4e91`이다. 이는 비밀키가 아니라 사용자가 검토한 정책 문서의 변경 여부를 확인하는 식별자다. 활성 정책 digest는 `1638370e436107db9446b17a94e715528e8a5fdbec63b1e5a3856b2e655483b0`로 유지된다.
+승인용 draft의 canonical SHA-256은 `f097193b98a169061c1d8f96d7faf6d666a5c964f4de813ce70dbbece75e4e91`이다. 이는 비밀키가 아니라 사용자가 검토한 정책 문서의 변경 여부를 확인하는 식별자다. 활성화 후 digest는 `0310ae79a4a82c0a02bc3150faba4c352d5c935eebc95868587e92ae65b25edd`다.
 
-영향 보고서는 `.architecture-guard/reports/antigravity-resume-impact.md`다. 현재 새 경로가 미분류여서 승인 필요 판정이며 기존 위반은 없다. 계약의 역의존은 main·preload·renderer·usage·local-usage와 관련 테스트까지 이어지므로 컴파일과 cache·refresh 회귀도 확인해야 한다. 기존 위반 허용이나 baseline 완화는 요청하지 않는다.
+최초 영향 보고서는 `.architecture-guard/reports/antigravity-resume-impact.md`다. 당시 새 경로가 미분류여서 승인 필요 판정이었다. 활성화 후 `.architecture-guard/plans/antigravity-feasibility.json`은 pass이며 초기 대상은 `tests/smoke/antigravity.smoke.test.ts`와 `vitest.antigravity-smoke.config.mts`다. 공개 계약 확장의 역의존은 main·preload·renderer·usage·local-usage와 관련 테스트까지 이어지므로 후속 구현에서 컴파일과 cache·refresh 회귀를 확인한다. 기존 위반 허용이나 baseline 완화는 하지 않았다.
 
 ## 승인 후 구현·검증 순서
 
-1. **실행 계약:** 고정된 빈 probe cwd와 설치 버전에 대해 독립 headless 호출을 검증한다. timeout·출력 상한·자식 프로세스 정리, 미인증 종료, 모델 turn/도구 동작 부재를 확인한다. 전역 startup 위험이 해소되지 않으면 이 단계에서 멈춘다.
+1. **실행 계약:** 새 빈 probe cwd와 설치 버전에 대해 독립 headless JSON 호출을 검증한다. timeout·출력 상한·자식 프로세스 정리와 `num_turns: 0`을 확인하고, 공식 CLI-direct 계약과 관측 한계를 구분한다. 알려진 계약과 다른 출력이면 중단한다. 미인증 종료는 fake process로 검증한다.
 2. **provider:** Terra medium 1명이 어댑터·정규화와 허구 fixture를 구현한다. 숫자 범위·reset·모델별 ID를 검증하고 미설치·미인증·timeout·출력 변경을 공통 오류로 매핑한다. 실제 원문을 fixture로 반입하지 않는다.
 3. **연결:** 앞 단계 리뷰 후 main 등록·shared enum·renderer 이름/source 매핑을 순차 연결한다. Codex·Claude 갱신과 로컬 토큰을 보존하고 Antigravity에는 확인된 모델 quota만 표시한다. 세 provider의 스크롤·compact·tooltip 회귀를 검사하며 창 확대나 새 설정 패널을 임의 추가하지 않는다.
 4. **관문:** Guard verify → typecheck → lint → 단위/통합 → fake Electron → 별도 실제 읽기 전용 smoke → diff·민감정보 검사. 실제 계정·원문·수치는 출력하지 않는다. 단계별 검토·커밋은 Sol이 맡고 subagent는 추가 agent나 커밋을 만들지 않는다.

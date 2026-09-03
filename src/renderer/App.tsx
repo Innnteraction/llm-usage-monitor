@@ -23,11 +23,13 @@ const authKindNames = {
 const providerNames: Record<ProviderSnapshot["providerId"], string> = {
   codex: "Codex",
   claude: "Claude Code",
+  antigravity: "Antigravity",
 };
 
 const sourceNames: Record<QuotaWindow["source"], string> = {
   codex_app_server: "Codex App Server",
   claude_cli: "Claude CLI",
+  antigravity_cli: "Antigravity CLI",
   local_fixture: "Local fixture",
 };
 
