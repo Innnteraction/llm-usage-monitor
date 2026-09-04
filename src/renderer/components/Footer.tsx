@@ -9,7 +9,12 @@ import {
   IconSun,
   IconTokens,
 } from "../icons";
-import { getModifierKeyLabel, isMacOS } from "../../shared/index";
+import {
+  APP_NAME,
+  APP_VERSION,
+  getModifierKeyLabel,
+  isMacOS,
+} from "../../shared/index";
 
 export interface FooterProps {
   footerRef: RefObject<HTMLElement | null>;
@@ -48,7 +53,7 @@ export const Footer: FC<FooterProps> = ({
     <footer ref={footerRef} className="app-footer">
       <p className="scope-note">
         <span>quota: account · tokens: this PC</span>
-        <span>Claude Desktop: not inspected</span>
+        <span>Claude Desktop: not inspected · v{APP_VERSION}</span>
       </p>
       <div className="footer-bar">
         <div className="footer-left">
@@ -60,6 +65,10 @@ export const Footer: FC<FooterProps> = ({
             ariaLabel="Shortcuts and help"
             description={
               <div className="help-content">
+                <div className="help-header">
+                  <span className="help-title">{APP_NAME}</span>
+                  <span className="version-badge">v{APP_VERSION}</span>
+                </div>
                 <h3 className="help-heading">Shortcuts</h3>
                 <ul className="help-shortcuts">
                   <li className="help-shortcut-row">

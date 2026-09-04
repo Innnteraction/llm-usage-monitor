@@ -1,3 +1,4 @@
+import { APP_NAME, APP_VERSION } from "../shared/index";
 import { getLaunchAtLoginLabel } from "./platform/index";
 
 export interface TrayMenuActions {
@@ -46,6 +47,8 @@ export const createTrayMenuTemplate = (
   actions: TrayMenuActions,
   platform: NodeJS.Platform = process.platform,
 ) => [
+  { label: `${APP_NAME} v${APP_VERSION}`, enabled: false },
+  { type: "separator" as const },
   { label: "열기", click: actions.open },
   { label: "새로고침", click: actions.refresh },
   ...(actions.resetPosition

@@ -9,10 +9,13 @@ describe("tray lifecycle helpers", () => {
     const first = createTrayMenuTemplate(getLaunchAtLogin, actions);
     const second = createTrayMenuTemplate(getLaunchAtLogin, actions);
 
-    expect(first[2]).toMatchObject({ checked: false });
-    expect(second[2]).toMatchObject({ checked: true });
-    const checkbox = second[2] as { click(menuItem: { checked: boolean }): void };
-    checkbox.click({ checked: false });
+    expect(first[0]).toMatchObject({ label: "LLM Usage Monitor v0.8.0", enabled: false });
+    const firstCheckbox = first.find((item) => item.type === "checkbox");
+    const secondCheckbox = second.find((item) => item.type === "checkbox") as { click(menuItem: { checked: boolean }): void } | undefined;
+
+    expect(firstCheckbox).toMatchObject({ checked: false });
+    expect(secondCheckbox).toMatchObject({ checked: true });
+    secondCheckbox?.click({ checked: false });
     await vi.waitFor(() => expect(setLaunchAtLogin).toHaveBeenCalledWith(false));
   });
 
@@ -24,7 +27,7 @@ describe("tray lifecycle helpers", () => {
       setLaunchAtLogin: vi.fn(async () => { throw new Error("settings unavailable"); }),
       quit: vi.fn(),
     });
-    const checkbox = template[2] as { click(menuItem: { checked: boolean }): void };
+    const checkbox = template.find((item) => item.type === "checkbox") as { click(menuItem: { checked: boolean }): void };
     const menuItem = { checked: false };
     checkbox.click(menuItem);
     await vi.waitFor(() => expect(menuItem.checked).toBe(true));
@@ -46,7 +49,7 @@ describe("tray lifecycle helpers", () => {
       setLaunchAtLogin,
       quit: vi.fn(),
     });
-    const checkbox = template[2] as { click(menuItem: { checked: boolean }): void };
+    const checkbox = template.find((item) => item.type === "checkbox") as { click(menuItem: { checked: boolean }): void };
     const menuItem = { checked: true };
     checkbox.click(menuItem);
 

@@ -723,6 +723,31 @@ h2 {
   line-height: 1.35;
 }
 
+.help-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--track);
+}
+
+.help-title {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+}
+
+.version-badge {
+  font-size: 0.54rem;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background-color: var(--track);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
 .help-heading {
   margin: 0;
   padding-bottom: 2px;
