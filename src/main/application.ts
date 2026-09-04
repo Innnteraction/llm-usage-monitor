@@ -476,6 +476,9 @@ export const startApplication = (): void => {
     };
     tray = new Tray(createTrayIcon());
     tray.setToolTip("LLM Usage Monitor");
+    if (process.platform === "darwin") {
+      tray.setIgnoreDoubleClickEvents(true);
+    }
     const buildTrayMenu = () =>
       Menu.buildFromTemplate(
         createTrayMenuTemplate(
@@ -515,8 +518,16 @@ export const startApplication = (): void => {
       }
     });
 
+    const isAutostart =
+      process.argv.includes("--hidden") ||
+      process.argv.includes("--autostart");
+    const shouldShowInitially =
+      keepVisibleForTest ||
+      isDevMode ||
+      (process.platform === "darwin" ? !isAutostart : !setupWasReady);
+
     mainWindow.once("ready-to-show", () => {
-      if (keepVisibleForTest || isDevMode || !setupWasReady) {
+      if (shouldShowInitially) {
         showWindow();
       }
     });

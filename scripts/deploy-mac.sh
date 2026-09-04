@@ -171,6 +171,8 @@ if [ "${AUTO_START}" = true ]; then
         <string>/usr/bin/open</string>
         <string>-a</string>
         <string>${TARGET_APP}</string>
+        <string>--args</string>
+        <string>--hidden</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
