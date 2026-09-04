@@ -84,4 +84,43 @@ describe("Claude usage parser", () => {
       { kind: "five_hour", label: "5h", usedPercent: 23, resetsAt: "2026-09-01T05:00:00.000Z" },
     ]);
   });
+
+  it("ignores promo banners and notes rather than misparsing them as usage percentages", () => {
+    const windows = parseClaudeUsageScreen(
+      [
+        "Current session",
+        "0% 0% used",
+        "Resets in 3 hr",
+        "Current week (all models)",
+        "9% 9% used",
+        "Resets in 5 days",
+        "+50% weekly limits promo through Sep 13 · clau.de/cc-50-promo",
+        "Current week (Fable)",
+        "16% 16% used",
+        "Resets in 5 days",
+        "Nothing over 10% in this period — try the other window.",
+        "Usage credits are off · /usage-credits to turn them on",
+      ].join("\n"),
+      now,
+    );
+
+    expect(windows).toEqual([
+      { kind: "five_hour", label: "5h", usedPercent: 0, resetsAt: "2026-09-01T06:00:00.000Z" },
+      { kind: "weekly", label: "Weekly", usedPercent: 9, resetsAt: "2026-09-06T03:00:00.000Z" },
+      { kind: "model_weekly", label: "Fable Weekly", usedPercent: 16, resetsAt: "2026-09-06T03:00:00.000Z" },
+    ]);
+  });
+
+  it("does not treat standalone promo text without usage as a valid percentage", () => {
+    const windows = parseClaudeUsageScreen(
+      [
+        "Current week (all models)",
+        "Resets in 5 days",
+        "+50% weekly limits promo through Sep 13 · clau.de/cc-50-promo",
+      ].join("\n"),
+      now,
+    );
+
+    expect(windows).toEqual([]);
+  });
 });

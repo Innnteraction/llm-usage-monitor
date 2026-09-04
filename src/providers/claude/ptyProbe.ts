@@ -14,9 +14,22 @@ const PROBE_DIRECTORY_NAME = "claude-probe";
 const MAX_CAPTURE_CHARS = 512 * 1024;
 const STARTUP_IDLE_MS = 5_000;
 const RESPONSE_IDLE_MS = 1_500;
+const REFRESH_WAIT_TIMEOUT_MS = 6_000;
 const PANEL_CLOSE_DELAY_MS = 150;
 const EXIT_TIMEOUT_MS = 2_000;
 const PROBE_TIMEOUT_MS = 20_000;
+
+export function hasFinishedRefreshing(screen: string): boolean {
+  const refreshIndex = screen.search(/refreshing/i);
+  if (refreshIndex === -1) {
+    return true;
+  }
+  const afterRefresh = screen.slice(refreshIndex);
+  return (
+    /\b(?:current\s+week|usage\s+credits|what's\s+contributing)\b/i.test(afterRefresh) &&
+    /\b(?:used|remaining|left)\b/i.test(afterRefresh)
+  );
+}
 
 export const CLAUDE_SAFE_SESSION_ARGS = [
   "--safe-mode",
@@ -116,6 +129,7 @@ export async function runClaudeUsageProbe(
   let usageScreen = "";
   let phase: "startup" | "usage" | "exiting" = "startup";
   let sentUsageCommand = false;
+  let usageStartedAt = 0;
   let pendingStatus: ClaudePtyProbeStatus | undefined;
   let settled = false;
   let startupIdleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -202,6 +216,17 @@ export async function runClaudeUsageProbe(
 
     const evaluateUsage = (): void => {
       const signals = classifyClaudeUsageScreen(usageScreen);
+      const isRefreshing =
+        /\brefreshing\b/i.test(usageScreen) && !hasFinishedRefreshing(usageScreen);
+
+      if (isRefreshing && Date.now() - usageStartedAt < REFRESH_WAIT_TIMEOUT_MS) {
+        if (responseIdleTimer) {
+          clearTimeout(responseIdleTimer);
+        }
+        responseIdleTimer = setTimeout(evaluateUsage, 1_000);
+        return;
+      }
+
       const windows = parseClaudeUsageScreen(
         usageScreen,
         options.clock?.() ?? new Date(),
@@ -235,6 +260,7 @@ export async function runClaudeUsageProbe(
       }
       startupScreen = "";
       phase = "usage";
+      usageStartedAt = Date.now();
       sentUsageCommand = true;
       try {
         terminal?.write("/usage\r");

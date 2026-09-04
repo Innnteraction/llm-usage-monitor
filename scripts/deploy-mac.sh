@@ -91,7 +91,7 @@ if [ "${UNINSTALL}" = true ]; then
 
     # 실행 중인 프로세스 종료
     echo -e "${YELLOW}실행 중인 ${APP_NAME} 프로세스를 종료합니다...${NC}"
-    pkill -f "${APP_NAME}" 2>/dev/null || true
+    pkill -9 -f "${APP_NAME}" 2>/dev/null || true
     sleep 1
 
     # LaunchAgent 제거
@@ -141,7 +141,7 @@ echo -e "${GREEN}빌드 산출물 확인: ${SOURCE_APP}${NC}"
 
 # 3. 기존 실행 중인 앱 종료
 echo -e "${YELLOW}[2/4] 실행 중인 이전 인스턴스를 확인하고 종료합니다...${NC}"
-pkill -f "${APP_NAME}" 2>/dev/null || true
+pkill -9 -f "${APP_NAME}" 2>/dev/null || true
 sleep 1
 
 # 4. 대상 디렉터리로 복사 및 권한 설정

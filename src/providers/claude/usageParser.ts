@@ -65,13 +65,37 @@ function classifyHeader(
 
 function parsePercent(lines: string[]): number | undefined {
   for (const line of lines) {
-    const match = line.match(/(\d+(?:\.\d+)?)\s*%/);
+    if (isPromotionalOrNoteLine(line)) continue;
+    const explicitMatch = line.match(
+      /(?:^|[^\d+])(\d+(?:\.\d+)?)\s*%(?:\s+\d+(?:\.\d+)?\s*%)?\s*(used|remaining|left)\b/i,
+    );
+    if (explicitMatch) {
+      const value = Number(explicitMatch[1]);
+      if (Number.isFinite(value) && value >= 0 && value <= 100) {
+        return /\b(?:left|remaining)\b/i.test(explicitMatch[2] ?? "") ? 100 - value : value;
+      }
+    }
+  }
+
+  for (const line of lines) {
+    if (isPromotionalOrNoteLine(line)) continue;
+    const match = line.match(/(?:^|[^\d+])(\d+(?:\.\d+)?)\s*%/);
     if (!match) continue;
     const value = Number(match[1]);
     if (!Number.isFinite(value) || value < 0 || value > 100) continue;
     return /\b(?:left|remaining)\b/i.test(line) ? 100 - value : value;
   }
   return undefined;
+}
+
+function isPromotionalOrNoteLine(line: string): boolean {
+  return (
+    /^\s*\+/i.test(line) ||
+    /\b(?:promo|promotion|bonus|boost|increase)\b/i.test(line) ||
+    /clau\.de/i.test(line) ||
+    /^nothing\s+over\b/i.test(line) ||
+    /\bcredits\s+are\s+off\b/i.test(line)
+  );
 }
 
 function parseReset(lines: string[], now: Date): string | undefined {

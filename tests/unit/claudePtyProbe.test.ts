@@ -2,6 +2,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   classifyClaudeUsageScreen,
+  hasFinishedRefreshing,
   resolveClaudeProbeDirectory,
 } from "../../src/providers/index";
 
@@ -49,5 +50,24 @@ describe("Claude PTY usage screen classification", () => {
       requiresLogin: false,
       hasTrustPrompt: true,
     });
+  });
+
+  it("distinguishes between in-progress refreshing and completed refreshed quota output", () => {
+    // When no "refreshing" indicator is present, consider it ready
+    expect(hasFinishedRefreshing("Current session\n10% used")).toBe(true);
+
+    // When "refreshing" was printed but updated content has not arrived yet
+    expect(
+      hasFinishedRefreshing(
+        "Current session\n0% used\nRefreshing…\nEsc to cancel",
+      ),
+    ).toBe(false);
+
+    // When "refreshing" was printed and the refreshed content with usage details arrived
+    expect(
+      hasFinishedRefreshing(
+        "Current session\n0% used\nRefreshing…\nEsc to cancel\nCurrent week (all models)\n9% 9% used\nCurrent week (Fable)\n16% 16% used\nUsage credits",
+      ),
+    ).toBe(true);
   });
 });
