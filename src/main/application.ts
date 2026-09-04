@@ -299,7 +299,7 @@ export const startApplication = (): void => {
       fullscreenable: false,
       skipTaskbar: true,
       title: "LLM Usage Monitor",
-      icon: path.join(app.getAppPath(), "assets", "icons", "app-icon.ico"),
+      icon: createTrayIcon(),
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,

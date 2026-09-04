@@ -38,9 +38,14 @@ const config: ForgeConfig = {
     asar: {
       unpack: "**/node_modules/node-pty/**/*",
     },
+    extraResource: [path.resolve("assets")],
   },
   hooks: {
     packageAfterPrune: async (_forgeConfig, buildPath) => {
+      const assetsSource = path.resolve("assets");
+      const assetsDestination = path.join(buildPath, "assets");
+      await cp(assetsSource, assetsDestination, { recursive: true });
+
       const source = path.resolve("node_modules", "node-pty");
       const destination = path.join(buildPath, "node_modules", "node-pty");
       await mkdir(destination, { recursive: true });
