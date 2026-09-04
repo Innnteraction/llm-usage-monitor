@@ -191,7 +191,7 @@ function createQuotaWindow(
       ? {}
       : {
           usedPercent:
-            Math.round((1 - bucket.remaining_fraction) * 100 * 10) / 10,
+            Math.round((1 - bucket.remaining_fraction) * 100),
         }),
     ...(bucket.reset_time == null ? {} : { resetsAt: bucket.reset_time }),
     source: "antigravity_cli",

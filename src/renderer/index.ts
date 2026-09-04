@@ -3,6 +3,7 @@ export {
   formatQuotaCountdown,
   formatCompactCountdown,
   formatCompactWindowLabel,
+  formatPercent,
   formatResetAt,
   isResetPending,
   placeTooltip,

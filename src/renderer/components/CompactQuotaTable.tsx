@@ -2,6 +2,7 @@ import type { ProviderSnapshot } from "../../shared/index";
 import {
   formatCompactCountdown,
   formatCompactWindowLabel,
+  formatPercent,
 } from "../presentation";
 import {
   compactProviderNames,
@@ -54,7 +55,7 @@ export const CompactQuotaTable = ({
                   className={`quota-meter tone-${weeklyTone}`}
                   max={100}
                   value={weeklyUsed}
-                  title={`Weekly limit (${formatCompactCountdown(weeklyWindow?.resetsAt, now)}): ${weeklyUsed}%`}
+                  title={`Weekly limit (${formatCompactCountdown(weeklyWindow?.resetsAt, now)}): ${formatPercent(weeklyUsed)}`}
                 />
               )}
             </div>
@@ -67,7 +68,7 @@ export const CompactQuotaTable = ({
                   const unavailable =
                     used === undefined || w.status === "unavailable";
                   const tone = unavailable ? undefined : usageTone(used);
-                  const text = unavailable ? "--" : `${used}%`;
+                  const text = unavailable ? "--" : formatPercent(used);
 
                   return (
                     <span key={w.id || index}>

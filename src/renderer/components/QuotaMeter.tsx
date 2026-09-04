@@ -1,5 +1,6 @@
 import type { ProviderSnapshot, QuotaWindow } from "../../shared/index";
 import {
+  formatPercent,
   formatQuotaCountdown,
   formatResetAt,
   isResetPending,
@@ -26,7 +27,10 @@ export const QuotaMeter = ({
 }: QuotaMeterProps) => {
   const used = window.usedPercent;
   const unavailable = used === undefined || window.status === "unavailable";
-  const remaining = used === undefined ? undefined : 100 - used;
+  const remaining =
+    used === undefined ? undefined : Math.max(0, 100 - Math.round(used));
+  const usedFormatted = formatPercent(used);
+  const remainingFormatted = formatPercent(remaining);
   const tone = usageTone(used);
   const resetPending = isResetPending(window.resetsAt, now);
   const identity = displayLabel ? `${window.label}: ` : "";
@@ -53,8 +57,8 @@ export const QuotaMeter = ({
           />
           <HelpTrigger
             id={`${providerId}-${window.id}-usage`}
-            label={`${used}%`}
-            description={`${identity}Used ${used}%, remaining ${remaining}%.`}
+            label={usedFormatted}
+            description={`${identity}Used ${usedFormatted}, remaining ${remainingFormatted}.`}
             className={`quota-value tone-${tone}`}
             testId={`${providerId}-${window.kind}-value`}
             activeHelp={activeHelp}
@@ -81,7 +85,7 @@ export const QuotaMeter = ({
         </>
       )}
       {!unavailable && remaining !== undefined ? (
-        <span className="quota-remaining">{`${remaining}% remaining`}</span>
+        <span className="quota-remaining">{`${remainingFormatted} remaining`}</span>
       ) : null}
     </section>
   );

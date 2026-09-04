@@ -44,6 +44,12 @@ export const formatCompactCountdown = (
   return `${minutes}m`;
 };
 
+export const formatPercent = (value?: number): string => {
+  if (value === undefined || !Number.isFinite(value)) return "--";
+  const rounded = Math.max(0, Math.round(value));
+  return `${String(rounded).padStart(2, "0")}%`;
+};
+
 export const formatCompactWindowLabel = (window: {
   id?: string;
   kind: string;

@@ -3,6 +3,7 @@ import {
   formatQuotaCountdown,
   formatCompactCountdown,
   formatCompactWindowLabel,
+  formatPercent,
   formatResetAt,
   isResetPending,
   placeTooltip,
@@ -36,6 +37,21 @@ describe("quota presentation", () => {
       "25m",
     );
     expect(formatCompactCountdown(undefined, now)).toBe("--");
+  });
+
+  it("formats percentages with zero-padding and no decimals", () => {
+    expect(formatPercent(undefined)).toBe("--");
+    expect(formatPercent(NaN)).toBe("--");
+    expect(formatPercent(0)).toBe("00%");
+    expect(formatPercent(5)).toBe("05%");
+    expect(formatPercent(9)).toBe("09%");
+    expect(formatPercent(10)).toBe("10%");
+    expect(formatPercent(75)).toBe("75%");
+    expect(formatPercent(100)).toBe("100%");
+    expect(formatPercent(0.2)).toBe("00%");
+    expect(formatPercent(0.8)).toBe("01%");
+    expect(formatPercent(24.4)).toBe("24%");
+    expect(formatPercent(24.7)).toBe("25%");
   });
 
   it("formats compact window labels for providers", () => {
