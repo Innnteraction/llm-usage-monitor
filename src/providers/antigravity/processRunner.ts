@@ -5,6 +5,7 @@ import {
 import { mkdtemp, rmdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { resolveCliBinary } from "../../shared/index";
 
 const VERSION_ARGS = ["--version"] as const;
 const USAGE_ARGS = [
@@ -72,6 +73,8 @@ export type AntigravitySpawn = (
 
 export interface AntigravityCliRunnerOptions {
   spawn?: AntigravitySpawn;
+  command?: string;
+  platform?: NodeJS.Platform;
   createTempDirectory?: () => Promise<string>;
   removeEmptyDirectory?: (directory: string) => Promise<void>;
   versionTimeoutMs?: number;
@@ -81,6 +84,8 @@ export interface AntigravityCliRunnerOptions {
 
 export class AntigravityCliRunner implements AntigravityProcessRunner {
   private readonly spawn: AntigravitySpawn;
+  private readonly command: string;
+  private readonly platform: NodeJS.Platform;
   private readonly createTempDirectory: () => Promise<string>;
   private readonly removeEmptyDirectory: (directory: string) => Promise<void>;
   private readonly versionTimeoutMs: number;
@@ -92,6 +97,8 @@ export class AntigravityCliRunner implements AntigravityProcessRunner {
 
   constructor(options: AntigravityCliRunnerOptions = {}) {
     this.spawn = options.spawn ?? createNodeSpawn;
+    this.platform = options.platform ?? process.platform;
+    this.command = options.command ?? resolveCliBinary("antigravity", this.platform);
     this.createTempDirectory =
       options.createTempDirectory ??
       (() => mkdtemp(path.join(tmpdir(), "llm-usage-monitor-agy-")));
@@ -234,7 +241,7 @@ export class AntigravityCliRunner implements AntigravityProcessRunner {
       }, timeoutMs);
 
       try {
-        child = this.spawn("agy.exe", args, {
+        child = this.spawn(this.command, args, {
           cwd,
           shell: false,
           windowsHide: true,
@@ -306,6 +313,19 @@ export class AntigravityCliRunner implements AntigravityProcessRunner {
   private terminateOwnedTree(pid: number | undefined): Promise<boolean> {
     if (pid === undefined || !Number.isInteger(pid) || pid <= 0) {
       return Promise.resolve(false);
+    }
+    if (this.platform !== "win32") {
+      try {
+        process.kill(-pid, "SIGKILL");
+        return Promise.resolve(true);
+      } catch {
+        try {
+          process.kill(pid, "SIGKILL");
+          return Promise.resolve(true);
+        } catch {
+          return Promise.resolve(false);
+        }
+      }
     }
     return new Promise((resolve) => {
       let settled = false;

@@ -1,3 +1,5 @@
+import { getLaunchAtLoginLabel } from "./platform/index";
+
 export interface TrayMenuActions {
   open(): void;
   refresh(): void;
@@ -42,6 +44,7 @@ export const createBeforeQuitHandler = ({
 export const createTrayMenuTemplate = (
   getLaunchAtLogin: () => boolean,
   actions: TrayMenuActions,
+  platform: NodeJS.Platform = process.platform,
 ) => [
   { label: "열기", click: actions.open },
   { label: "새로고침", click: actions.refresh },
@@ -49,7 +52,7 @@ export const createTrayMenuTemplate = (
     ? [{ label: "기본 위치로 재설정", click: actions.resetPosition }]
     : []),
   {
-    label: "Windows 로그인 시 시작",
+    label: getLaunchAtLoginLabel(platform),
     type: "checkbox" as const,
     checked: getLaunchAtLogin(),
     click: (menuItem: { checked: boolean }) => {

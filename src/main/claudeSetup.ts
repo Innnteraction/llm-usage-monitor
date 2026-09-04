@@ -1,16 +1,15 @@
 import { spawn, type SpawnOptions } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import {
-  CLAUDE_SAFE_SESSION_ARGS,
   resolveClaudeProbeDirectory,
 } from "../providers/index";
 import type { ClaudeSetupAction } from "../shared/index";
+import {
+  buildTerminalLaunch,
+  type TerminalLaunch,
+} from "./platform/index";
 
-export interface ClaudeSetupLaunch {
-  command: "wt.exe";
-  args: string[];
-  workingDirectory?: string;
-}
+export type ClaudeSetupLaunch = TerminalLaunch;
 
 interface DetachedProcess {
   once(event: "spawn", listener: () => void): this;
@@ -27,35 +26,9 @@ type SpawnDetached = (
 export const buildClaudeSetupLaunch = (
   action: ClaudeSetupAction,
   probeDirectory = resolveClaudeProbeDirectory(),
+  platform: NodeJS.Platform = process.platform,
 ): ClaudeSetupLaunch => {
-  if (action === "login") {
-    return {
-      command: "wt.exe",
-      args: [
-        "new-tab",
-        "--title",
-        "Claude Code Sign In",
-        "claude.exe",
-        "auth",
-        "login",
-        "--claudeai",
-      ],
-    };
-  }
-
-  return {
-    command: "wt.exe",
-    args: [
-      "new-tab",
-      "--title",
-      "Claude Code Probe Setup",
-      "--startingDirectory",
-      probeDirectory,
-      "claude.exe",
-      ...CLAUDE_SAFE_SESSION_ARGS,
-    ],
-    workingDirectory: probeDirectory,
-  };
+  return buildTerminalLaunch(action, probeDirectory, platform);
 };
 
 export async function openClaudeSetup(
@@ -66,7 +39,8 @@ export async function openClaudeSetup(
     spawnProcess?: SpawnDetached;
   } = {},
 ): Promise<{ opened: boolean }> {
-  if ((options.platform ?? process.platform) !== "win32") {
+  const platform = options.platform ?? process.platform;
+  if (platform !== "win32" && platform !== "darwin") {
     return { opened: false };
   }
 

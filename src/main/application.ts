@@ -31,6 +31,11 @@ import {
 import { openClaudeSetup } from "./claudeSetup";
 import { registerIpcHandlers } from "./ipc";
 import {
+  ensurePlatformPath,
+  getAlwaysOnTopLevel,
+  setupPlatformDock,
+} from "./platform/index";
+import {
   mergeCachedSnapshots,
   SNAPSHOT_CACHE_FILENAME,
   SnapshotCache,
@@ -159,6 +164,7 @@ const loadRenderer = (window: BrowserWindow): void => {
 };
 
 export const startApplication = (): void => {
+  process.env.PATH = ensurePlatformPath();
   let isQuitting = false;
   let shutdown: (() => Promise<void>) | undefined;
   let beforeQuit: ((event: { preventDefault(): void }) => void) | undefined;
@@ -218,6 +224,7 @@ export const startApplication = (): void => {
   });
 
   void app.whenReady().then(async () => {
+    setupPlatformDock(app);
     const useFakeProviders = process.env.LLM_USAGE_MONITOR_E2E === "1";
     const keepVisibleForTest =
       useFakeProviders &&
@@ -303,7 +310,7 @@ export const startApplication = (): void => {
     });
 
     if (isAlwaysOnTop) {
-      mainWindow.setAlwaysOnTop(true, "screen-saver");
+      mainWindow.setAlwaysOnTop(true, getAlwaysOnTopLevel());
     }
 
     mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -394,7 +401,7 @@ export const startApplication = (): void => {
       setAlwaysOnTop: async (enabled) => {
         isAlwaysOnTop = enabled;
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.setAlwaysOnTop(enabled, "screen-saver");
+          mainWindow.setAlwaysOnTop(enabled, getAlwaysOnTopLevel());
         }
         void saveStoredPreferences(preferencesPath, { alwaysOnTop: enabled });
         return isAlwaysOnTop;

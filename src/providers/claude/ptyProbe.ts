@@ -7,6 +7,7 @@ import {
   parseClaudeUsageScreen,
   type ClaudeParsedQuotaWindow,
 } from "./usageParser";
+import { resolveCliBinary } from "../../shared/index";
 
 const APP_DIRECTORY_NAME = "LLM Usage Monitor";
 const PROBE_DIRECTORY_NAME = "claude-probe";
@@ -232,7 +233,7 @@ export async function runClaudeUsageProbe(
 
     try {
       terminal = spawn(
-        options.command ?? (process.platform === "win32" ? "claude.exe" : "claude"),
+        options.command ?? resolveCliBinary("claude"),
         [...CLAUDE_SAFE_SESSION_ARGS],
         {
           cols: 120,

@@ -9,6 +9,7 @@ import {
   IconSun,
   IconTokens,
 } from "../icons";
+import { getModifierKeyLabel, isMacOS } from "../../shared/index";
 
 export interface FooterProps {
   footerRef: RefObject<HTMLElement | null>;
@@ -39,6 +40,10 @@ export const Footer: FC<FooterProps> = ({
   alwaysOnTop,
   onToggleAlwaysOnTop,
 }) => {
+  const isMac = isMacOS();
+  const modKey = getModifierKeyLabel(isMac);
+  const ariaModKey = isMac ? "Meta" : "Control";
+
   return (
     <footer ref={footerRef} className="app-footer">
       <p className="scope-note">
@@ -59,25 +64,25 @@ export const Footer: FC<FooterProps> = ({
                 <ul className="help-shortcuts">
                   <li className="help-shortcut-row">
                     <span className="help-keys">
-                      <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>
+                      <kbd>{modKey}</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>
                     </span>
                     <span className="help-desc">Toggle compact mode</span>
                   </li>
                   <li className="help-shortcut-row">
                     <span className="help-keys">
-                      <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>
+                      <kbd>{modKey}</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>
                     </span>
                     <span className="help-desc">Toggle local tokens</span>
                   </li>
                   <li className="help-shortcut-row">
                     <span className="help-keys">
-                      <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd>
+                      <kbd>{modKey}</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd>
                     </span>
                     <span className="help-desc">Toggle theme (dark/light)</span>
                   </li>
                   <li className="help-shortcut-row">
                     <span className="help-keys">
-                      <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>
+                      <kbd>{modKey}</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>
                     </span>
                     <span className="help-desc">Toggle pin (always on top)</span>
                   </li>
@@ -106,12 +111,12 @@ export const Footer: FC<FooterProps> = ({
             className="display-toggle compact-toggle"
             ariaLabel={compactMode ? "Expand to detailed mode" : "Collapse to compact mode"}
             ariaPressed={compactMode}
-            ariaKeyshortcuts="Control+Shift+C"
+            ariaKeyshortcuts={`${ariaModKey}+Shift+C`}
             onClick={onToggleCompactMode}
             description={
               compactMode
-                ? "Expand to detailed mode (Ctrl+Shift+C)"
-                : "Collapse to compact mode (Ctrl+Shift+C)"
+                ? `Expand to detailed mode (${modKey}+Shift+C)`
+                : `Collapse to compact mode (${modKey}+Shift+C)`
             }
             activeHelp={activeHelp}
             onActiveHelpChange={onActiveHelpChange}
@@ -122,10 +127,10 @@ export const Footer: FC<FooterProps> = ({
             className="display-toggle token-toggle"
             ariaLabel="Tokens"
             ariaPressed={tokensVisible}
-            ariaKeyshortcuts="Control+Shift+T"
+            ariaKeyshortcuts={`${ariaModKey}+Shift+T`}
             disabled={tokenVisibilityPending}
             onClick={onToggleTokenVisibility}
-            description={`Tokens: ${tokensVisible ? "on" : "off"} (Ctrl+Shift+T)`}
+            description={`Tokens: ${tokensVisible ? "on" : "off"} (${modKey}+Shift+T)`}
             activeHelp={activeHelp}
             onActiveHelpChange={onActiveHelpChange}
           />
@@ -135,9 +140,9 @@ export const Footer: FC<FooterProps> = ({
             className="display-toggle theme-toggle"
             ariaLabel="Theme"
             ariaPressed={effectiveTheme === "dark"}
-            ariaKeyshortcuts="Control+Shift+L"
+            ariaKeyshortcuts={`${ariaModKey}+Shift+L`}
             onClick={onToggleTheme}
-            description={`${effectiveTheme === "dark" ? "Dark" : "Light"} theme (Ctrl+Shift+L)`}
+            description={`${effectiveTheme === "dark" ? "Dark" : "Light"} theme (${modKey}+Shift+L)`}
             activeHelp={activeHelp}
             onActiveHelpChange={onActiveHelpChange}
           />
@@ -147,12 +152,12 @@ export const Footer: FC<FooterProps> = ({
             className="display-toggle pin-toggle"
             ariaLabel={alwaysOnTop ? "Unpin window from top" : "Pin window on top"}
             ariaPressed={alwaysOnTop}
-            ariaKeyshortcuts="Control+Shift+P"
+            ariaKeyshortcuts={`${ariaModKey}+Shift+P`}
             onClick={onToggleAlwaysOnTop}
             description={
               alwaysOnTop
-                ? "Unpin from top (Ctrl+Shift+P)"
-                : "Pin on top (Ctrl+Shift+P)"
+                ? `Unpin from top (${modKey}+Shift+P)`
+                : `Pin on top (${modKey}+Shift+P)`
             }
             activeHelp={activeHelp}
             onActiveHelpChange={onActiveHelpChange}

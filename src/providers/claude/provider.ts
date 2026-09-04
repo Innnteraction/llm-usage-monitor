@@ -1,8 +1,9 @@
 import { execFile } from "node:child_process";
 import { z } from "zod";
-import type {
-  ProviderAuthKind,
-  ProviderSnapshot,
+import {
+  resolveCliBinary,
+  type ProviderAuthKind,
+  type ProviderSnapshot,
 } from "../../shared/index";
 import {
   createClaudeUnexpectedSnapshot,
@@ -68,7 +69,7 @@ const classifyClaudeAuthKind = (
 };
 
 export function readClaudeAccountContext(
-  command = process.platform === "win32" ? "claude.exe" : "claude",
+  command = resolveCliBinary("claude"),
 ): Promise<ClaudeAccountContext | undefined> {
   return new Promise((resolve) => {
     execFile(

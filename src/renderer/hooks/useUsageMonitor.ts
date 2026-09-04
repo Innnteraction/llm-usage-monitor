@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AppSnapshot, ClaudeSetupAction } from "../../shared/index";
+import {
+  isMacOS,
+  isShortcutMatch,
+  type AppSnapshot,
+  type ClaudeSetupAction,
+} from "../../shared/index";
 import { isEditableTarget } from "../selectors";
 
 export const useUsageMonitor = () => {
@@ -118,32 +123,25 @@ export const useUsageMonitor = () => {
 
   // Global keyboard shortcuts
   useEffect(() => {
+    const isMac = isMacOS();
     const handleKeyboard = (event: KeyboardEvent): void => {
       if (event.key === "Escape") {
         setActiveHelp(undefined);
         return;
       }
-      if (
-        event.repeat ||
-        event.isComposing ||
-        isEditableTarget(event.target) ||
-        !event.ctrlKey ||
-        !event.shiftKey ||
-        event.altKey ||
-        event.metaKey
-      ) {
+      if (isEditableTarget(event.target)) {
         return;
       }
-      if (event.code === "KeyC") {
+      if (isShortcutMatch(event, "KeyC", isMac)) {
         event.preventDefault();
         toggleCompactMode();
-      } else if (event.code === "KeyT") {
+      } else if (isShortcutMatch(event, "KeyT", isMac)) {
         event.preventDefault();
         toggleTokenVisibility();
-      } else if (event.code === "KeyL") {
+      } else if (isShortcutMatch(event, "KeyL", isMac)) {
         event.preventDefault();
         toggleTheme();
-      } else if (event.code === "KeyP") {
+      } else if (isShortcutMatch(event, "KeyP", isMac)) {
         event.preventDefault();
         toggleAlwaysOnTop();
       }
