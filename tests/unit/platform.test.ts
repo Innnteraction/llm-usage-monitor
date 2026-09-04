@@ -169,15 +169,35 @@ describe("main process platform adapter", () => {
       expect(probe.workingDirectory).toBe("C:\\probe");
     });
 
-    it("builds macOS open Terminal launch for login and probe", () => {
-      const login = buildTerminalLaunch("login", "/Users/test/probe", "darwin");
-      expect(login.command).toBe("open");
-      expect(login.args).toEqual(["-a", "Terminal"]);
+    it("builds macOS Terminal.app launch that runs the fixed login and probe commands", () => {
+      const login = buildTerminalLaunch("login", "/Users/test/probe dir", "darwin");
+      expect(login.command).toBe("osascript");
+      expect(login.args[0]).toBe("-e");
+      expect(login.args[1]).toBe(
+        'tell application "Terminal" to do script "claude auth login --claudeai"',
+      );
+      expect(login.args[3]).toBe('tell application "Terminal" to activate');
+      expect(login.workingDirectory).toBeUndefined();
 
-      const probe = buildTerminalLaunch("trust_probe", "/Users/test/probe", "darwin");
-      expect(probe.command).toBe("open");
-      expect(probe.args).toEqual(["-a", "Terminal", "/Users/test/probe"]);
-      expect(probe.workingDirectory).toBe("/Users/test/probe");
+      const probe = buildTerminalLaunch("trust_probe", "/Users/test/probe dir", "darwin");
+      expect(probe.command).toBe("osascript");
+      expect(probe.args[1]).toBe(
+        "tell application \"Terminal\" to do script \"cd '/Users/test/probe dir' && claude --safe-mode --ax-screen-reader --restricted --strict-mcp-config --tools ''\"",
+      );
+      expect(probe.args[3]).toBe('tell application "Terminal" to activate');
+      expect(probe.workingDirectory).toBe("/Users/test/probe dir");
+      expect(probe.args.join(" ")).not.toContain("dangerously-skip-permissions");
+    });
+
+    it("escapes quotes in the macOS probe directory for shell and AppleScript", () => {
+      const probe = buildTerminalLaunch(
+        "trust_probe",
+        '/Users/test/it\'s "probe"',
+        "darwin",
+      );
+      expect(probe.args[1]).toContain(
+        "cd '/Users/test/it'\\\\''s \\\"probe\\\"' &&",
+      );
     });
   });
 

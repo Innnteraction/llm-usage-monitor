@@ -37,7 +37,7 @@ CodexBar의 고정 probe 폴더와 빈 tool set은 채택한다. trust·telemetr
 
 최초 준비는 고정 probe 폴더에서 위의 실행 인자로 Claude를 직접 열고 해당 빈 폴더만 trust한 뒤 `/exit`하는 과정이다. 이 작업은 설치·최초 실행 UI에서 사용자 동작으로 제공하며 백그라운드에서 대신 승인하지 않는다.
 
-UI의 `sign in`은 보이는 Windows Terminal에서 `claude auth login --claudeai`를 실행하고, `prepare folder`는 같은 고정 probe 폴더와 safe/restricted 인자로 대화형 Claude를 연다. renderer는 이 두 action만 요청할 수 있으며 명령, 인자와 경로를 지정할 수 없다.
+UI의 `sign in`은 보이는 터미널(Windows Terminal, macOS Terminal.app)에서 `claude auth login --claudeai`를 실행하고, `prepare folder`는 같은 고정 probe 폴더와 safe/restricted 인자로 대화형 Claude를 연다. renderer는 이 두 action만 요청할 수 있으며 명령, 인자와 경로를 지정할 수 없다.
 
 2026-09-01 실제 로그인된 Claude Code 2.1.252에서 최초 trust 이후 smoke가 통과했다. 5시간·주간·quota 상세 신호를 얻었고 모델 prompt를 보내지 않았으며 `Escape`로 usage 패널을 닫은 뒤 `/exit`로 정상 종료했다. 실제 quota 수치와 raw 화면은 출력하거나 저장하지 않았다.
 

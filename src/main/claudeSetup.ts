@@ -47,6 +47,7 @@ export async function openClaudeSetup(
   const launch = buildClaudeSetupLaunch(
     action,
     options.probeDirectory ?? resolveClaudeProbeDirectory(),
+    platform,
   );
   if (launch.workingDirectory) {
     await mkdir(launch.workingDirectory, { recursive: true });

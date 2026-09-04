@@ -56,6 +56,8 @@ const config: ForgeConfig = {
         : path.resolve("assets", "icons", "app-icon.ico"),
     extendInfo: {
       LSUIElement: true,
+      NSAppleEventsUsageDescription:
+        "Claude Code 로그인과 probe 폴더 준비를 위해 Terminal을 엽니다.",
     },
     asar: {
       unpack: "**/node_modules/node-pty/**/*",

@@ -63,6 +63,27 @@ export function ensurePlatformPath(
   return [...missing, currentPath].join(delimiter);
 }
 
+const SHELL_SAFE = /^[A-Za-z0-9_@%+=:,./-]+$/;
+
+function shellQuote(value: string): string {
+  return SHELL_SAFE.test(value)
+    ? value
+    : `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function appleScriptQuote(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function buildTerminalAppArgs(shellCommand: string): string[] {
+  return [
+    "-e",
+    `tell application "Terminal" to do script "${appleScriptQuote(shellCommand)}"`,
+    "-e",
+    'tell application "Terminal" to activate',
+  ];
+}
+
 export function buildTerminalLaunch(
   action: ClaudeSetupAction,
   probeDirectory: string,
@@ -98,16 +119,24 @@ export function buildTerminalLaunch(
     };
   }
 
-  // macOS (Darwin) terminal launching
+  // macOS (Darwin): Terminal.app 새 창에서 고정 명령을 실행한다.
+  const claude = resolveCliBinary("claude", platform);
   if (action === "login") {
     return {
-      command: "open",
-      args: ["-a", "Terminal"],
+      command: "osascript",
+      args: buildTerminalAppArgs(
+        [claude, "auth", "login", "--claudeai"].map(shellQuote).join(" "),
+      ),
     };
   }
+  const probeCommand = [claude, ...CLAUDE_SAFE_SESSION_ARGS]
+    .map(shellQuote)
+    .join(" ");
   return {
-    command: "open",
-    args: ["-a", "Terminal", probeDirectory],
+    command: "osascript",
+    args: buildTerminalAppArgs(
+      `cd ${shellQuote(probeDirectory)} && ${probeCommand}`,
+    ),
     workingDirectory: probeDirectory,
   };
 }

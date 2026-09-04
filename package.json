@@ -2,7 +2,7 @@
   "name": "llm-usage-monitor",
   "productName": "LLM Usage Monitor",
   "version": "0.9.0",
-  "description": "Windows tray monitor for Codex and Claude Code usage quotas",
+  "description": "Tray monitor for Codex, Claude Code and Antigravity usage quotas (macOS, Windows)",
   "author": {
     "name": "Innnteraction",
     "email": "innnteractive@gmail.com"
@@ -24,6 +24,7 @@
     "test:smoke:claude-pty": "vitest run --config vitest.claude-smoke.config.mts",
     "test:smoke:claude-packaged": "pnpm package && playwright test --config playwright.claude-packaged.config.ts",
     "test:e2e": "pnpm package && playwright test",
+    "screenshot:readme": "node ./scripts/capture-readme-screenshots.mjs",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "postinstall": "node -e \"if (process.platform === 'darwin') { const { execSync } = require('child_process'); try { execSync('chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper'); } catch {} }\"",
