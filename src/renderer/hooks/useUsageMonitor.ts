@@ -94,14 +94,25 @@ export const useUsageMonitor = () => {
     };
   }, []);
 
-  // Dismiss help on blur or visibility change
+  // Dismiss help on blur, visibility change, or cursor leaving the window
   useEffect(() => {
     const closeHelp = (): void => setActiveHelp(undefined);
+    const handleWindowExit = (event: MouseEvent): void => {
+      if (!event.relatedTarget) {
+        closeHelp();
+      }
+    };
     window.addEventListener("blur", closeHelp);
     document.addEventListener("visibilitychange", closeHelp);
+    window.addEventListener("mouseout", handleWindowExit);
+    document.documentElement.addEventListener("mouseleave", handleWindowExit);
+    document.addEventListener("mouseleave", handleWindowExit);
     return () => {
       window.removeEventListener("blur", closeHelp);
       document.removeEventListener("visibilitychange", closeHelp);
+      window.removeEventListener("mouseout", handleWindowExit);
+      document.documentElement.removeEventListener("mouseleave", handleWindowExit);
+      document.removeEventListener("mouseleave", handleWindowExit);
     };
   }, []);
 

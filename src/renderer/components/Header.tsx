@@ -18,11 +18,15 @@ export const Header: FC<HeaderProps> = ({
       <h1>LLM Usage Monitor</h1>
       <button
         type="button"
-        className="refresh-button"
+        className={`refresh-button${refreshing ? " is-refreshing" : ""}`}
         onClick={onRefresh}
         disabled={disabled}
       >
-        {refreshing ? "refreshing..." : "refresh"}
+        {refreshing ? (
+          <span className="cli-shimmer-text">refreshing...</span>
+        ) : (
+          "refresh"
+        )}
       </button>
     </header>
   );

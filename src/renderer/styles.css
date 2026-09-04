@@ -97,6 +97,42 @@ button:disabled {
   line-height: 1;
 }
 
+.app-header .refresh-button.is-refreshing {
+  opacity: 1;
+  cursor: wait;
+}
+
+/* CLI 계열 답변/동작 시 텍스트에 색이 슥 지나가는 Shimmer 효과 */
+@keyframes cli-text-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -150% 0;
+  }
+}
+
+.cli-shimmer-text {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    var(--muted) 0%,
+    var(--muted) 15%,
+    var(--input) 35%,
+    var(--output) 52%,
+    var(--low) 70%,
+    var(--text) 82%,
+    var(--muted) 92%,
+    var(--muted) 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: cli-text-shimmer 1.8s linear infinite;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 h1,
 h2,
 p {

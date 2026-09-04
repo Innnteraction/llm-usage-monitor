@@ -138,6 +138,24 @@ export const HelpTrigger: FC<HelpTriggerProps> = ({
     };
   }, [description, isOpen, onActiveHelpChange]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleExitWindow = (event: MouseEvent) => {
+      if (!event.relatedTarget) {
+        window.clearTimeout(closeTimer.current);
+        onActiveHelpChange(undefined);
+      }
+    };
+    window.addEventListener("mouseout", handleExitWindow);
+    document.documentElement.addEventListener("mouseleave", handleExitWindow);
+    document.addEventListener("mouseleave", handleExitWindow);
+    return () => {
+      window.removeEventListener("mouseout", handleExitWindow);
+      document.documentElement.removeEventListener("mouseleave", handleExitWindow);
+      document.removeEventListener("mouseleave", handleExitWindow);
+    };
+  }, [isOpen, onActiveHelpChange]);
+
   const show = (): void => {
     window.clearTimeout(closeTimer.current);
     onActiveHelpChange(id);
@@ -146,14 +164,15 @@ export const HelpTrigger: FC<HelpTriggerProps> = ({
   const closeLater = (): void => {
     window.clearTimeout(closeTimer.current);
     closeTimer.current = window.setTimeout(() => {
+      if (activeHelpRef.current !== id) return;
+      if (helpRef.current?.contains(document.activeElement)) return;
       if (
-        activeHelpRef.current === id &&
-        !helpRef.current?.contains(document.activeElement) &&
+        !document.documentElement.matches(":hover") ||
         !helpRef.current?.matches(":hover")
       ) {
         onActiveHelpChange(undefined);
       }
-    }, 400);
+    }, 150);
   };
 
   return (
@@ -161,7 +180,14 @@ export const HelpTrigger: FC<HelpTriggerProps> = ({
       ref={helpRef}
       className={`local-token-help tone-${tone}${className ? ` ${className}` : ""}`}
       onMouseEnter={show}
-      onMouseLeave={closeLater}
+      onMouseLeave={(event) => {
+        if (!event.relatedTarget) {
+          window.clearTimeout(closeTimer.current);
+          onActiveHelpChange(undefined);
+        } else {
+          closeLater();
+        }
+      }}
     >
       <button
         ref={buttonRef}
