@@ -25,7 +25,11 @@
     "test:smoke:claude-packaged": "pnpm package && playwright test --config playwright.claude-packaged.config.ts",
     "test:e2e": "pnpm package && playwright test",
     "package": "electron-forge package",
-    "make": "electron-forge make"
+    "make": "electron-forge make",
+    "deploy": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1",
+    "deploy:autostart": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1 -AutoStart",
+    "deploy:quick": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1 -SkipBuild",
+    "deploy:uninstall": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1 -Uninstall"
   },
   "dependencies": {
     "electron-squirrel-startup": "1.0.1",
