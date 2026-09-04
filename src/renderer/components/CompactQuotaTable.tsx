@@ -30,9 +30,6 @@ export const CompactQuotaTable = ({
         const weeklyUsed = weeklyWindow?.usedPercent;
         const weeklyTone = usageTone(weeklyUsed);
 
-        const usedPercents = windows.map((w) =>
-          w.usedPercent !== undefined ? `${w.usedPercent}%` : "--",
-        );
         const windowLabels = windows.map((w) => formatCompactWindowLabel(w));
         const resets = windows.map((w) =>
           formatCompactCountdown(w.resetsAt, now),
@@ -62,7 +59,32 @@ export const CompactQuotaTable = ({
               )}
             </div>
             <span className="compact-percent">
-              {usedPercents.length > 0 ? usedPercents.join("/") : "--"}
+              {windows.length === 0 ? (
+                <span className="compact-percent-unavailable">--</span>
+              ) : (
+                windows.map((w, index) => {
+                  const used = w.usedPercent;
+                  const unavailable =
+                    used === undefined || w.status === "unavailable";
+                  const tone = unavailable ? undefined : usageTone(used);
+                  const text = unavailable ? "--" : `${used}%`;
+
+                  return (
+                    <span key={w.id || index}>
+                      {index > 0 && (
+                        <span className="compact-percent-separator">/</span>
+                      )}
+                      <span
+                        className={
+                          tone ? `tone-${tone}` : "compact-percent-unavailable"
+                        }
+                      >
+                        {text}
+                      </span>
+                    </span>
+                  );
+                })
+              )}
             </span>
             <span className="compact-window">
               {windowLabels.length > 0 ? windowLabels.join("/") : "--"}
