@@ -6,7 +6,7 @@ import {
   screen,
   Tray,
 } from "electron";
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -61,6 +61,28 @@ const pathExists = async (filePath: string): Promise<boolean> => {
 const markClaudeSetupReady = async (filePath: string): Promise<void> => {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, "ready\n", { encoding: "utf8", flag: "w" });
+};
+
+interface StoredPreferences {
+  alwaysOnTop?: boolean;
+}
+
+const loadStoredPreferences = async (filePath: string): Promise<StoredPreferences> => {
+  try {
+    const raw = await readFile(filePath, "utf8");
+    return JSON.parse(raw) as StoredPreferences;
+  } catch {
+    return {};
+  }
+};
+
+const saveStoredPreferences = async (filePath: string, prefs: StoredPreferences): Promise<void> => {
+  try {
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, JSON.stringify(prefs, null, 2), "utf8");
+  } catch {
+    // ignore
+  }
 };
 
 const positionNearTray = (
@@ -252,6 +274,13 @@ export const startApplication = (): void => {
             }),
           ],
         });
+    const preferencesPath = path.join(
+      app.getPath("userData"),
+      "preferences-v1.json",
+    );
+    const storedPrefs = await loadStoredPreferences(preferencesPath);
+    isAlwaysOnTop = storedPrefs.alwaysOnTop ?? false;
+
     mainWindow = new BrowserWindow({
       width: WINDOW_SIZE.width,
       height: COMPACT_WINDOW_HEIGHT,
@@ -273,13 +302,19 @@ export const startApplication = (): void => {
       },
     });
 
+    if (isAlwaysOnTop) {
+      mainWindow.setAlwaysOnTop(true, "screen-saver");
+    }
+
     mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     mainWindow.webContents.on("will-navigate", (event) => {
       event.preventDefault();
     });
     mainWindow.webContents.on("before-input-event", (_event, input) => {
       if (input.type === "keyDown" && input.key === "Escape") {
-        mainWindow?.hide();
+        if (!isAlwaysOnTop) {
+          mainWindow?.hide();
+        }
       }
     });
     mainWindow.webContents.session.setPermissionRequestHandler(
@@ -333,13 +368,20 @@ export const startApplication = (): void => {
       },
       getPreferences: async () => ({
         launchAtLogin: app.getLoginItemSettings().openAtLogin,
+        alwaysOnTop: isAlwaysOnTop,
       }),
       setLaunchAtLogin: async (enabled) => {
         if (isQuitting) {
-          return { launchAtLogin: app.getLoginItemSettings().openAtLogin };
+          return {
+            launchAtLogin: app.getLoginItemSettings().openAtLogin,
+            alwaysOnTop: isAlwaysOnTop,
+          };
         }
         app.setLoginItemSettings({ openAtLogin: enabled });
-        return { launchAtLogin: app.getLoginItemSettings().openAtLogin };
+        return {
+          launchAtLogin: app.getLoginItemSettings().openAtLogin,
+          alwaysOnTop: isAlwaysOnTop,
+        };
       },
       setTokensVisible: async (visible, contentHeight) => {
         if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return;
@@ -352,8 +394,9 @@ export const startApplication = (): void => {
       setAlwaysOnTop: async (enabled) => {
         isAlwaysOnTop = enabled;
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.setAlwaysOnTop(enabled);
+          mainWindow.setAlwaysOnTop(enabled, "screen-saver");
         }
+        void saveStoredPreferences(preferencesPath, { alwaysOnTop: enabled });
         return isAlwaysOnTop;
       },
     });
@@ -455,7 +498,11 @@ export const startApplication = (): void => {
     tray.on("click", () => {
       if (isQuitting) return;
       if (mainWindow?.isVisible()) {
-        mainWindow.hide();
+        if (isAlwaysOnTop) {
+          mainWindow.focus();
+        } else {
+          mainWindow.hide();
+        }
       } else {
         showWindow();
       }

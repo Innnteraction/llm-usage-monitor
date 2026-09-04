@@ -124,8 +124,7 @@ h2 {
   margin-top: 12px;
   overflow-x: hidden;
   overflow-y: auto;
-  padding-right: 8px;
-  scrollbar-gutter: stable;
+  scrollbar-width: thin;
 }
 
 .provider-list-content {

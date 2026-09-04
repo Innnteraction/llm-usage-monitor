@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type {
   AppSnapshot,
   ClaudeSetupAction,
@@ -12,17 +12,7 @@ import {
   formatCompactWindowLabel,
   formatResetAt,
   isResetPending,
-  placeTooltip,
 } from "./presentation";
-import {
-  IconCompactCollapse,
-  IconCompactExpand,
-  IconHelp,
-  IconMoon,
-  IconPin,
-  IconSun,
-  IconTokens,
-} from "./icons";
 
 const authKindNames = {
   subscription: "subscription",
@@ -114,185 +104,9 @@ const formatLocalCalculatedAt = (value: string): string =>
     hour12: true,
   }).format(new Date(value));
 
-const HelpTrigger = ({
-  id,
-  label,
-  value,
-  description,
-  tone = "neutral",
-  className,
-  testId,
-  activeHelp,
-  onActiveHelpChange,
-  onClick,
-  ariaLabel,
-  ariaPressed,
-  ariaKeyshortcuts,
-  disabled,
-}: {
-  id: string;
-  label: ReactNode;
-  value?: string;
-  description: ReactNode;
-  tone?: "neutral" | "input" | "output" | "cache" | "partial";
-  className?: string;
-  testId?: string;
-  activeHelp?: string;
-  onActiveHelpChange(id?: string): void;
-  onClick?: () => void;
-  ariaLabel?: string;
-  ariaPressed?: boolean;
-  ariaKeyshortcuts?: string;
-  disabled?: boolean;
-}) => {
-  const tooltipId = `${id}-tooltip`;
-  const isOpen = activeHelp === id;
-  const helpRef = useRef<HTMLSpanElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const tooltipRef = useRef<HTMLSpanElement>(null);
-  const closeTimer = useRef<number | undefined>(undefined);
-  const activeHelpRef = useRef<string | undefined>(undefined);
-  const [tooltipStyle, setTooltipStyle] = useState<CSSProperties>();
-  useEffect(() => {
-    activeHelpRef.current = activeHelp;
-  }, [activeHelp]);
-  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
-  useLayoutEffect(() => {
-    if (!isOpen || !buttonRef.current || !tooltipRef.current) return;
-
-    const updatePosition = (closeWhenHidden = false): void => {
-      const anchor = buttonRef.current?.getBoundingClientRect();
-      const tooltipElement = tooltipRef.current;
-      if (!anchor || !tooltipElement) return;
-      const providerList = document.querySelector<HTMLElement>(".provider-list");
-      const listBounds = providerList?.getBoundingClientRect();
-      if (
-        closeWhenHidden &&
-        providerList?.contains(buttonRef.current) &&
-        listBounds &&
-        (anchor.bottom <= listBounds.top || anchor.top >= listBounds.bottom)
-      ) {
-        onActiveHelpChange(undefined);
-        return;
-      }
-      const previousMaxHeight = tooltipElement.style.maxHeight;
-      tooltipElement.style.maxHeight = "none";
-      const tooltipBounds = tooltipElement.getBoundingClientRect();
-      const tooltipStyle = getComputedStyle(tooltipElement);
-      const naturalHeight = Math.max(
-        tooltipBounds.height,
-        tooltipElement.scrollHeight +
-          Number.parseFloat(tooltipStyle.borderTopWidth) +
-          Number.parseFloat(tooltipStyle.borderBottomWidth),
-      );
-      tooltipElement.style.maxHeight = previousMaxHeight;
-      const isHeader = Boolean(buttonRef.current?.closest(".app-header"));
-      const footerTop = document.querySelector<HTMLElement>(".app-footer")?.getBoundingClientRect().top;
-      let next = placeTooltip({
-        anchor,
-        tooltip: { width: tooltipBounds.width, height: naturalHeight },
-        viewport: { width: window.innerWidth, height: window.innerHeight },
-        footerTop,
-        preferAbove: !isHeader,
-      });
-      const overlapsAnotherTrigger = !isHeader && next.placement === "below" &&
-        [...document.querySelectorAll<HTMLElement>(".local-token-trigger")].some(
-          (trigger) => {
-            if (trigger === buttonRef.current) return false;
-            const bounds = trigger.getBoundingClientRect();
-            return bounds.left < next.left + tooltipBounds.width &&
-              bounds.right > next.left &&
-              bounds.top < next.top + naturalHeight &&
-              bounds.bottom > next.top;
-          },
-        );
-      if (overlapsAnotherTrigger) {
-        next = placeTooltip({
-          anchor,
-          tooltip: { width: tooltipBounds.width, height: naturalHeight },
-          viewport: { width: window.innerWidth, height: window.innerHeight },
-          footerTop,
-          preferAbove: true,
-        });
-      }
-      setTooltipStyle({ left: next.left, top: next.top, maxHeight: next.maxHeight });
-    };
-
-    updatePosition();
-    const providerList = document.querySelector<HTMLElement>(".provider-list");
-    const closeIfScrolledOut = (): void => updatePosition(true);
-    providerList?.addEventListener("scroll", closeIfScrolledOut, true);
-    const reposition = (): void => updatePosition();
-    window.addEventListener("resize", reposition);
-    const observer = new ResizeObserver(reposition);
-    observer.observe(buttonRef.current);
-    observer.observe(tooltipRef.current);
-    return () => {
-      providerList?.removeEventListener("scroll", closeIfScrolledOut, true);
-      window.removeEventListener("resize", reposition);
-      observer.disconnect();
-    };
-  }, [description, isOpen, onActiveHelpChange]);
-  const show = (): void => {
-    window.clearTimeout(closeTimer.current);
-    onActiveHelpChange(id);
-  };
-  const closeLater = (): void => {
-    window.clearTimeout(closeTimer.current);
-    closeTimer.current = window.setTimeout(() => {
-      if (
-        activeHelpRef.current === id &&
-        !helpRef.current?.contains(document.activeElement) &&
-        !helpRef.current?.matches(":hover")
-      ) {
-        onActiveHelpChange(undefined);
-      }
-    }, 400);
-  };
-  return (
-    <span
-      ref={helpRef}
-      className={`local-token-help tone-${tone}${className ? ` ${className}` : ""}`}
-      onMouseEnter={show}
-      onMouseLeave={closeLater}
-    >
-      <button
-        ref={buttonRef}
-        type="button"
-        className="local-token-trigger"
-        data-testid={testId}
-        aria-label={ariaLabel}
-        aria-pressed={ariaPressed}
-        aria-keyshortcuts={ariaKeyshortcuts}
-        aria-describedby={isOpen ? tooltipId : undefined}
-        disabled={disabled}
-        onClick={() => {
-          if (onClick) {
-            onClick();
-          } else {
-            show();
-          }
-        }}
-        onFocus={show}
-        onBlur={closeLater}
-      >
-        <span>{label}</span>
-        {value ? <strong>{value}</strong> : null}
-      </button>
-      {isOpen ? (
-        <span
-          ref={tooltipRef}
-          id={tooltipId}
-          className="local-token-tooltip"
-          role="tooltip"
-          style={tooltipStyle}
-        >
-          {description}
-        </span>
-      ) : null}
-    </span>
-  );
-};
+import { HelpTrigger } from "./components/HelpTrigger";
+import { Header } from "./components/Header";
+import { Footer } from "./components/Footer";
 
 const LocalUsage = ({
   providerId,
@@ -945,13 +759,17 @@ export const App = () => {
         const listBounds = providerList.getBoundingClientRect();
         const footerBounds = footer.getBoundingClientRect();
         const shellStyle = getComputedStyle(shell);
+        const footerStyle = getComputedStyle(footer);
+        const footerMarginTop = Number.parseFloat(footerStyle.marginTop) || 0;
+        const paddingBottom = Number.parseFloat(shellStyle.paddingBottom) || 0;
         const contentHeight = Math.min(
           4096,
           Math.ceil(
             listBounds.top - shellBounds.top +
               content.scrollHeight +
+              footerMarginTop +
               footerBounds.height +
-              Number.parseFloat(shellStyle.paddingBottom) +
+              paddingBottom +
               4,
           ),
         );
@@ -1110,17 +928,12 @@ export const App = () => {
 
   return (
     <main ref={appShellRef} className="app-shell">
-      <header ref={appHeaderRef} className="app-header">
-        <h1>watching quota providers</h1>
-        <button
-          type="button"
-          className="refresh-button"
-          onClick={refresh}
-          disabled={!snapshot || snapshot.refreshing.length > 0}
-        >
-          {snapshot?.refreshing.length ? "refreshing..." : "refresh"}
-        </button>
-      </header>
+      <Header
+        headerRef={appHeaderRef}
+        refreshing={Boolean(snapshot?.refreshing.length)}
+        onRefresh={refresh}
+        disabled={!snapshot || (snapshot.refreshing.length > 0)}
+      />
 
       {error ? (
         <p className="error-banner" role="alert">
@@ -1163,126 +976,20 @@ export const App = () => {
         </div>
       </section>
 
-      <footer ref={appFooterRef} className="app-footer">
-        <p className="scope-note">
-          <span>quota: account · tokens: this PC</span>
-          <span>Claude Desktop: not inspected</span>
-        </p>
-        <div className="footer-bar">
-          <div className="footer-left">
-            <HelpTrigger
-              id="keyboard-help"
-              label={<IconHelp />}
-              className="help-trigger-toggle"
-              testId="keyboard-help-trigger"
-              ariaLabel="Shortcuts and help"
-              description={
-                <div className="help-content">
-                  <h3 className="help-heading">Shortcuts</h3>
-                  <ul className="help-shortcuts">
-                    <li className="help-shortcut-row">
-                      <span className="help-keys">
-                        <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>
-                      </span>
-                      <span className="help-desc">Toggle compact mode</span>
-                    </li>
-                    <li className="help-shortcut-row">
-                      <span className="help-keys">
-                        <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>
-                      </span>
-                      <span className="help-desc">Toggle local tokens</span>
-                    </li>
-                    <li className="help-shortcut-row">
-                      <span className="help-keys">
-                        <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd>
-                      </span>
-                      <span className="help-desc">Toggle theme (dark/light)</span>
-                    </li>
-                    <li className="help-shortcut-row">
-                      <span className="help-keys">
-                        <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>
-                      </span>
-                      <span className="help-desc">Toggle pin (always on top)</span>
-                    </li>
-                    <li className="help-shortcut-row">
-                      <span className="help-keys">
-                        <kbd>Esc</kbd>
-                      </span>
-                      <span className="help-desc">Close popover (stay in tray)</span>
-                    </li>
-                  </ul>
-                  <h3 className="help-heading">Tips</h3>
-                  <ul className="help-notes">
-                    <li>Hover/focus items for detailed info</li>
-                    <li>Right-click tray icon for options & exit</li>
-                  </ul>
-                </div>
-              }
-              activeHelp={activeHelp}
-              onActiveHelpChange={setActiveHelp}
-            />
-          </div>
-          <div className="footer-right">
-            <HelpTrigger
-              id="compact-mode-toggle"
-              label={compactMode ? <IconCompactExpand /> : <IconCompactCollapse />}
-              className="display-toggle compact-toggle"
-              ariaLabel={compactMode ? "Expand to detailed mode" : "Collapse to compact mode"}
-              ariaPressed={compactMode}
-              ariaKeyshortcuts="Control+Shift+C"
-              onClick={toggleCompactMode}
-              description={
-                compactMode
-                  ? "Expand to detailed mode (Ctrl+Shift+C)"
-                  : "Collapse to compact mode (Ctrl+Shift+C)"
-              }
-              activeHelp={activeHelp}
-              onActiveHelpChange={setActiveHelp}
-            />
-            <HelpTrigger
-              id="token-visibility-toggle"
-              label={<IconTokens filled={tokensVisible} />}
-              className="display-toggle token-toggle"
-              ariaLabel="Tokens"
-              ariaPressed={tokensVisible}
-              ariaKeyshortcuts="Control+Shift+T"
-              disabled={tokenVisibilityPending}
-              onClick={toggleTokenVisibility}
-              description={`Tokens: ${tokensVisible ? "on" : "off"} (Ctrl+Shift+T)`}
-              activeHelp={activeHelp}
-              onActiveHelpChange={setActiveHelp}
-            />
-            <HelpTrigger
-              id="theme-toggle"
-              label={effectiveTheme === "dark" ? <IconMoon filled /> : <IconSun filled />}
-              className="display-toggle theme-toggle"
-              ariaLabel="Theme"
-              ariaPressed={effectiveTheme === "dark"}
-              ariaKeyshortcuts="Control+Shift+L"
-              onClick={toggleTheme}
-              description={`${effectiveTheme === "dark" ? "Dark" : "Light"} theme (Ctrl+Shift+L)`}
-              activeHelp={activeHelp}
-              onActiveHelpChange={setActiveHelp}
-            />
-            <HelpTrigger
-              id="always-on-top-toggle"
-              label={<IconPin filled={alwaysOnTop} />}
-              className="display-toggle pin-toggle"
-              ariaLabel={alwaysOnTop ? "Unpin window from top" : "Pin window on top"}
-              ariaPressed={alwaysOnTop}
-              ariaKeyshortcuts="Control+Shift+P"
-              onClick={toggleAlwaysOnTop}
-              description={
-                alwaysOnTop
-                  ? "Unpin from top (Ctrl+Shift+P)"
-                  : "Pin on top (Ctrl+Shift+P)"
-              }
-              activeHelp={activeHelp}
-              onActiveHelpChange={setActiveHelp}
-            />
-          </div>
-        </div>
-      </footer>
+      <Footer
+        footerRef={appFooterRef}
+        activeHelp={activeHelp}
+        onActiveHelpChange={setActiveHelp}
+        compactMode={compactMode}
+        onToggleCompactMode={toggleCompactMode}
+        tokensVisible={tokensVisible}
+        tokenVisibilityPending={tokenVisibilityPending}
+        onToggleTokenVisibility={toggleTokenVisibility}
+        effectiveTheme={effectiveTheme}
+        onToggleTheme={toggleTheme}
+        alwaysOnTop={alwaysOnTop}
+        onToggleAlwaysOnTop={toggleAlwaysOnTop}
+      />
     </main>
   );
 };

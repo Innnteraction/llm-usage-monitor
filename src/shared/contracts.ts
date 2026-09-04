@@ -142,6 +142,7 @@ export type AppSnapshot = z.infer<typeof appSnapshotSchema>;
 export const userPreferencesSchema = z
   .object({
     launchAtLogin: z.boolean(),
+    alwaysOnTop: z.boolean().optional(),
   })
   .strict();
 export type UserPreferences = z.infer<typeof userPreferencesSchema>;
