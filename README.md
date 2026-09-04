@@ -1,73 +1,118 @@
-# LLM Usage Monitor
+# LLM Usage Monitor (v0.8.0)
 
-## 요약
+Codex, Claude Code, Antigravity(`agy`)의 5시간·주간 사용량 쿼터(Quota)와 이 PC의 로컬 토큰 사용량을 한눈에 모니터링하는 데스크톱 트레이 앱입니다.
 
-LLM Usage Monitor는 Codex와 Claude Code 구독 계정의 5시간·주간 quota를 직관적으로 보여 주기 위한 Windows 트레이 앱이다. quota는 계정 전체의 벤더 서버 값을 주 정보로 다루고, 실제 토큰 사용량은 이 PC의 로컬 로그에서 집계한 보조 정보로 구분한다. v1은 Codex와 Claude Code를 필수 대상으로 한다.
+TUI(Terminal UI) 특유의 군더더기 없는 시각적 직관성과 초경량 설계를 바탕으로, 작업 흐름을 방해하지 않는 상시 모니터링 위젯 경험을 제공합니다.
 
-## 제품 방향
+---
 
-- 트레이 아이콘을 누르면 보이는 TUI형 대시보드에 벤더별 `5h`와 `Weekly` 사용률을 가장 크게 배치한다.
-- CSWAP처럼 고정폭 글꼴, 단순한 구획과 텍스트 진행 막대로 핵심 정보를 빠르게 읽게 한다.
-- 사용률과 남은 비율, reset 카운트다운, 데이터 출처와 신선도를 함께 보여 준다. 로컬 토큰은 색으로 구분한 두 줄 보조 정보와 짧은 도움말로 읽을 수 있다.
-- 벤더가 제공하지 않은 quota를 0%로 추정하지 않는다.
-- 벤더 CLI가 인증을 소유한다. 이 앱은 기존 인증 파일을 수정·갱신·삭제하지 않는다.
-- Electron + TypeScript로 구현한다. 가독성을 위해 기본 글꼴 크기는 110%로 적용한다.
+## 주요 기능
 
-## 문서
+- **3대 AI 개발 도구 쿼터 통합 모니터링**:
+  - **Codex**: 7일 주간 한도 및 추가 모델 한도 지원
+  - **Claude Code**: 5시간 세션 한도, 7일 주간 한도, Fable 모델 한도 지원
+  - **Antigravity (`agy`)**: Gemini 모델군 5시간·주간 한도 및 Claude/GPT 추가 한도 지원
+- **듀얼 UI 모드 (상세 뷰 / 초간소화 간이 뷰)**:
+  - **상세 뷰**: 프로바이더별 계정, 진행 막대 게이지, 리셋 카운트다운, 로컬 토큰 2줄 보조 뷰 제공
+  - **초간소화 모드(Compact Table)**: 트레이 크기에 맞춘 컴팩트 테이블로 전 프로바이더의 주간/5h 쿼터 현황을 한 줄씩 조밀하게 요약 (`Ctrl+Shift+C`)
+- **핀(Always-On-Top) 고정 & 드래그 자유 배치**:
+  - 상단 타이틀 바 드래그로 화면 어디든 자유롭게 배치 및 마지막 위치 자동 기억/복원
+  - 핀 고정(`Ctrl+Shift+P`) 시 다른 창에 가려지지 않는 플로팅 모니터 위젯으로 동작하며, 재부팅·앱 재시작 후에도 핀 상태 영구 보존
+- **로컬 토큰 정밀 집계**:
+  - 계정 쿼터와 분리하여 이 PC에 남겨진 CLI 세션 로그(JSONL)를 비동기 청크 스트리밍과 체크포인트 방식으로 안전하게 집계 (총 토큰, 입·출력, 캐시 읽기/쓰기)
+- **세련된 TUI 인터랙션**:
+  - OS 다크/라이트 자동 동기화 및 수동 테마 전환 (`Ctrl+Shift+L`)
+  - 새로고침 시 CLI 스타일의 컬러 웨이브 쉬머 애니메이션
+  - 0%~9% 구간을 `00%`~`09%`로 2자리 패딩하여 게이지 및 표의 자릿수 줄맞춤 완벽 유지
+  - 마우스가 앱 창을 벗어나는 즉시 툴팁이 닫히는 화면 이탈 가드
+- **철저한 보안 및 인증 경계**:
+  - 벤더 CLI의 인증 소유권을 존중하며 토큰/자격증명 파일을 직접 읽거나 수정하지 않음
 
-- [제품 컨셉과 데이터 계약](docs/product-concept.md)
-- [벤치마크 조사](docs/benchmarks.md)
-- [Agent 참조 인덱스](docs/agent/INDEX.md)
+---
 
-## 현재 범위
+## 단축키 및 조작 안내
 
-현재 미리보기 버전은 Codex·Claude와 Antigravity(`agy`) quota를 읽어 Windows 트레이의 폭 480px TUI형 팝오버에 표시한다. 높이는 표시된 내용에 맞춰 조절한다. 첫 실행 또는 Claude 준비가 끝나지 않은 동안에는 팝오버를 열고, Claude quota를 한 번 정상 수집한 뒤부터는 트레이에서 조용히 시작한다. 진행 상태와 다음 작업은 [v1 로드맵](docs/plan/v1-roadmap.md)을 따른다.
+앱 하단의 `? Help` 버튼을 누르면 단축키 및 조작 안내 팝업을 확인할 수 있습니다.
 
-기본 quota는 Codex `7d`, Claude `5h`·`7d`·`Fable`이다. `+N additional limits`를 누르면 수집된 추가 quota를 펼칠 수 있다. Codex의 `gpt-reserve Weekly`는 당분간 표시와 추가 한도 개수에서 제외하지만 수집 데이터는 보존한다. Antigravity는 Gemini 모델군의 5시간·주간 한도를 기본 표시하고 Claude/GPT 모델군은 추가 한도 버튼 안에 접어 둔다. 펼치면 모든 표시 내용에 맞춰 창이 커지고 접으면 다시 줄어든다. 모니터 작업 영역을 넘는 긴 내용에만 세로 스크롤을 사용하며 헤더·하단 조작부는 고정된다.
+| 기능 | 단축키 (Windows) | 단축키 (macOS) | UI 조작 |
+| :--- | :--- | :--- | :--- |
+| **간이 모드 전환** | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> | 하단 <kbd>⊞</kbd> / <kbd>⊟</kbd> 버튼 |
+| **로컬 토큰 표시 전환** | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> | 하단 <kbd>🪙</kbd> 버튼 |
+| **다크 / 라이트 테마 전환** | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> | 하단 <kbd>🌙</kbd> / <kbd>☀️</kbd> 버튼 |
+| **항상 위 (핀) 고정** | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> | 하단 <kbd>📌</kbd> 버튼 |
+| **윈도우 드래그 이동** | - | - | 상단 헤더 영역 마우스 드래그 |
+| **기본 위치로 재설정** | - | - | 트레이 아이콘 우클릭 $\rightarrow$ `기본 위치로 재설정` |
+| **팝오버 닫기** | <kbd>Esc</kbd> | <kbd>Esc</kbd> | 핀 해제 상태에서 창 외부 클릭 또는 Esc |
+| **윈도우 시작 시 자동 실행** | - | - | 트레이 아이콘 우클릭 $\rightarrow$ `Windows 로그인 시 시작` |
 
-Antigravity는 v1 필수 대상이 아닌 미리보기 확장이다. 설치되지 않았거나 로그인되지 않은 CLI는 오류 상태로 표시하며 Codex·Claude 수집은 계속된다. Antigravity 계정명과 로컬 토큰은 제공하지 않는다. 모델군 이름의 Gemini는 별도 Gemini CLI 지원을 뜻하지 않는다. [지원 버전·수집 계약](docs/providers/antigravity.md)을 참고한다.
+---
 
-Antigravity 기본 행은 `5h` → `7d` 순서로 표시한다. 추가 한도를 펼치면 `Claude/GPT` 그룹 아래 같은 순서의 행이 나타난다. 이는 Antigravity 안의 공유 모델군 한도이며 별도의 Claude·Codex 계정 한도가 아니다. 각 행의 사용률·reset 설명과 접근성 이름에는 원래 모델군 이름을 유지한다.
+## 빠른 설치 및 실행 (Windows 개발자용)
 
-Windows 로그인 시 시작과 종료는 트레이 아이콘의 우클릭 메뉴에서 선택한다. 자동 시작은 사용자 선택 사항이다. Phase 6의 자동 검사 결과와 남은 수동 확인 항목은 [검증 기록](docs/plan/phase6-validation.md)에 구분해 둔다.
-
-## 화면 조작과 테마
-
-앱 하단의 `? Help`에 마우스를 올리거나 키보드 초점을 옮기면 영어 조작 안내가 열린다. 왼쪽의 이모지 버튼으로 토큰 표시와 테마를 바꾸고 오른쪽에서 단축키를 확인할 수 있다. 단축키는 앱 창에 초점이 있을 때만 동작한다.
-
-| 하고 싶은 일 | 조작 |
-| --- | --- |
-| 다음·이전 버튼으로 이동 | `Tab`·`Shift+Tab` |
-| 로컬 토큰 정보 켜기·끄기 | `🪙` 버튼 또는 `Ctrl+Shift+T` |
-| 밝은·어두운 테마 전환 | `🌙`·`☀️` 버튼 또는 `Ctrl+Shift+L` — 아이콘은 현재 테마 |
-| 새로고침·추가 quota 펼치기·도움말 열기 | 해당 버튼에서 `Enter` 또는 `Space` |
-| 계정·사용률·reset·토큰의 자세한 설명 보기 | 해당 텍스트에 마우스를 올리거나 키보드 초점 이동 |
-| 팝오버 숨기기 | `Esc` — 앱은 트레이에서 계속 실행됨 |
-| Windows 로그인 시 시작·앱 종료 | 트레이 아이콘 우클릭 메뉴 |
-
-로컬 토큰은 기본 숨김이다. 토큰 정보를 켜거나 끄면 내용에 맞춰 창 높이도 조절된다. 최소 높이는 숨김 304px, 표시 360px이며 추가 quota를 펼친 상태에서는 더 커질 수 있다. 표시만 숨기므로 로컬 토큰 집계와 quota 갱신은 계속되고, 추가 quota 펼침 상태도 유지한다.
-
-처음에는 Windows의 다크·라이트 설정을 자동으로 따른다. 직접 전환한 테마와 토큰 표시 선택은 팝오버를 숨기거나 새로고침해도 유지되지만 저장되지는 않는다. 앱을 종료하고 다시 실행하면 토큰 숨김, 추가 한도 접힘과 Windows 자동 테마로 돌아온다.
-
-툴팁은 대상 아래에 표시하되 하단 안내 영역이나 화면 밖으로 넘어갈 때 위쪽으로 열린다. 다른 설명 버튼을 덮는 경우에도 위쪽 공간이 충분하면 위로 표시한다.
-
-## 미리보기 실행
-
-Node.js 24와 Codex·Claude Code CLI가 필요하다. 저장소에서 다음 명령으로 개발 앱을 실행한다.
+관리자 권한(UAC) 없이 원클릭으로 패키징 빌드, 유저 프로그램 폴더 설치, 바로가기 등록 및 즉시 실행까지 완결되는 PowerShell 배포 스크립트를 제공합니다.
 
 ```powershell
-corepack pnpm install
-corepack pnpm dev
+# 빌드 후 유저 로컬 폴더(%LOCALAPPDATA%\Programs)에 배포 및 즉시 실행
+pnpm deploy
+
+# 부팅 시 자동 시작(AutoStart) 바로가기까지 함께 등록하여 배포
+pnpm deploy:autostart
+
+# 기존 빌드 산출물을 재사용하여 초고속 재배포
+pnpm deploy:quick
+
+# 설치된 프로그램 및 바로가기 완전 제거
+pnpm deploy:uninstall
 ```
 
-Antigravity 카드도 사용하려면 PATH에서 실행할 수 있는 `agy` 1.1.11 이상 1.1.x와 해당 CLI의 로그인 상태가 필요하다. 앱은 로그인·인증정보를 대신 관리하지 않는다. CLI 설치·로그인 후 `refresh`로 다시 확인한다. 개발 앱이 이미 열려 있으면 트레이 메뉴에서 종료한 뒤 `corepack pnpm dev`를 다시 실행해 main process 변경도 반영한다. 기존 설치 파일은 개발 코드 변경으로 갱신되지 않는다.
+> 자세한 스크립트 옵션 및 배포 가이드는 [Windows 배포 가이드](docs/deploy-windows.md)를 참고하세요.
 
-Claude가 로그인되지 않았으면 `sign in`, 전용 probe 폴더 승인이 필요하면 `prepare folder`를 누른다. 앱은 보이는 Windows Terminal만 열며 로그인과 폴더 trust 선택은 사용자가 Claude CLI에서 직접 완료한다. 완료 후 트레이 팝오버를 다시 열어 `refresh`를 누른다.
+---
 
-unsigned Windows x64 설치 파일은 다음 명령으로 만든다.
+## 로컬 개발 및 테스트
 
-```powershell
-corepack pnpm make
+Node.js 24 및 pnpm이 필요합니다.
+
+```bash
+# 의존성 설치
+pnpm install
+
+# 개발 모드 실행 (Vite + Electron Forge)
+pnpm dev
+
+# 전체 단위/통합 테스트 (28개 파일, 193개 테스트)
+pnpm test
+
+# 타입 체크 및 ESLint 정적 검사
+pnpm typecheck
+pnpm lint
+
+# 프로덕션 애플리케이션 패키징
+pnpm package
+
+# Squirrel x64 배포 인스톨러 생성 (.exe)
+pnpm make
 ```
 
-산출물은 `out/make/squirrel.windows/x64/LLM-Usage-Monitor-Setup.exe`에 생성된다. 코드 서명이 없어 Windows SmartScreen 경고가 나타날 수 있다. 제거는 Windows의 설치된 앱 목록에서 **LLM Usage Monitor**를 선택한다.
+---
+
+## 프로바이더 연동 요구사항
+
+- **Codex**:
+  - `codex` CLI 로그인 상태가 유지되어 있어야 합니다.
+- **Claude Code**:
+  - `claude` CLI가 설치되어 있고 로그인이 완료되어 있어야 합니다.
+  - 최초 실행 시 승인 폴더가 필요할 경우 팝오버의 `prepare folder`를 클릭하여 Windows Terminal에서 1회 승인을 완료합니다.
+- **Antigravity (`agy`)**:
+  - PATH에 `agy` 1.1.11 이상이 등록되어 있고 로그인된 상태여야 합니다. (선택 확장)
+
+---
+
+## 문서 및 참조
+
+- [아키텍처 증거 및 모듈 경계 분석](docs/architecture-evidence.md)
+- [아키텍처 평가 및 분리 계획 보고서](docs/architecture-assessment.md)
+- [Windows 배포 도구 가이드](docs/deploy-windows.md)
+- [Anthropic 인증 경계 결정](docs/decisions/0001-anthropic-credential-boundary.md)
+- [v1 개발 로드맵](docs/plan/v1-roadmap.md)
+- [제품 컨셉 및 설계 원칙](docs/product-concept.md)
