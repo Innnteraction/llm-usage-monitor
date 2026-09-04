@@ -1,7 +1,7 @@
 {
   "name": "llm-usage-monitor",
   "productName": "LLM Usage Monitor",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Windows tray monitor for Codex and Claude Code usage quotas",
   "author": {
     "name": "Innnteraction",
@@ -26,10 +26,20 @@
     "test:e2e": "pnpm package && playwright test",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "deploy": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1",
-    "deploy:autostart": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1 -AutoStart",
-    "deploy:quick": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1 -SkipBuild",
-    "deploy:uninstall": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1 -Uninstall"
+    "postinstall": "node -e \"if (process.platform === 'darwin') { const { execSync } = require('child_process'); try { execSync('chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper'); } catch {} }\"",
+    "install:app": "node ./scripts/deploy.mjs",
+    "deploy": "node ./scripts/deploy.mjs",
+    "deploy:autostart": "node ./scripts/deploy.mjs --autostart",
+    "deploy:quick": "node ./scripts/deploy.mjs --skip-build",
+    "deploy:uninstall": "node ./scripts/deploy.mjs --uninstall",
+    "deploy:mac": "bash ./scripts/deploy-mac.sh",
+    "deploy:mac:autostart": "bash ./scripts/deploy-mac.sh --autostart",
+    "deploy:mac:quick": "bash ./scripts/deploy-mac.sh --skip-build",
+    "deploy:mac:uninstall": "bash ./scripts/deploy-mac.sh --uninstall",
+    "deploy:win": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1",
+    "deploy:win:autostart": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1 -AutoStart",
+    "deploy:win:quick": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1 -SkipBuild",
+    "deploy:win:uninstall": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1 -Uninstall"
   },
   "dependencies": {
     "electron-squirrel-startup": "1.0.1",
@@ -41,6 +51,7 @@
   "devDependencies": {
     "@electron-forge/cli": "7.11.2",
     "@electron-forge/maker-squirrel": "7.11.2",
+    "@electron-forge/maker-zip": "7.11.2",
     "@electron-forge/plugin-vite": "7.11.2",
     "@electron-forge/shared-types": "7.11.2",
     "@eslint/js": "10.0.1",

@@ -1,4 +1,4 @@
-# LLM Usage Monitor (v0.8.0)
+# LLM Usage Monitor (v0.9.0)
 
 Codex, Claude Code, Antigravity(`agy`)의 5시간·주간 사용량 쿼터(Quota)와 이 PC의 로컬 토큰 사용량을 한눈에 모니터링하는 데스크톱 트레이 앱입니다.
 
@@ -43,29 +43,29 @@ TUI(Terminal UI) 특유의 군더더기 없는 시각적 직관성과 초경량 
 | **윈도우 드래그 이동** | - | - | 상단 헤더 영역 마우스 드래그 |
 | **기본 위치로 재설정** | - | - | 트레이 아이콘 우클릭 $\rightarrow$ `기본 위치로 재설정` |
 | **팝오버 닫기** | <kbd>Esc</kbd> | <kbd>Esc</kbd> | 핀 해제 상태에서 창 외부 클릭 또는 Esc |
-| **윈도우 시작 시 자동 실행** | - | - | 트레이 아이콘 우클릭 $\rightarrow$ `Windows 로그인 시 시작` |
+| **로그인 시 자동 실행** | - | - | 트레이 아이콘 우클릭 $\rightarrow$ `로그인 시 시작` |
 
 ---
 
-## 빠른 설치 및 실행 (Windows 개발자용)
+## 빠른 설치 및 실행 (원클릭 로컬 배포)
 
-관리자 권한(UAC) 없이 원클릭으로 패키징 빌드, 유저 프로그램 폴더 설치, 바로가기 등록 및 즉시 실행까지 완결되는 PowerShell 배포 스크립트를 제공합니다.
+관리자 권한(`sudo` / UAC) 없이 원클릭으로 패키징 빌드, 사용자 애플리케이션 폴더 설치, 자동 시작 등록 및 즉시 실행까지 완결되는 배포 스크립트를 제공합니다. OS를 자동 감지하여 macOS에서는 Shell 스크립트, Windows에서는 PowerShell 스크립트로 동작합니다.
 
-```powershell
-# 빌드 후 유저 로컬 폴더(%LOCALAPPDATA%\Programs)에 배포 및 즉시 실행
-pnpm deploy
+```bash
+# 빌드 후 유저 폴더(macOS: ~/Applications, Windows: %LOCALAPPDATA%\Programs)에 배포 및 즉시 실행
+pnpm run deploy
 
-# 부팅 시 자동 시작(AutoStart) 바로가기까지 함께 등록하여 배포
+# 부팅/로그인 시 자동 시작(AutoStart)까지 함께 등록하여 배포
 pnpm deploy:autostart
 
 # 기존 빌드 산출물을 재사용하여 초고속 재배포
 pnpm deploy:quick
 
-# 설치된 프로그램 및 바로가기 완전 제거
+# 설치된 프로그램 및 자동 시작 등록 완전 제거
 pnpm deploy:uninstall
 ```
 
-> 자세한 스크립트 옵션 및 배포 가이드는 [Windows 배포 가이드](docs/deploy-windows.md)를 참고하세요.
+> 플랫폼별 상세 스크립트 옵션 및 가이드는 [macOS 배포 가이드](docs/deploy-mac.md)와 [Windows 배포 가이드](docs/deploy-windows.md)를 참고하세요.
 
 ---
 
@@ -112,6 +112,7 @@ pnpm make
 
 - [아키텍처 증거 및 모듈 경계 분석](docs/architecture-evidence.md)
 - [아키텍처 평가 및 분리 계획 보고서](docs/architecture-assessment.md)
+- [macOS 배포 도구 가이드](docs/deploy-mac.md)
 - [Windows 배포 도구 가이드](docs/deploy-windows.md)
 - [Anthropic 인증 경계 결정](docs/decisions/0001-anthropic-credential-boundary.md)
 - [v1 개발 로드맵](docs/plan/v1-roadmap.md)

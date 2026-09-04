@@ -1,20 +1,23 @@
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { MakerSquirrel } from "@electron-forge/maker-squirrel";
+import { MakerZIP } from "@electron-forge/maker-zip";
 import { VitePlugin } from "@electron-forge/plugin-vite";
-import { cp, mkdir } from "node:fs/promises";
+import { chmod, cp, mkdir } from "node:fs/promises";
 import path from "node:path";
 
-const nodePtyRuntimeFiles = [
+const commonNodePtyFiles = [
   "LICENSE",
   "package.json",
-  path.join("lib", "conpty_console_list_agent.js"),
   path.join("lib", "eventEmitter2.js"),
   path.join("lib", "index.js"),
   path.join("lib", "interfaces.js"),
   path.join("lib", "terminal.js"),
   path.join("lib", "types.js"),
-  path.join("lib", "unixTerminal.js"),
   path.join("lib", "utils.js"),
+];
+
+const windowsNodePtyFiles = [
+  path.join("lib", "conpty_console_list_agent.js"),
   path.join("lib", "windowsConoutConnection.js"),
   path.join("lib", "windowsPtyAgent.js"),
   path.join("lib", "windowsTerminal.js"),
@@ -29,12 +32,31 @@ const nodePtyRuntimeFiles = [
   path.join("prebuilds", "win32-x64", "conpty", "OpenConsole.exe"),
 ];
 
+const darwinNodePtyFiles = [
+  path.join("lib", "unixTerminal.js"),
+  path.join("prebuilds", "darwin-arm64", "pty.node"),
+  path.join("prebuilds", "darwin-arm64", "spawn-helper"),
+  path.join("prebuilds", "darwin-x64", "pty.node"),
+  path.join("prebuilds", "darwin-x64", "spawn-helper"),
+];
+
+const nodePtyRuntimeFiles = [
+  ...commonNodePtyFiles,
+  ...(process.platform === "win32" ? windowsNodePtyFiles : darwinNodePtyFiles),
+];
+
 const config: ForgeConfig = {
   rebuildConfig: {
     onlyModules: [],
   },
   packagerConfig: {
-    icon: path.resolve("assets", "icons", "app-icon.ico"),
+    icon:
+      process.platform === "darwin"
+        ? path.resolve("assets", "icons", "app-icon.icns")
+        : path.resolve("assets", "icons", "app-icon.ico"),
+    extendInfo: {
+      LSUIElement: true,
+    },
     asar: {
       unpack: "**/node_modules/node-pty/**/*",
     },
@@ -54,18 +76,30 @@ const config: ForgeConfig = {
           const target = path.join(destination, runtimeFile);
           await mkdir(path.dirname(target), { recursive: true });
           await cp(path.join(source, runtimeFile), target);
+          if (runtimeFile.endsWith("spawn-helper")) {
+            await chmod(target, 0o755);
+          }
         }),
       );
     },
   },
   makers: [
-    new MakerSquirrel({
-      name: "llm_usage_monitor",
-      exe: "LLM Usage Monitor.exe",
-      setupExe: "LLM-Usage-Monitor-Setup.exe",
-      setupIcon: path.resolve("assets", "icons", "app-icon.ico"),
-      noMsi: true,
-    }),
+    ...(process.platform === "win32"
+      ? [
+          new MakerSquirrel({
+            name: "llm_usage_monitor",
+            exe: "LLM Usage Monitor.exe",
+            setupExe: "LLM-Usage-Monitor-Setup.exe",
+            setupIcon: path.resolve("assets", "icons", "app-icon.ico"),
+            noMsi: true,
+          }),
+        ]
+      : []),
+    ...(process.platform === "darwin"
+      ? [
+          new MakerZIP({}, ["darwin"]),
+        ]
+      : []),
   ],
   plugins: [
     new VitePlugin({

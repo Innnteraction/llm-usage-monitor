@@ -11,6 +11,7 @@ import {
   type CodexAccountResponse,
   type CodexRateLimitsResponse,
 } from "./protocol";
+import { resolveCliBinary } from "../../shared/index";
 
 const INITIALIZE_METHOD = "initialize";
 const INITIALIZED_METHOD = "initialized";
@@ -121,7 +122,7 @@ export class CodexAppServerClient {
   private closed = false;
 
   constructor(options: CodexAppServerClientOptions = {}) {
-    this.command = options.command ?? "codex";
+    this.command = options.command ?? resolveCliBinary("codex");
     this.requestTimeoutMs =
       options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     this.shutdownTimeoutMs =

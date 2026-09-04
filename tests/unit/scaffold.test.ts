@@ -20,7 +20,7 @@ describe("development scaffold", () => {
   });
 
   it("builds only the fixed Claude login and trust commands", () => {
-    expect(buildClaudeSetupLaunch("login")).toMatchObject({
+    expect(buildClaudeSetupLaunch("login", undefined, "win32")).toMatchObject({
       command: "wt.exe",
       args: expect.arrayContaining([
         "claude.exe",
@@ -29,7 +29,7 @@ describe("development scaffold", () => {
         "--claudeai",
       ]),
     });
-    const trust = buildClaudeSetupLaunch("trust_probe", "C:\\safe-probe");
+    const trust = buildClaudeSetupLaunch("trust_probe", "C:\\safe-probe", "win32");
     expect(trust.workingDirectory).toBe("C:\\safe-probe");
     expect(trust.args).toEqual(
       expect.arrayContaining([
@@ -42,5 +42,17 @@ describe("development scaffold", () => {
     expect(trust.args.join(" ")).not.toContain(
       "dangerously-skip-permissions",
     );
+
+    const macLogin = buildClaudeSetupLaunch("login", undefined, "darwin");
+    expect(macLogin).toMatchObject({
+      command: "open",
+      args: ["-a", "Terminal"],
+    });
+    const macTrust = buildClaudeSetupLaunch("trust_probe", "/Users/safe-probe", "darwin");
+    expect(macTrust.workingDirectory).toBe("/Users/safe-probe");
+    expect(macTrust).toMatchObject({
+      command: "open",
+      args: ["-a", "Terminal", "/Users/safe-probe"],
+    });
   });
 });

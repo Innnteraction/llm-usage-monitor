@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { spawn, type IPty } from "node-pty";
@@ -33,8 +33,8 @@ export type ClaudePtyProbeStatus =
   | "not_authenticated"
   | "blocked_prompt"
   | "unsupported_output"
-  | "timeout"
-  | "process_failed";
+  | "process_failed"
+  | "timeout";
 
 export interface ClaudeUsageScreenSignals {
   hasFiveHourWindow: boolean;
@@ -61,8 +61,20 @@ export interface ClaudePtyProbeOptions {
 
 export function resolveClaudeProbeDirectory(
   localAppData = process.env.LOCALAPPDATA,
+  platform: NodeJS.Platform = process.platform,
+  home: string = process.env.HOME ?? homedir(),
 ): string {
-  const baseDirectory = localAppData?.trim() || tmpdir();
+  if (process.env.CLAUDE_PROBE_DIRECTORY) {
+    return path.resolve(process.env.CLAUDE_PROBE_DIRECTORY);
+  }
+  let baseDirectory: string;
+  if (localAppData?.trim()) {
+    baseDirectory = localAppData.trim();
+  } else if (platform === "darwin") {
+    baseDirectory = path.join(home, "Library", "Application Support");
+  } else {
+    baseDirectory = tmpdir();
+  }
   return path.resolve(
     baseDirectory,
     APP_DIRECTORY_NAME,

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBeforeQuitHandler, createTrayMenuTemplate } from "../../src/main";
+import { APP_VERSION } from "../../src/shared/index";
 
 describe("tray lifecycle helpers", () => {
   it("reads the actual launch-at-login value whenever the menu is rebuilt", async () => {
@@ -9,7 +10,7 @@ describe("tray lifecycle helpers", () => {
     const first = createTrayMenuTemplate(getLaunchAtLogin, actions);
     const second = createTrayMenuTemplate(getLaunchAtLogin, actions);
 
-    expect(first[0]).toMatchObject({ label: "LLM Usage Monitor v0.8.0", enabled: false });
+    expect(first[0]).toMatchObject({ label: `LLM Usage Monitor v${APP_VERSION}`, enabled: false });
     const firstCheckbox = first.find((item) => item.type === "checkbox");
     const secondCheckbox = second.find((item) => item.type === "checkbox") as { click(menuItem: { checked: boolean }): void } | undefined;
 

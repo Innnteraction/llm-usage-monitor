@@ -86,7 +86,7 @@ describe("AntigravityCliRunner", () => {
   it("runs only the fixed commands in an isolated temporary directory and preserves UTF-8 chunks", async () => {
     const { spawn, calls } = createSpawn();
     const removed: string[] = [];
-    const runner = new AntigravityCliRunner({ spawn, createTempDirectory: async () => "C:/temp/agy-unique", removeEmptyDirectory: async (directory) => { removed.push(directory); } });
+    const runner = new AntigravityCliRunner({ platform: "win32", spawn, createTempDirectory: async () => "C:/temp/agy-unique", removeEmptyDirectory: async (directory) => { removed.push(directory); } });
     const result = runner.readUsage();
     const version = await nextCall(calls, 0);
     expect(version).toMatchObject({ command: "agy.exe", args: ["--version"], options: { cwd: "C:/temp/agy-unique", shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] } });
@@ -209,13 +209,14 @@ describe("AntigravityCliRunner", () => {
 
   it("times out or caps output by terminating only the owned process tree", async () => {
     const timeout = createSpawn();
-    const timeoutRunner = new AntigravityCliRunner({ spawn: timeout.spawn, createTempDirectory: async () => "C:/temp/timeout", removeEmptyDirectory: async () => undefined, versionTimeoutMs: 1, taskkillTimeoutMs: 10 });
+    const timeoutRunner = new AntigravityCliRunner({ platform: "win32", spawn: timeout.spawn, createTempDirectory: async () => "C:/temp/timeout", removeEmptyDirectory: async () => undefined, versionTimeoutMs: 1, taskkillTimeoutMs: 10 });
     await expect(timeoutRunner.readUsage()).rejects.toMatchObject({ reason: "timeout" });
     expect(timeout.calls[1]).toMatchObject({ command: "taskkill", args: ["/pid", "40", "/t", "/f"], options: { shell: false, windowsHide: true, stdio: "ignore" } });
     expect(timeout.calls[0]!.child.killed).toBe(true);
 
     const usageTimeout = createSpawn();
     const usageTimeoutRunner = new AntigravityCliRunner({
+      platform: "win32",
       spawn: usageTimeout.spawn,
       createTempDirectory: async () => "C:/temp/usage-timeout",
       removeEmptyDirectory: async () => undefined,
@@ -240,12 +241,12 @@ describe("AntigravityCliRunner", () => {
 
   it("settles after taskkill failure and close aborts active work before preventing future runs", async () => {
     const failedKill = createSpawn("error");
-    const failedKillRunner = new AntigravityCliRunner({ spawn: failedKill.spawn, createTempDirectory: async () => "C:/temp/kill", removeEmptyDirectory: async () => undefined, versionTimeoutMs: 1 });
+    const failedKillRunner = new AntigravityCliRunner({ platform: "win32", spawn: failedKill.spawn, createTempDirectory: async () => "C:/temp/kill", removeEmptyDirectory: async () => undefined, versionTimeoutMs: 1 });
     await expect(failedKillRunner.readUsage()).rejects.toMatchObject({ reason: "process_failed" });
 
     const closing = createSpawn();
     const removed: string[] = [];
-    const runner = new AntigravityCliRunner({ spawn: closing.spawn, createTempDirectory: async () => "C:/temp/close", removeEmptyDirectory: async (directory) => { removed.push(directory); } });
+    const runner = new AntigravityCliRunner({ platform: "win32", spawn: closing.spawn, createTempDirectory: async () => "C:/temp/close", removeEmptyDirectory: async (directory) => { removed.push(directory); } });
     const reading = runner.readUsage();
     await nextCall(closing.calls, 0);
     await runner.close();
@@ -261,6 +262,7 @@ describe("AntigravityCliRunner", () => {
       const fake = createSpawn("hang");
       const order: string[] = [];
       const runner = new AntigravityCliRunner({
+        platform: "win32",
         spawn: fake.spawn,
         createTempDirectory: async () => "C:/temp/hung-taskkill",
         removeEmptyDirectory: async () => undefined,
@@ -279,6 +281,29 @@ describe("AntigravityCliRunner", () => {
       expect(order).toEqual(["taskkill", "parent"]);
     } finally {
       vi.useRealTimers();
+    }
+  });
+
+  it("terminates the owned process tree using POSIX kill on macOS", async () => {
+    const calls: Call[] = [];
+    const child = new FakeChild(1234);
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    try {
+      const runner = new AntigravityCliRunner({
+        platform: "darwin",
+        spawn: ((command, args, options) => {
+          calls.push({ command, args, options, child });
+          return child;
+        }) as AntigravitySpawn,
+        createTempDirectory: async () => "/tmp/darwin-timeout",
+        removeEmptyDirectory: async () => undefined,
+        versionTimeoutMs: 1,
+      });
+      await expect(runner.readUsage()).rejects.toMatchObject({ reason: "timeout" });
+      expect(calls[0]).toMatchObject({ command: "agy", args: ["--version"] });
+      expect(killSpy).toHaveBeenCalledWith(-1234, "SIGKILL");
+    } finally {
+      killSpy.mockRestore();
     }
   });
 });
