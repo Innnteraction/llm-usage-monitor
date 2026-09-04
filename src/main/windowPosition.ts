@@ -84,3 +84,18 @@ export const calculatePopoverPosition = (
     y: clamp(raw.y, workArea.y, workArea.y + workArea.height - windowSize.height),
   };
 };
+
+export const clampWindowPosition = (
+  position: { x: number; y: number },
+  windowSize: WindowSize,
+  workArea: WindowRect,
+): { x: number; y: number } => {
+  const validX = finite(position.x) ? position.x : workArea.x;
+  const validY = finite(position.y) ? position.y : workArea.y;
+  const maxX = workArea.x + workArea.width - windowSize.width;
+  const maxY = workArea.y + workArea.height - windowSize.height;
+  return {
+    x: clamp(validX, workArea.x, Math.max(workArea.x, maxX)),
+    y: clamp(validY, workArea.y, Math.max(workArea.y, maxY)),
+  };
+};

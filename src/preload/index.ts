@@ -5,11 +5,13 @@ import {
 } from "electron";
 import {
   IPC_CHANNELS,
+  alwaysOnTopResultSchema,
   appSnapshotSchema,
   openClaudeSetupPayloadSchema,
   openClaudeSetupResultSchema,
   refreshPayloadSchema,
   refreshResultSchema,
+  setAlwaysOnTopPayloadSchema,
   setLaunchAtLoginPayloadSchema,
   setTokensVisiblePayloadSchema,
   userPreferencesSchema,
@@ -62,6 +64,19 @@ const api: UsageMonitorAPI = {
     return openClaudeSetupResultSchema.parse(
       await ipcRenderer.invoke(IPC_CHANNELS.openClaudeSetup, payload),
     );
+  },
+  async getAlwaysOnTop() {
+    const result = alwaysOnTopResultSchema.parse(
+      await ipcRenderer.invoke(IPC_CHANNELS.getAlwaysOnTop),
+    );
+    return result.alwaysOnTop;
+  },
+  async setAlwaysOnTop(enabled) {
+    const payload = setAlwaysOnTopPayloadSchema.parse({ enabled });
+    const result = alwaysOnTopResultSchema.parse(
+      await ipcRenderer.invoke(IPC_CHANNELS.setAlwaysOnTop, payload),
+    );
+    return result.alwaysOnTop;
   },
 };
 

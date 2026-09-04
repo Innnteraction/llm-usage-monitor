@@ -47,6 +47,8 @@ const createHarness = () => {
     })),
     setTokensVisible: vi.fn(async () => undefined),
     openClaudeSetup: vi.fn(async () => ({ opened: true })),
+    getAlwaysOnTop: vi.fn(async () => false),
+    setAlwaysOnTop: vi.fn(async (enabled: boolean) => enabled),
   };
 
   const controller = registerIpcHandlers(ipcMain, window, dependencies);
@@ -132,6 +134,20 @@ describe("restricted IPC handlers", () => {
     await expect(handler?.(trustedEvent, { visible: true })).rejects.toThrow(
       "resize failed",
     );
+  });
+
+  it("gets and sets alwaysOnTop state with schema validation", async () => {
+    const { dependencies, handlers, trustedEvent } = createHarness();
+    const getHandler = handlers.get(IPC_CHANNELS.getAlwaysOnTop);
+    const setHandler = handlers.get(IPC_CHANNELS.setAlwaysOnTop);
+
+    await expect(getHandler?.(trustedEvent)).resolves.toEqual({ alwaysOnTop: false });
+    expect(dependencies.getAlwaysOnTop).toHaveBeenCalledTimes(1);
+
+    await expect(setHandler?.(trustedEvent, { enabled: true })).resolves.toEqual({ alwaysOnTop: true });
+    expect(dependencies.setAlwaysOnTop).toHaveBeenCalledWith(true);
+
+    await expect(setHandler?.(trustedEvent, { enabled: "true" })).rejects.toThrow();
   });
 
   it("publishes only schema-valid state and removes handlers", () => {

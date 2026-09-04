@@ -5,12 +5,14 @@ import type {
 } from "electron";
 import {
   IPC_CHANNELS,
+  alwaysOnTopResultSchema,
   appSnapshotSchema,
   noPayloadSchema,
   openClaudeSetupPayloadSchema,
   openClaudeSetupResultSchema,
   refreshPayloadSchema,
   refreshResultSchema,
+  setAlwaysOnTopPayloadSchema,
   setLaunchAtLoginPayloadSchema,
   setTokensVisiblePayloadSchema,
   userPreferencesSchema,
@@ -27,6 +29,8 @@ export interface IpcDependencies {
   setLaunchAtLogin(enabled: boolean): Promise<UserPreferences>;
   setTokensVisible(visible: boolean, contentHeight?: number): Promise<void>;
   openClaudeSetup(action: ClaudeSetupAction): Promise<{ opened: boolean }>;
+  getAlwaysOnTop(): Promise<boolean>;
+  setAlwaysOnTop(enabled: boolean): Promise<boolean>;
 }
 
 const assertTrustedSender = (
@@ -98,6 +102,20 @@ export const registerIpcHandlers = (
     );
   });
 
+  ipcMain.handle(IPC_CHANNELS.getAlwaysOnTop, async (event, ...args) => {
+    assertTrustedSender(event, window);
+    noPayloadSchema.parse(args);
+    const alwaysOnTop = await dependencies.getAlwaysOnTop();
+    return alwaysOnTopResultSchema.parse({ alwaysOnTop });
+  });
+
+  ipcMain.handle(IPC_CHANNELS.setAlwaysOnTop, async (event, ...args) => {
+    assertTrustedSender(event, window);
+    const { enabled } = singlePayload(setAlwaysOnTopPayloadSchema, args);
+    const alwaysOnTop = await dependencies.setAlwaysOnTop(enabled);
+    return alwaysOnTopResultSchema.parse({ alwaysOnTop });
+  });
+
   return {
     publishState(snapshot: AppSnapshot): void {
       const safeSnapshot = appSnapshotSchema.parse(snapshot);
@@ -112,6 +130,8 @@ export const registerIpcHandlers = (
       ipcMain.removeHandler(IPC_CHANNELS.setLaunchAtLogin);
       ipcMain.removeHandler(IPC_CHANNELS.setTokensVisible);
       ipcMain.removeHandler(IPC_CHANNELS.openClaudeSetup);
+      ipcMain.removeHandler(IPC_CHANNELS.getAlwaysOnTop);
+      ipcMain.removeHandler(IPC_CHANNELS.setAlwaysOnTop);
     },
   };
 };

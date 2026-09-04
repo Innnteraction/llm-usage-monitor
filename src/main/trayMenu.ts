@@ -2,6 +2,7 @@ export interface TrayMenuActions {
   open(): void;
   refresh(): void;
   setLaunchAtLogin(enabled: boolean): Promise<void> | void;
+  resetPosition?(): void;
   quit(): void;
 }
 
@@ -44,6 +45,9 @@ export const createTrayMenuTemplate = (
 ) => [
   { label: "열기", click: actions.open },
   { label: "새로고침", click: actions.refresh },
+  ...(actions.resetPosition
+    ? [{ label: "기본 위치로 재설정", click: actions.resetPosition }]
+    : []),
   {
     label: "Windows 로그인 시 시작",
     type: "checkbox" as const,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculatePopoverPosition,
   clampPopoverHeight,
+  clampWindowPosition,
   selectPopoverAnchor,
 } from "../../src/main";
 
@@ -14,6 +15,25 @@ describe("popover positioning", () => {
     expect(calculatePopoverPosition({ x: 960, y: 1080 }, workArea, size)).toEqual({ x: 750, y: 760 });
     expect(calculatePopoverPosition({ x: 0, y: 500 }, workArea, size)).toEqual({ x: 0, y: 340 });
     expect(calculatePopoverPosition({ x: 1920, y: 500 }, workArea, size)).toEqual({ x: 1500, y: 340 });
+  });
+
+  it("clamps custom window position within the target work area", () => {
+    // Completely inside work area -> unchanged
+    expect(clampWindowPosition({ x: 500, y: 300 }, size, workArea)).toEqual({ x: 500, y: 300 });
+
+    // Exceeds right edge -> clamped to right
+    expect(clampWindowPosition({ x: 1800, y: 300 }, size, workArea)).toEqual({ x: 1500, y: 300 });
+
+    // Exceeds bottom edge -> clamped to bottom
+    expect(clampWindowPosition({ x: 500, y: 1000 }, size, workArea)).toEqual({ x: 500, y: 760 });
+
+    // Negative coordinates -> clamped to top-left
+    expect(clampWindowPosition({ x: -100, y: -50 }, size, workArea)).toEqual({ x: 0, y: 0 });
+
+    // Secondary monitor with negative origin
+    const secondary = { x: -1920, y: 0, width: 1920, height: 1080 };
+    expect(clampWindowPosition({ x: -1500, y: 200 }, size, secondary)).toEqual({ x: -1500, y: 200 });
+    expect(clampWindowPosition({ x: -2000, y: 200 }, size, secondary)).toEqual({ x: -1920, y: 200 });
   });
 
   it("uses cursor fallback for invalid or removed tray bounds", () => {

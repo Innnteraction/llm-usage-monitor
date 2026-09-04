@@ -41,6 +41,7 @@ import { createBeforeQuitHandler, createTrayMenuTemplate } from "./trayMenu";
 import {
   calculatePopoverPosition,
   clampPopoverHeight,
+  clampWindowPosition,
   selectPopoverAnchor,
 } from "./windowPosition";
 
@@ -83,18 +84,19 @@ const positionNearTray = (
 
 const MINI_WINDOW_HEIGHT = 160;
 
-const resizeWindowNearTray = (
+const resizeWindow = (
   window: BrowserWindow,
   trayBounds: Electron.Rectangle | undefined,
   visible: boolean,
   contentHeight: number | undefined,
+  customPosition: { x: number; y: number } | undefined,
 ): void => {
-  const anchor = selectPopoverAnchor(
+  const currentPoint = customPosition ?? selectPopoverAnchor(
     trayBounds,
     screen.getAllDisplays().map(({ bounds }) => bounds),
     screen.getCursorScreenPoint(),
   );
-  const display = screen.getDisplayNearestPoint(anchor);
+  const display = screen.getDisplayNearestPoint(currentPoint);
   const minHeight =
     contentHeight && contentHeight < COMPACT_WINDOW_HEIGHT
       ? Math.max(MINI_WINDOW_HEIGHT, contentHeight)
@@ -110,7 +112,17 @@ const resizeWindowNearTray = (
   if (currentWidth !== WINDOW_SIZE.width || currentHeight !== height) {
     window.setContentSize(WINDOW_SIZE.width, height);
   }
-  positionNearTray(window, trayBounds);
+
+  if (customPosition) {
+    const clamped = clampWindowPosition(
+      customPosition,
+      { width: WINDOW_SIZE.width, height },
+      display.workArea,
+    );
+    window.setPosition(clamped.x, clamped.y, false);
+  } else {
+    positionNearTray(window, trayBounds);
+  }
 };
 
 const loadRenderer = (window: BrowserWindow): void => {
@@ -132,6 +144,8 @@ export const startApplication = (): void => {
   let tray: Tray | undefined;
   let tokensVisible = false;
   let requestedContentHeight: number | undefined;
+  let isAlwaysOnTop = false;
+  let customPosition: { x: number; y: number } | undefined;
 
   const packagedSmoke =
     process.env.LLM_USAGE_MONITOR_CLAUDE_PACKAGED_SMOKE === "1";
@@ -160,11 +174,12 @@ export const startApplication = (): void => {
     if (isQuitting || !mainWindow) {
       return;
     }
-    resizeWindowNearTray(
+    resizeWindow(
       mainWindow,
       tray?.getBounds(),
       tokensVisible,
       requestedContentHeight,
+      customPosition,
     );
     mainWindow.show();
     mainWindow.focus();
@@ -276,8 +291,17 @@ export const startApplication = (): void => {
         mainWindow?.hide();
       }
     });
+    mainWindow.on("moved", () => {
+      if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return;
+      const position = mainWindow.getPosition();
+      const x = position[0];
+      const y = position[1];
+      if (typeof x === "number" && typeof y === "number") {
+        customPosition = { x, y };
+      }
+    });
     mainWindow.on("blur", () => {
-      if (!keepVisibleForTest) {
+      if (!keepVisibleForTest && !isAlwaysOnTop) {
         mainWindow?.hide();
       }
     });
@@ -321,9 +345,17 @@ export const startApplication = (): void => {
         if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return;
         tokensVisible = visible;
         requestedContentHeight = contentHeight;
-        resizeWindowNearTray(mainWindow, tray?.getBounds(), visible, contentHeight);
+        resizeWindow(mainWindow, tray?.getBounds(), visible, contentHeight, customPosition);
       },
       openClaudeSetup,
+      getAlwaysOnTop: async () => isAlwaysOnTop,
+      setAlwaysOnTop: async (enabled) => {
+        isAlwaysOnTop = enabled;
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.setAlwaysOnTop(enabled);
+        }
+        return isAlwaysOnTop;
+      },
     });
     const unsubscribe = store.subscribe(ipcController.publishState);
     const unsubscribeCache = snapshotCache
@@ -402,6 +434,14 @@ export const startApplication = (): void => {
             open: showWindow,
             refresh: refreshAll,
             setLaunchAtLogin: updateLaunchAtLogin,
+            resetPosition: () => {
+              customPosition = undefined;
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                positionNearTray(mainWindow, tray?.getBounds());
+                mainWindow.show();
+                mainWindow.focus();
+              }
+            },
             quit: () => {
               isQuitting = true;
               app.quit();

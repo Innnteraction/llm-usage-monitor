@@ -19,6 +19,8 @@ export const IPC_CHANNELS = {
   setLaunchAtLogin: "usage-monitor:set-launch-at-login",
   setTokensVisible: "usage-monitor:set-tokens-visible",
   openClaudeSetup: "usage-monitor:open-claude-setup",
+  getAlwaysOnTop: "usage-monitor:get-always-on-top",
+  setAlwaysOnTop: "usage-monitor:set-always-on-top",
 } as const;
 
 export const noPayloadSchema = z.tuple([]);
@@ -36,6 +38,16 @@ export const setTokensVisiblePayloadSchema = z
   .object({
     visible: z.boolean(),
     contentHeight: z.number().finite().int().min(1).max(4096).optional(),
+  })
+  .strict();
+export const setAlwaysOnTopPayloadSchema = z
+  .object({
+    enabled: z.boolean(),
+  })
+  .strict();
+export const alwaysOnTopResultSchema = z
+  .object({
+    alwaysOnTop: z.boolean(),
   })
   .strict();
 export const openClaudeSetupPayloadSchema = z
@@ -56,4 +68,6 @@ export interface UsageMonitorAPI {
   setLaunchAtLogin(enabled: boolean): Promise<UserPreferences>;
   setTokensVisible(visible: boolean, contentHeight?: number): Promise<void>;
   openClaudeSetup(action: ClaudeSetupAction): Promise<{ opened: boolean }>;
+  getAlwaysOnTop(): Promise<boolean>;
+  setAlwaysOnTop(enabled: boolean): Promise<boolean>;
 }

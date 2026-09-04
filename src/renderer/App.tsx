@@ -14,6 +14,15 @@ import {
   isResetPending,
   placeTooltip,
 } from "./presentation";
+import {
+  IconCompactCollapse,
+  IconCompactExpand,
+  IconHelp,
+  IconMoon,
+  IconPin,
+  IconSun,
+  IconTokens,
+} from "./icons";
 
 const authKindNames = {
   subscription: "subscription",
@@ -122,7 +131,7 @@ const HelpTrigger = ({
   disabled,
 }: {
   id: string;
-  label: string;
+  label: ReactNode;
   value?: string;
   description: ReactNode;
   tone?: "neutral" | "input" | "output" | "cache" | "partial";
@@ -177,14 +186,16 @@ const HelpTrigger = ({
           Number.parseFloat(tooltipStyle.borderBottomWidth),
       );
       tooltipElement.style.maxHeight = previousMaxHeight;
+      const isHeader = Boolean(buttonRef.current?.closest(".app-header"));
       const footerTop = document.querySelector<HTMLElement>(".app-footer")?.getBoundingClientRect().top;
       let next = placeTooltip({
         anchor,
         tooltip: { width: tooltipBounds.width, height: naturalHeight },
         viewport: { width: window.innerWidth, height: window.innerHeight },
         footerTop,
+        preferAbove: !isHeader,
       });
-      const overlapsAnotherTrigger = next.placement === "below" &&
+      const overlapsAnotherTrigger = !isHeader && next.placement === "below" &&
         [...document.querySelectorAll<HTMLElement>(".local-token-trigger")].some(
           (trigger) => {
             if (trigger === buttonRef.current) return false;
@@ -857,6 +868,7 @@ export const App = () => {
     window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
   );
   const [themeOverride, setThemeOverride] = useState<"light" | "dark">();
+  const [alwaysOnTop, setAlwaysOnTop] = useState(false);
   const previousSnapshot = useRef<AppSnapshot | undefined>(undefined);
   const tokenVisibilityInFlight = useRef(false);
   const appShellRef = useRef<HTMLElement>(null);
@@ -867,6 +879,24 @@ export const App = () => {
   const resizeFrame = useRef<number | undefined>(undefined);
   const lastWindowSizeRequest = useRef<string | undefined>(undefined);
   const effectiveTheme = themeOverride ?? systemTheme;
+
+  useEffect(() => {
+    void window.usageMonitor
+      .getAlwaysOnTop()
+      .then(setAlwaysOnTop)
+      .catch(() => undefined);
+  }, []);
+
+  const toggleAlwaysOnTop = useCallback((): void => {
+    setAlwaysOnTop((prev) => {
+      const next = !prev;
+      void window.usageMonitor
+        .setAlwaysOnTop(next)
+        .then(setAlwaysOnTop)
+        .catch(() => setAlwaysOnTop(prev));
+      return next;
+    });
+  }, []);
 
   const toggleCompactMode = useCallback((): void => {
     setActiveHelp(undefined);
@@ -1007,11 +1037,14 @@ export const App = () => {
         event.preventDefault();
         setActiveHelp(undefined);
         setThemeOverride(effectiveTheme === "dark" ? "light" : "dark");
+      } else if (event.code === "KeyP") {
+        event.preventDefault();
+        toggleAlwaysOnTop();
       }
     };
     window.addEventListener("keydown", handleKeyboard);
     return () => window.removeEventListener("keydown", handleKeyboard);
-  }, [effectiveTheme, toggleCompactMode, toggleTokenVisibility]);
+  }, [effectiveTheme, toggleAlwaysOnTop, toggleCompactMode, toggleTokenVisibility]);
 
   useEffect(() => {
     let active = true;
@@ -1081,6 +1114,7 @@ export const App = () => {
         <h1>watching quota providers</h1>
         <button
           type="button"
+          className="refresh-button"
           onClick={refresh}
           disabled={!snapshot || snapshot.refreshing.length > 0}
         >
@@ -1134,54 +1168,14 @@ export const App = () => {
           <span>quota: account · tokens: this PC</span>
           <span>Claude Desktop: not inspected</span>
         </p>
-        <div className="footer-help">
-          <div className="footer-controls">
-            <HelpTrigger
-              id="compact-mode-toggle"
-              label={compactMode ? "⊞" : "⊟"}
-              className="display-toggle compact-toggle"
-              ariaLabel={compactMode ? "Expand to detailed mode" : "Collapse to compact mode"}
-              ariaPressed={compactMode}
-              ariaKeyshortcuts="Control+Shift+C"
-              onClick={toggleCompactMode}
-              description={
-                compactMode
-                  ? "Expand to detailed mode (Ctrl+Shift+C)"
-                  : "Collapse to compact mode (Ctrl+Shift+C)"
-              }
-              activeHelp={activeHelp}
-              onActiveHelpChange={setActiveHelp}
-            />
-            <HelpTrigger
-              id="token-visibility-toggle"
-              label="◎"
-              className="display-toggle token-toggle"
-              ariaLabel="Tokens"
-              ariaPressed={tokensVisible}
-              ariaKeyshortcuts="Control+Shift+T"
-              disabled={tokenVisibilityPending}
-              onClick={toggleTokenVisibility}
-              description={`Tokens: ${tokensVisible ? "on" : "off"} (Ctrl+Shift+T)`}
-              activeHelp={activeHelp}
-              onActiveHelpChange={setActiveHelp}
-            />
-            <HelpTrigger
-              id="theme-toggle"
-              label={effectiveTheme === "dark" ? "☾" : "☼"}
-              className="display-toggle theme-toggle"
-              ariaLabel="Theme"
-              ariaPressed={effectiveTheme === "dark"}
-              ariaKeyshortcuts="Control+Shift+L"
-              onClick={toggleTheme}
-              description={`${effectiveTheme === "dark" ? "Dark" : "Light"} theme (Ctrl+Shift+L)`}
-              activeHelp={activeHelp}
-              onActiveHelpChange={setActiveHelp}
-            />
+        <div className="footer-bar">
+          <div className="footer-left">
             <HelpTrigger
               id="keyboard-help"
-              label="?"
+              label={<IconHelp />}
               className="help-trigger-toggle"
               testId="keyboard-help-trigger"
+              ariaLabel="Shortcuts and help"
               description={
                 <div className="help-content">
                   <h3 className="help-heading">Shortcuts</h3>
@@ -1206,6 +1200,12 @@ export const App = () => {
                     </li>
                     <li className="help-shortcut-row">
                       <span className="help-keys">
+                        <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>
+                      </span>
+                      <span className="help-desc">Toggle pin (always on top)</span>
+                    </li>
+                    <li className="help-shortcut-row">
+                      <span className="help-keys">
                         <kbd>Esc</kbd>
                       </span>
                       <span className="help-desc">Close popover (stay in tray)</span>
@@ -1217,6 +1217,65 @@ export const App = () => {
                     <li>Right-click tray icon for options & exit</li>
                   </ul>
                 </div>
+              }
+              activeHelp={activeHelp}
+              onActiveHelpChange={setActiveHelp}
+            />
+          </div>
+          <div className="footer-right">
+            <HelpTrigger
+              id="compact-mode-toggle"
+              label={compactMode ? <IconCompactExpand /> : <IconCompactCollapse />}
+              className="display-toggle compact-toggle"
+              ariaLabel={compactMode ? "Expand to detailed mode" : "Collapse to compact mode"}
+              ariaPressed={compactMode}
+              ariaKeyshortcuts="Control+Shift+C"
+              onClick={toggleCompactMode}
+              description={
+                compactMode
+                  ? "Expand to detailed mode (Ctrl+Shift+C)"
+                  : "Collapse to compact mode (Ctrl+Shift+C)"
+              }
+              activeHelp={activeHelp}
+              onActiveHelpChange={setActiveHelp}
+            />
+            <HelpTrigger
+              id="token-visibility-toggle"
+              label={<IconTokens filled={tokensVisible} />}
+              className="display-toggle token-toggle"
+              ariaLabel="Tokens"
+              ariaPressed={tokensVisible}
+              ariaKeyshortcuts="Control+Shift+T"
+              disabled={tokenVisibilityPending}
+              onClick={toggleTokenVisibility}
+              description={`Tokens: ${tokensVisible ? "on" : "off"} (Ctrl+Shift+T)`}
+              activeHelp={activeHelp}
+              onActiveHelpChange={setActiveHelp}
+            />
+            <HelpTrigger
+              id="theme-toggle"
+              label={effectiveTheme === "dark" ? <IconMoon filled /> : <IconSun filled />}
+              className="display-toggle theme-toggle"
+              ariaLabel="Theme"
+              ariaPressed={effectiveTheme === "dark"}
+              ariaKeyshortcuts="Control+Shift+L"
+              onClick={toggleTheme}
+              description={`${effectiveTheme === "dark" ? "Dark" : "Light"} theme (Ctrl+Shift+L)`}
+              activeHelp={activeHelp}
+              onActiveHelpChange={setActiveHelp}
+            />
+            <HelpTrigger
+              id="always-on-top-toggle"
+              label={<IconPin filled={alwaysOnTop} />}
+              className="display-toggle pin-toggle"
+              ariaLabel={alwaysOnTop ? "Unpin window from top" : "Pin window on top"}
+              ariaPressed={alwaysOnTop}
+              ariaKeyshortcuts="Control+Shift+P"
+              onClick={toggleAlwaysOnTop}
+              description={
+                alwaysOnTop
+                  ? "Unpin from top (Ctrl+Shift+P)"
+                  : "Pin on top (Ctrl+Shift+P)"
               }
               activeHelp={activeHelp}
               onActiveHelpChange={setActiveHelp}
