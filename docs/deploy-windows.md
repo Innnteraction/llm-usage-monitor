@@ -10,6 +10,9 @@
 프로젝트 루트에서 다음 명령어 중 하나를 실행합니다:
 
 ```powershell
+# 최초 1회 또는 최신 브랜치 pull 후 의존성 동기화
+pnpm install
+
 # npm / pnpm 사용 시
 pnpm deploy
 

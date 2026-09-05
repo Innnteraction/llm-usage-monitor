@@ -117,7 +117,15 @@ echo -e "${CYAN}=== ${APP_NAME} macOS 배포 시작 ===${NC}"
 if [ "${SKIP_BUILD}" = false ]; then
     echo -e "${YELLOW}[1/4] 애플리케이션 패키징 빌드를 시작합니다 (pnpm package)...${NC}"
     cd "${PROJECT_ROOT}"
-    pnpm package
+    if [ ! -d "node_modules" ]; then
+        echo -e "${YELLOW}node_modules 디렉터리가 없습니다. 의존성을 먼저 설치합니다...${NC}"
+        pnpm install
+    fi
+    pnpm package || {
+        echo -e "${RED}빌드 과정에서 오류가 발생했습니다.${NC}"
+        echo -e "${RED}최신 브랜치 변경사항이 있다면 'pnpm install'을 먼저 실행한 후 다시 시도해 보세요.${NC}"
+        exit 1
+    }
 else
     echo -e "${YELLOW}[1/4] 빌드를 건너뛰고 기존 out/ 산출물을 재사용합니다 (--skip-build)...${NC}"
 fi

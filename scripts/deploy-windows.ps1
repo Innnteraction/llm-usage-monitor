@@ -156,6 +156,13 @@ if (-not $SkipBuild) {
     Write-Host "[2/5] 애플리케이션 패키징(빌드) 시작..." -ForegroundColor Cyan
     Push-Location $ProjectRoot
     try {
+        if (-not (Test-Path (Join-Path $ProjectRoot "node_modules"))) {
+            Write-Host "  node_modules 디렉터리가 없습니다. 의존성을 먼저 설치합니다..." -ForegroundColor Yellow
+            pnpm install
+            if ($LASTEXITCODE -ne 0) {
+                throw "의존성 설치(pnpm install)에 실패했습니다 (종료 코드: $LASTEXITCODE)."
+            }
+        }
         $forgeCmd = Join-Path $ProjectRoot "node_modules\.bin\electron-forge.cmd"
         if (Test-Path $forgeCmd) {
             & $forgeCmd package
@@ -163,7 +170,7 @@ if (-not $SkipBuild) {
             pnpm package
         }
         if ($LASTEXITCODE -ne 0) {
-            throw "빌드 과정에서 오류가 발생했습니다 (종료 코드: $LASTEXITCODE)."
+            throw "빌드 과정에서 오류가 발생했습니다 (종료 코드: $LASTEXITCODE).`n최신 브랜치 변경사항이 있다면 'pnpm install'을 먼저 실행한 후 다시 시도해 보세요."
         }
     } finally {
         Pop-Location

@@ -1,6 +1,5 @@
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { MakerSquirrel } from "@electron-forge/maker-squirrel";
-import { MakerZIP } from "@electron-forge/maker-zip";
 import { VitePlugin } from "@electron-forge/plugin-vite";
 import { chmod, cp, mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -99,7 +98,11 @@ const config: ForgeConfig = {
       : []),
     ...(process.platform === "darwin"
       ? [
-          new MakerZIP({}, ["darwin"]),
+          {
+            name: "@electron-forge/maker-zip",
+            config: {},
+            platforms: ["darwin"] as ["darwin"],
+          },
         ]
       : []),
   ],
