@@ -6,6 +6,7 @@ import {
 } from "../presentation";
 import {
   compactProviderNames,
+  providerStatusTone,
   selectDisplayWindows,
   usageTone,
 } from "../selectors";
@@ -34,6 +35,7 @@ export const CompactQuotaTable = ({
           weeklyWindow?.status ?? provider.status,
         );
 
+        const statusTone = providerStatusTone(provider, now);
         const windowLabels = windows.map((w) => formatCompactWindowLabel(w));
         const resets = windows.map((w) =>
           formatCompactCountdown(w.resetsAt, now),
@@ -43,7 +45,7 @@ export const CompactQuotaTable = ({
           <div key={provider.providerId} className="compact-row" role="row">
             <span className="compact-name">
               <span
-                className={`status-dot status-${provider.status}`}
+                className={`status-dot status-${statusTone}`}
                 aria-hidden="true"
               >
                 ●

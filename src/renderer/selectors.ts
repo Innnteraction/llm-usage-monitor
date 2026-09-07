@@ -48,6 +48,29 @@ export const usageTone = (
   return "low";
 };
 
+export const PROVIDER_STALE_TIMEOUT_MS = 30 * 60 * 1000;
+
+export const providerStatusTone = (
+  provider: ProviderSnapshot,
+  now?: number,
+  timeoutMs: number = PROVIDER_STALE_TIMEOUT_MS,
+): SnapshotStatus => {
+  if (provider.status === "fresh") {
+    return "fresh";
+  }
+  if (provider.status === "unavailable") {
+    return "unavailable";
+  }
+  if (now !== undefined) {
+    const referenceIso = provider.lastSuccessfulAt ?? provider.fetchedAt;
+    const elapsed = now - new Date(referenceIso).getTime();
+    if (Number.isFinite(elapsed) && elapsed > timeoutMs) {
+      return "unavailable";
+    }
+  }
+  return "stale";
+};
+
 export const formatUpdatedAt = (value: string): string =>
   new Intl.DateTimeFormat("en-US", {
     hour: "numeric",

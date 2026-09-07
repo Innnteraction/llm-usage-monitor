@@ -4,6 +4,7 @@ import {
   formatLocalTokens,
   hasFableWindow,
   missingCoreLabels,
+  providerStatusTone,
   selectAdditionalWindows,
   selectDisplayWindows,
   usageTone,
@@ -20,6 +21,52 @@ describe("renderer selectors", () => {
     expect(usageTone(50, "fresh")).toBe("low");
     expect(usageTone(95, "stale")).toBe("stale");
     expect(usageTone(undefined, "stale")).toBe("stale");
+  });
+
+  it("determines provider status tone accurately", () => {
+    const baseProvider: ProviderSnapshot = {
+      providerId: "antigravity",
+      status: "fresh",
+      fetchedAt: new Date(1_000_000).toISOString(),
+      quotaWindows: [],
+    };
+
+    expect(providerStatusTone(baseProvider)).toBe("fresh");
+    expect(providerStatusTone({ ...baseProvider, status: "unavailable" })).toBe(
+      "unavailable",
+    );
+
+    const staleRecent: ProviderSnapshot = {
+      ...baseProvider,
+      status: "stale",
+      fetchedAt: new Date(1_000_000).toISOString(),
+      lastSuccessfulAt: new Date(1_000_000).toISOString(),
+    };
+    // Within 30 minutes (10 minutes elapsed)
+    expect(
+      providerStatusTone(staleRecent, 1_000_000 + 10 * 60 * 1000),
+    ).toBe("stale");
+    // Exactly at 30 minutes (not exceeded)
+    expect(
+      providerStatusTone(staleRecent, 1_000_000 + 30 * 60 * 1000),
+    ).toBe("stale");
+    // Exceeded 30 minutes (31 minutes elapsed) -> unavailable (red)
+    expect(
+      providerStatusTone(staleRecent, 1_000_000 + 31 * 60 * 1000),
+    ).toBe("unavailable");
+
+    // Falls back to fetchedAt if lastSuccessfulAt is not provided
+    const staleWithoutLastSuccess: ProviderSnapshot = {
+      ...baseProvider,
+      status: "stale",
+      fetchedAt: new Date(1_000_000).toISOString(),
+    };
+    expect(
+      providerStatusTone(staleWithoutLastSuccess, 1_000_000 + 15 * 60 * 1000),
+    ).toBe("stale");
+    expect(
+      providerStatusTone(staleWithoutLastSuccess, 1_000_000 + 35 * 60 * 1000),
+    ).toBe("unavailable");
   });
 
   it("formats token abbreviations accurately", () => {

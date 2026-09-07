@@ -260,9 +260,12 @@ h2 {
 }
 
 .status {
-  color: var(--medium);
   font-size: 0.68rem;
   font-weight: 700;
+}
+
+.status-fresh {
+  color: var(--low);
 }
 
 .status-stale {
@@ -863,6 +866,7 @@ h2 {
   color: var(--medium);
 }
 
+.compact-name .status-dot.status-unavailable,
 .compact-name .status-dot.status-error {
   color: var(--high);
 }

@@ -10,6 +10,7 @@ import {
   missingCoreLabels,
   providerErrorHelp,
   providerNames,
+  providerStatusTone,
   selectAdditionalWindows,
   selectDisplayWindows,
   sourceNames,
@@ -59,6 +60,8 @@ export const ProviderCard = ({
           ? "trust_probe"
           : undefined;
 
+  const statusTone = providerStatusTone(provider, now);
+
   return (
     <article className="provider-card">
       <header>
@@ -81,8 +84,8 @@ export const ProviderCard = ({
             </span>
           ) : null}
         </div>
-        <span className={`status status-${provider.status}`}>
-          <span aria-hidden="true">●</span> {provider.status}
+        <span className={`status status-${statusTone}`}>
+          <span aria-hidden="true">●</span> {statusTone}
         </span>
       </header>
       {provider.error ? (
