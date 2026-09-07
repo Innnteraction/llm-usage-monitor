@@ -1,4 +1,4 @@
-# LLM Usage Monitor (v0.9.1)
+# LLM Usage Monitor (v0.9.2)
 
 Codex, Claude Code, Antigravity(`agy`)의 5시간·주간 사용량 쿼터(Quota)와 이 PC의 로컬 토큰 사용량을 한눈에 보여주는 macOS·Windows 트레이 앱입니다.
 
@@ -160,8 +160,14 @@ claude --safe-mode --ax-screen-reader --restricted --strict-mcp-config --tools "
 ```bash
 pnpm install
 
-# 개발 모드 실행 (Vite + Electron Forge)
+# 현재 소스를 패키징하고 로컬 앱 실행 (설치는 하지 않음)
 pnpm dev
+
+# 선택: Vite HMR로 저장한 화면 코드를 즉시 반영
+pnpm dev:hmr
+
+# 실제 실행 파일의 시작·종료·프로필 격리 검사 (허구 데이터)
+pnpm test:e2e:runtime
 
 # 단위/통합 테스트
 pnpm test
@@ -181,6 +187,12 @@ pnpm screenshot:readme
 ```
 
 실제 CLI를 대상으로 한 읽기 전용 smoke 테스트는 `pnpm test:smoke:codex`, `pnpm test:smoke:claude-pty`, `pnpm test:smoke:local-usage`로 따로 실행합니다.
+
+`pnpm dev`는 배포와 동일한 Forge 패키징을 사용하고, 생성된 Windows EXE 또는 macOS 앱 실행 파일을 직접 실행합니다. 코드 변경은 트레이의 종료 메뉴 또는 `Ctrl+C`로 종료한 뒤 다시 실행해 반영합니다. 창만 닫으면 트레이에 남습니다. 빌드에 실패하면 이전 앱을 대신 실행하지 않습니다.
+
+두 개발 명령은 `appData/llm-usage-monitor-dev`에 설정·사용량 캐시·Chromium 데이터를 별도로 저장하므로 설치 앱과 함께 실행할 수 있습니다. 개발 명령끼리는 같은 프로필을 사용하므로 하나를 종료한 뒤 다른 명령을 실행하세요. 벤더 CLI의 기존 로그인은 그대로 사용하며 설치 폴더·바로가기·자동 시작 등록은 변경하지 않습니다.
+
+GPU 종료와 흰 화면의 진단 절차 및 확인된 범위는 [트러블슈팅 가이드](TROUBLESHOOTING.md)를 참고하세요.
 
 ---
 

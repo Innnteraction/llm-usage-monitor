@@ -4,6 +4,16 @@
 
 ---
 
+## 개발 실행과 설치 실행 (v0.9.2)
+
+`pnpm dev`는 현재 소스를 패키징한 뒤 `out/`의 실행 파일을 실행합니다. 개발 데이터는 `%APPDATA%\llm-usage-monitor-dev`에 분리하며 설치본이나 자동 시작 등록을 갱신하지 않습니다. 설치본을 업데이트하려면 `pnpm deploy:autostart`를 실행하세요. HMR이 필요한 경우 `pnpm dev:hmr`를 사용할 수 있지만, 이 PC에서 확인한 개발용 Electron 경로의 권한 문제는 [트러블슈팅](../TROUBLESHOOTING.md)을 참고하세요.
+
+설치 후 실행 파일의 버전은 다음 명령으로 확인할 수 있습니다. 시작 프로그램 바로가기는 위 설치 경로의 실행 파일을 가리켜야 합니다.
+
+```powershell
+(Get-Item "$env:LOCALAPPDATA\Programs\llm-usage-monitor\LLM Usage Monitor.exe").VersionInfo.ProductVersion
+```
+
 ## 1. 빠른 시작 (Quick Start)
 
 ### 기본 배포 및 앱 실행

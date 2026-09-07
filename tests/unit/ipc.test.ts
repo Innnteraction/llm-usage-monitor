@@ -34,6 +34,8 @@ const createHarness = () => {
   const webContents = {
     mainFrame,
     isDestroyed: () => false,
+    isLoading: vi.fn(() => false),
+    isCrashed: vi.fn(() => false),
     send: vi.fn(),
   };
   const window = { webContents } as unknown as BrowserWindow;
@@ -161,6 +163,21 @@ describe("restricted IPC handlers", () => {
 
     controller.dispose();
     expect(handlers.size).toBe(0);
+  });
+
+  it("skips loading or crashed frames and resumes with the latest state", async () => {
+    const { controller, handlers, trustedEvent, webContents } = createHarness();
+    webContents.isLoading.mockReturnValue(true);
+    controller.publishState(snapshot);
+    expect(webContents.send).not.toHaveBeenCalled();
+    webContents.isLoading.mockReturnValue(false);
+    webContents.isCrashed.mockReturnValue(true);
+    controller.publishState(snapshot);
+    expect(webContents.send).not.toHaveBeenCalled();
+    webContents.isCrashed.mockReturnValue(false);
+    await expect(handlers.get(IPC_CHANNELS.getState)?.(trustedEvent)).resolves.toEqual(snapshot);
+    controller.publishState(snapshot);
+    expect(webContents.send).toHaveBeenCalledOnce();
   });
 
   it("silently swallows frame disposal errors when publishing state", () => {

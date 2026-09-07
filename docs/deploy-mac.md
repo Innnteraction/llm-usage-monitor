@@ -4,6 +4,10 @@
 
 ---
 
+## 개발 실행과 설치 실행 (v0.9.2)
+
+`pnpm dev`는 현재 소스를 패키징한 뒤 `out/`의 앱을 실행하며, 개발 데이터는 `~/Library/Application Support/llm-usage-monitor-dev`에 분리합니다. 설치 앱과 로그인 시 자동 시작 등록은 `pnpm deploy:autostart`로 업데이트합니다. HMR 개발 명령은 `pnpm dev:hmr`입니다. 이번 개발 실행 변경의 실제 런타임 검증은 Windows에서 수행했으며 macOS 실기기 검증은 아직 수행하지 않았습니다.
+
 ## 1. 빠른 시작 (Quick Start)
 
 ### 기본 배포 및 앱 실행

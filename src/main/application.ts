@@ -7,7 +7,6 @@ import {
   Tray,
 } from "electron";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   ClaudeQuotaProvider,
@@ -30,6 +29,7 @@ import {
 } from "../local-usage/index";
 import { openClaudeSetup } from "./claudeSetup";
 import { registerIpcHandlers } from "./ipc";
+import { configureRuntime, registerRendererDiagnostics, registerRuntimeDiagnostics } from "./runtime";
 import {
   ensurePlatformPath,
   getAlwaysOnTopLevel,
@@ -152,13 +152,13 @@ const resizeWindow = (
   }
 };
 
-const loadRenderer = (window: BrowserWindow): void => {
+const loadRenderer = async (window: BrowserWindow): Promise<void> => {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    void window.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    await window.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
     return;
   }
 
-  void window.loadFile(
+  await window.loadFile(
     path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
   );
 };
@@ -175,22 +175,10 @@ export const startApplication = (): void => {
   let isAlwaysOnTop = false;
   let customPosition: { x: number; y: number } | undefined;
 
-  const packagedSmoke =
-    process.env.LLM_USAGE_MONITOR_CLAUDE_PACKAGED_SMOKE === "1";
-  const e2eUserData =
-    process.env.LLM_USAGE_MONITOR_E2E_USER_DATA ??
-    (packagedSmoke
-      ? path.join(tmpdir(), `llm-usage-monitor-smoke-${process.pid}`)
-      : undefined);
-  const usesIsolatedTestData =
-    process.env.LLM_USAGE_MONITOR_E2E === "1" || packagedSmoke;
-  if (usesIsolatedTestData && e2eUserData) {
-    app.setPath("userData", path.resolve(e2eUserData));
-  }
-
-  const isDevMode = Boolean(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  const { isDevMode } = configureRuntime(app, process.env, Boolean(MAIN_WINDOW_VITE_DEV_SERVER_URL));
   if (isDevMode) {
-    app.commandLine.appendSwitch("disable-http-cache");
+    registerRuntimeDiagnostics(app, MAIN_WINDOW_VITE_DEV_SERVER_URL
+      ? "hmr" : app.isPackaged ? "packaged" : "unpackaged");
   }
 
   if (!app.requestSingleInstanceLock()) {
@@ -314,6 +302,9 @@ export const startApplication = (): void => {
     }
 
     mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    if (isDevMode) {
+      registerRendererDiagnostics(mainWindow.webContents);
+    }
     mainWindow.webContents.on("will-navigate", (event) => {
       event.preventDefault();
     });
@@ -535,6 +526,11 @@ export const startApplication = (): void => {
       void shutdown?.().catch(() => undefined);
       mainWindow = undefined;
     });
-    loadRenderer(mainWindow);
+    await loadRenderer(mainWindow);
+  }).catch(async () => {
+    // 인증 및 provider 오류 본문을 포함할 수 있는 예외는 출력하지 않는다.
+    console.error('[runtime] {"event":"startup-failed"}');
+    isQuitting = true;
+    try { await shutdown?.(); } finally { app.exit(1); }
   });
 };

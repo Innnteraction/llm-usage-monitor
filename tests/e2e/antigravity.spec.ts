@@ -1,15 +1,14 @@
 import { _electron as electron, expect, test } from "@playwright/test";
-import path from "node:path";
 
-const appPath = process.env.LLM_USAGE_MONITOR_E2E_DEV === "1"
-  ? path.resolve(".")
-  : path.resolve("out", "LLM Usage Monitor-win32-x64", "resources", "app.asar");
+import { executablePath, appArgs } from "./appPath";
 
 for (const colorScheme of ["dark", "light"] as const) {
   for (const scale of [1, 1.5]) {
     test(`lays out Antigravity quotas in ${colorScheme} at ${scale}x`, async () => {
       const app = await electron.launch({
-        args: [appPath, `--force-device-scale-factor=${scale}`],
+        chromiumSandbox: true,
+        executablePath,
+        args: appArgs([`--force-device-scale-factor=${scale}`]),
         env: {
           ...process.env,
           LLM_USAGE_MONITOR_E2E: "1",
@@ -206,7 +205,9 @@ for (const colorScheme of ["dark", "light"] as const) {
 test("keeps other providers fresh when the Antigravity fixture is empty or fails", async () => {
   for (const scenario of ["empty", "error"]) {
     const app = await electron.launch({
-      args: [appPath],
+      chromiumSandbox: true,
+      executablePath,
+      args: appArgs(),
       env: {
         ...process.env,
         LLM_USAGE_MONITOR_E2E: "1",

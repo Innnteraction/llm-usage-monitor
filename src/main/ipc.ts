@@ -119,7 +119,12 @@ export const registerIpcHandlers = (
   return {
     publishState(snapshot: AppSnapshot): void {
       const safeSnapshot = appSnapshotSchema.parse(snapshot);
-      if (!window.webContents.isDestroyed()) {
+      if (
+        !window.isDestroyed?.() &&
+        !window.webContents.isDestroyed() &&
+        !(typeof window.webContents.isLoading === "function" && window.webContents.isLoading()) &&
+        !(typeof window.webContents.isCrashed === "function" && window.webContents.isCrashed())
+      ) {
         try {
           window.webContents.send(IPC_CHANNELS.stateChanged, safeSnapshot);
         } catch {

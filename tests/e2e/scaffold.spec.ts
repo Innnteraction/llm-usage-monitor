@@ -2,19 +2,13 @@ import { _electron as electron, expect, test } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const appPath =
-  process.env.LLM_USAGE_MONITOR_E2E_DEV === "1"
-    ? path.resolve(".")
-    : path.resolve(
-        "out",
-        "LLM Usage Monitor-win32-x64",
-        "resources",
-        "app.asar",
-      );
+import { executablePath, appArgs } from "./appPath";
 
 test("tray popover refresh, layout, hide and quit flow", async () => {
   const electronApp = await electron.launch({
-    args: [appPath],
+    chromiumSandbox: true,
+    executablePath,
+    args: appArgs(),
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
@@ -360,7 +354,9 @@ test("starts hidden after Claude setup has succeeded once", async ({
     "utf8",
   );
   const electronApp = await electron.launch({
-    args: [appPath],
+    chromiumSandbox: true,
+    executablePath,
+    args: appArgs(),
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
@@ -391,7 +387,9 @@ test("starts hidden after Claude setup has succeeded once", async ({
 
 test("keeps display choices through refresh and popover visibility changes", async () => {
   const electronApp = await electron.launch({
-    args: [appPath],
+    chromiumSandbox: true,
+    executablePath,
+    args: appArgs(),
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
@@ -457,7 +455,9 @@ test("keeps display choices through refresh and popover visibility changes", asy
 
 test("labels Fable as unavailable when Claude CLI omits it", async () => {
   const electronApp = await electron.launch({
-    args: [appPath],
+    chromiumSandbox: true,
+    executablePath,
+    args: appArgs(),
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
@@ -477,7 +477,9 @@ test("labels Fable as unavailable when Claude CLI omits it", async () => {
 
 test("explains stale, unavailable, missing cache and pending reset states", async () => {
   const electronApp = await electron.launch({
-    args: [appPath],
+    chromiumSandbox: true,
+    executablePath,
+    args: appArgs(),
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
@@ -514,7 +516,9 @@ test("explains stale, unavailable, missing cache and pending reset states", asyn
 
 test("updates the countdown on its 30 second timer without refreshing provider values", async () => {
   const electronApp = await electron.launch({
-    args: [appPath],
+    chromiumSandbox: true,
+    executablePath,
+    args: appArgs(),
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
@@ -549,7 +553,9 @@ test("updates the countdown on its 30 second timer without refreshing provider v
 
 test("updates the countdown on window focus without refreshing provider values", async () => {
   const electronApp = await electron.launch({
-    args: [appPath],
+    chromiumSandbox: true,
+    executablePath,
+    args: appArgs(),
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
@@ -581,7 +587,9 @@ test("uses accessible dark and light TUI colors at 100 and 150 percent", async (
   for (const colorScheme of ["dark", "light"] as const) {
     for (const scale of [1, 1.5]) {
       const electronApp = await electron.launch({
-        args: [appPath, `--force-device-scale-factor=${scale}`],
+        chromiumSandbox: true,
+        executablePath,
+        args: appArgs([`--force-device-scale-factor=${scale}`]),
         env: {
           ...process.env,
           LLM_USAGE_MONITOR_E2E: "1",
@@ -808,7 +816,9 @@ test("captures normal dark and light quota overviews at 100 and 150 percent", as
   for (const colorScheme of ["dark", "light"] as const) {
     for (const scale of [1, 1.5]) {
       const electronApp = await electron.launch({
-        args: [appPath, `--force-device-scale-factor=${scale}`],
+        chromiumSandbox: true,
+        executablePath,
+        args: appArgs([`--force-device-scale-factor=${scale}`]),
         env: {
           ...process.env,
           LLM_USAGE_MONITOR_E2E: "1",
@@ -950,7 +960,9 @@ test("captures normal dark and light quota overviews at 100 and 150 percent", as
 
 test("expands additional limits with the keyboard and auto-sizes the popover", async () => {
   const electronApp = await electron.launch({
-    args: [appPath],
+    chromiumSandbox: true,
+    executablePath,
+    args: appArgs(),
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
@@ -1055,7 +1067,9 @@ test("expands additional limits with the keyboard and auto-sizes the popover", a
 
 test("starts with additional limits collapsed after a fresh launch", async () => {
   const electronApp = await electron.launch({
-    args: [appPath],
+    chromiumSandbox: true,
+    executablePath,
+    args: appArgs(),
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
@@ -1085,7 +1099,9 @@ test("starts with additional limits collapsed after a fresh launch", async () =>
 
 test("shows calculating local usage state", async () => {
   const electronApp = await electron.launch({
-    args: [appPath],
+    chromiumSandbox: true,
+    executablePath,
+    args: appArgs(),
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
@@ -1107,7 +1123,9 @@ test("shows calculating local usage state", async () => {
 
 test("shows no local logs state", async () => {
   const electronApp = await electron.launch({
-    args: [appPath],
+    chromiumSandbox: true,
+    executablePath,
+    args: appArgs(),
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",
@@ -1131,7 +1149,9 @@ test("keeps the TUI inside the popover at 150 percent scale", async ({
   browserName,
 }, testInfo) => {
   const electronApp = await electron.launch({
-    args: [appPath, "--force-device-scale-factor=1.5"],
+    chromiumSandbox: true,
+    executablePath,
+    args: appArgs(["--force-device-scale-factor=1.5"]),
     env: {
       ...process.env,
       LLM_USAGE_MONITOR_E2E: "1",

@@ -1,7 +1,7 @@
 {
   "name": "llm-usage-monitor",
   "productName": "LLM Usage Monitor",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Tray monitor for Codex, Claude Code and Antigravity usage quotas (macOS, Windows)",
   "author": {
     "name": "Innnteraction",
@@ -15,7 +15,8 @@
     "pnpm": ">=9.15 <10"
   },
   "scripts": {
-    "dev": "electron-forge start",
+    "dev": "node ./scripts/dev.mjs",
+    "dev:hmr": "node ./scripts/dev.mjs --hmr",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -24,6 +25,7 @@
     "test:smoke:claude-pty": "vitest run --config vitest.claude-smoke.config.mts",
     "test:smoke:claude-packaged": "pnpm package && playwright test --config playwright.claude-packaged.config.ts",
     "test:e2e": "pnpm package && playwright test",
+    "test:e2e:runtime": "pnpm package && playwright test tests/e2e/runtime.spec.ts",
     "screenshot:readme": "node ./scripts/capture-readme-screenshots.mjs",
     "package": "electron-forge package",
     "make": "electron-forge make",
