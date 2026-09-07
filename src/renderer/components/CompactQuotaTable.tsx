@@ -29,7 +29,10 @@ export const CompactQuotaTable = ({
               provider.quotaWindows.find((w) => w.kind === "weekly")
             : provider.quotaWindows.find((w) => w.kind === "weekly");
         const weeklyUsed = weeklyWindow?.usedPercent;
-        const weeklyTone = usageTone(weeklyUsed);
+        const weeklyTone = usageTone(
+          weeklyUsed,
+          weeklyWindow?.status ?? provider.status,
+        );
 
         const windowLabels = windows.map((w) => formatCompactWindowLabel(w));
         const resets = windows.map((w) =>
@@ -55,7 +58,7 @@ export const CompactQuotaTable = ({
                   className={`quota-meter tone-${weeklyTone}`}
                   max={100}
                   value={weeklyUsed}
-                  title={`Weekly limit (${formatCompactCountdown(weeklyWindow?.resetsAt, now)}): ${formatPercent(weeklyUsed)}`}
+                  title={`Weekly limit (${formatCompactCountdown(weeklyWindow?.resetsAt, now)}): ${formatPercent(weeklyUsed)}${weeklyWindow?.status === "stale" ? " [stale]" : ""}`}
                 />
               )}
             </div>
@@ -67,7 +70,9 @@ export const CompactQuotaTable = ({
                   const used = w.usedPercent;
                   const unavailable =
                     used === undefined || w.status === "unavailable";
-                  const tone = unavailable ? undefined : usageTone(used);
+                  const tone = unavailable
+                    ? undefined
+                    : usageTone(used, w.status);
                   const text = unavailable ? "--" : formatPercent(used);
 
                   return (

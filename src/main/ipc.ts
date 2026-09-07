@@ -120,7 +120,11 @@ export const registerIpcHandlers = (
     publishState(snapshot: AppSnapshot): void {
       const safeSnapshot = appSnapshotSchema.parse(snapshot);
       if (!window.webContents.isDestroyed()) {
-        window.webContents.send(IPC_CHANNELS.stateChanged, safeSnapshot);
+        try {
+          window.webContents.send(IPC_CHANNELS.stateChanged, safeSnapshot);
+        } catch {
+          // Render frame was navigating, reloading, or disposed before WebFrameMain could be accessed.
+        }
       }
     },
     dispose(): void {

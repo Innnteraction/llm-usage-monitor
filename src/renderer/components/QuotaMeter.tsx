@@ -27,13 +27,17 @@ export const QuotaMeter = ({
 }: QuotaMeterProps) => {
   const used = window.usedPercent;
   const unavailable = used === undefined || window.status === "unavailable";
+  const isStale = window.status === "stale";
   const remaining =
     used === undefined ? undefined : Math.max(0, 100 - Math.round(used));
   const usedFormatted = formatPercent(used);
   const remainingFormatted = formatPercent(remaining);
-  const tone = usageTone(used);
+  const tone = usageTone(used, window.status);
   const resetPending = isResetPending(window.resetsAt, now);
   const identity = displayLabel ? `${window.label}: ` : "";
+  const staleNotice = isStale
+    ? " (Retaining last measured value; not updated in latest check.)"
+    : "";
   const label =
     displayLabel ??
     (window.kind === "weekly"
@@ -58,7 +62,7 @@ export const QuotaMeter = ({
           <HelpTrigger
             id={`${providerId}-${window.id}-usage`}
             label={usedFormatted}
-            description={`${identity}Used ${usedFormatted}, remaining ${remainingFormatted}.`}
+            description={`${identity}Used ${usedFormatted}, remaining ${remainingFormatted}.${staleNotice}`}
             className={`quota-value tone-${tone}`}
             testId={`${providerId}-${window.kind}-value`}
             activeHelp={activeHelp}
@@ -75,7 +79,7 @@ export const QuotaMeter = ({
               resetPending
                 ? `${identity}Reset pending verification: local reset time is ${formatResetAt(window.resetsAt!)}. Retaining last quota until next provider refresh.`
                 : window.resetsAt
-                  ? `${identity}Local reset time: ${formatResetAt(window.resetsAt)}.`
+                  ? `${identity}Local reset time: ${formatResetAt(window.resetsAt)}.${staleNotice}`
                   : `${identity}Reset time not provided.`
             }
             className="quota-reset"

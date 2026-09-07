@@ -162,4 +162,13 @@ describe("restricted IPC handlers", () => {
     controller.dispose();
     expect(handlers.size).toBe(0);
   });
+
+  it("silently swallows frame disposal errors when publishing state", () => {
+    const { controller, webContents } = createHarness();
+    webContents.send.mockImplementationOnce(() => {
+      throw new Error("Render frame was disposed before WebFrameMain could be accessed");
+    });
+
+    expect(() => controller.publishState(snapshot)).not.toThrow();
+  });
 });

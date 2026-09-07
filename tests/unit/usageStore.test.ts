@@ -249,4 +249,189 @@ describe("UsageStore refresh coordination", () => {
     });
     expect(JSON.stringify(store.getState())).not.toContain("private provider");
   });
+
+  it("retains previously measured quota window as stale when omitted or unavailable in a fresh response", async () => {
+    const firstFresh: ProviderSnapshot = {
+      providerId: "antigravity",
+      status: "fresh",
+      fetchedAt: "2026-09-01T03:01:00.000Z",
+      lastSuccessfulAt: "2026-09-01T03:01:00.000Z",
+      quotaWindows: [
+        {
+          id: "agy-gemini-5h",
+          kind: "five_hour",
+          label: "Gemini 5h",
+          usedPercent: 30,
+          resetsAt: "2026-09-01T08:00:00.000Z",
+          source: "antigravity_cli",
+          status: "fresh",
+        },
+        {
+          id: "agy-gemini-weekly",
+          kind: "model_weekly",
+          label: "Gemini Weekly",
+          usedPercent: 75,
+          resetsAt: "2026-09-08T00:00:00.000Z",
+          source: "antigravity_cli",
+          status: "fresh",
+        },
+      ],
+    };
+
+    // 두 번째 응답: gemini-5h는 갱신되었으나 gemini-weekly는 unavailable (또는 usedPercent 없음)
+    const secondPartial: ProviderSnapshot = {
+      providerId: "antigravity",
+      status: "fresh",
+      fetchedAt: "2026-09-01T03:02:00.000Z",
+      lastSuccessfulAt: "2026-09-01T03:02:00.000Z",
+      quotaWindows: [
+        {
+          id: "agy-gemini-5h",
+          kind: "five_hour",
+          label: "Gemini 5h",
+          usedPercent: 45,
+          resetsAt: "2026-09-01T08:00:00.000Z",
+          source: "antigravity_cli",
+          status: "fresh",
+        },
+        {
+          id: "agy-gemini-weekly",
+          kind: "model_weekly",
+          label: "Gemini Weekly",
+          source: "antigravity_cli",
+          status: "unavailable",
+        },
+      ],
+    };
+
+    const fetchQuota = vi
+      .fn<() => Promise<ProviderSnapshot>>()
+      .mockResolvedValueOnce(firstFresh)
+      .mockResolvedValueOnce(secondPartial);
+
+    const store = createUsageStore({
+      providers: [{ id: "antigravity", fetchQuota }],
+      initialSnapshots: [initialSnapshot("antigravity")],
+    });
+
+    await store.refresh("antigravity");
+    expect(store.getState().providers[0]?.quotaWindows).toEqual(firstFresh.quotaWindows);
+
+    await store.refresh("antigravity");
+    const updatedWindows = store.getState().providers[0]?.quotaWindows;
+    expect(updatedWindows).toHaveLength(2);
+
+    const fiveHour = updatedWindows?.find((w) => w.id === "agy-gemini-5h");
+    const weekly = updatedWindows?.find((w) => w.id === "agy-gemini-weekly");
+
+    expect(fiveHour).toMatchObject({
+      usedPercent: 45,
+      status: "fresh",
+    });
+    expect(weekly).toMatchObject({
+      usedPercent: 75,
+      resetsAt: "2026-09-08T00:00:00.000Z",
+      status: "stale",
+    });
+  });
+
+  it("retains previously measured quota window when omitted entirely from fresh response and restores to fresh on recovery", async () => {
+    const firstFresh: ProviderSnapshot = {
+      providerId: "codex",
+      status: "fresh",
+      fetchedAt: "2026-09-01T03:01:00.000Z",
+      lastSuccessfulAt: "2026-09-01T03:01:00.000Z",
+      quotaWindows: [
+        {
+          id: "codex-weekly",
+          kind: "weekly",
+          label: "Weekly",
+          usedPercent: 60,
+          source: "codex_app_server",
+          status: "fresh",
+        },
+        {
+          id: "codex-model-extra",
+          kind: "model_weekly",
+          label: "Extra",
+          usedPercent: 20,
+          source: "codex_app_server",
+          status: "fresh",
+        },
+      ],
+    };
+
+    // 누락된 응답
+    const secondOmitted: ProviderSnapshot = {
+      providerId: "codex",
+      status: "fresh",
+      fetchedAt: "2026-09-01T03:02:00.000Z",
+      lastSuccessfulAt: "2026-09-01T03:02:00.000Z",
+      quotaWindows: [
+        {
+          id: "codex-weekly",
+          kind: "weekly",
+          label: "Weekly",
+          usedPercent: 65,
+          source: "codex_app_server",
+          status: "fresh",
+        },
+      ],
+    };
+
+    // 복원된 응답
+    const thirdRecovered: ProviderSnapshot = {
+      providerId: "codex",
+      status: "fresh",
+      fetchedAt: "2026-09-01T03:03:00.000Z",
+      lastSuccessfulAt: "2026-09-01T03:03:00.000Z",
+      quotaWindows: [
+        {
+          id: "codex-weekly",
+          kind: "weekly",
+          label: "Weekly",
+          usedPercent: 70,
+          source: "codex_app_server",
+          status: "fresh",
+        },
+        {
+          id: "codex-model-extra",
+          kind: "model_weekly",
+          label: "Extra",
+          usedPercent: 35,
+          source: "codex_app_server",
+          status: "fresh",
+        },
+      ],
+    };
+
+    const fetchQuota = vi
+      .fn<() => Promise<ProviderSnapshot>>()
+      .mockResolvedValueOnce(firstFresh)
+      .mockResolvedValueOnce(secondOmitted)
+      .mockResolvedValueOnce(thirdRecovered);
+
+    const store = createUsageStore({
+      providers: [{ id: "codex", fetchQuota }],
+      initialSnapshots: [initialSnapshot("codex")],
+    });
+
+    await store.refresh("codex");
+    await store.refresh("codex");
+
+    const omittedWindows = store.getState().providers[0]?.quotaWindows;
+    const staleExtra = omittedWindows?.find((w) => w.id === "codex-model-extra");
+    expect(staleExtra).toMatchObject({
+      usedPercent: 20,
+      status: "stale",
+    });
+
+    await store.refresh("codex");
+    const recoveredWindows = store.getState().providers[0]?.quotaWindows;
+    const freshExtra = recoveredWindows?.find((w) => w.id === "codex-model-extra");
+    expect(freshExtra).toMatchObject({
+      usedPercent: 35,
+      status: "fresh",
+    });
+  });
 });

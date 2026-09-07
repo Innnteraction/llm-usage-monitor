@@ -1,6 +1,7 @@
 import type {
   ProviderSnapshot,
   QuotaWindow,
+  SnapshotStatus,
 } from "../shared/index";
 
 export const authKindNames = {
@@ -29,7 +30,15 @@ export const sourceNames: Record<QuotaWindow["source"], string> = {
   local_fixture: "Local fixture",
 };
 
-export const usageTone = (usedPercent?: number): "low" | "medium" | "high" => {
+export type UsageTone = "low" | "medium" | "high" | "stale";
+
+export const usageTone = (
+  usedPercent?: number,
+  status?: SnapshotStatus,
+): UsageTone => {
+  if (status === "stale") {
+    return "stale";
+  }
   if (usedPercent !== undefined && usedPercent >= 90) {
     return "high";
   }

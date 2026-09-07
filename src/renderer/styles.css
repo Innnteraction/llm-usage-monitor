@@ -318,6 +318,10 @@ h2 {
   background: var(--high);
 }
 
+.quota-meter.tone-stale::-webkit-progress-value {
+  background: var(--muted);
+}
+
 .quota-value {
   justify-content: flex-end;
   font-size: 0.74rem;
@@ -343,6 +347,10 @@ h2 {
   color: var(--high);
 }
 
+.local-token-help.quota-value.tone-stale {
+  color: var(--muted);
+}
+
 .tone-low {
   color: var(--low);
 }
@@ -353,6 +361,10 @@ h2 {
 
 .tone-high {
   color: var(--high);
+}
+
+.tone-stale {
+  color: var(--muted);
 }
 
 .quota-reset {

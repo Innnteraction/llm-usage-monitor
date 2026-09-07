@@ -17,6 +17,9 @@ describe("renderer selectors", () => {
     expect(usageTone(89)).toBe("medium");
     expect(usageTone(90)).toBe("high");
     expect(usageTone(100)).toBe("high");
+    expect(usageTone(50, "fresh")).toBe("low");
+    expect(usageTone(95, "stale")).toBe("stale");
+    expect(usageTone(undefined, "stale")).toBe("stale");
   });
 
   it("formats token abbreviations accurately", () => {
