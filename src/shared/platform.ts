@@ -21,6 +21,7 @@ export function resolveCliBinary(
   if (platform === "win32") {
     if (name === "claude") return "claude.exe";
     if (name === "antigravity") return "agy.exe";
+    if (name === "codex") return "codex.exe";
     return `${name}.cmd`;
   }
   if (name === "antigravity") return "agy";

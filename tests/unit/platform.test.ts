@@ -7,6 +7,10 @@ import {
   ensurePlatformPath,
   buildTerminalLaunch,
   killProcessTree,
+  getExecutableCandidates,
+  getPlatformFallbackDirectories,
+  findCliBinaryPath,
+  resolveCliBinaryPath,
 } from "../../src/main/platform/index";
 import {
   isMacOS,
@@ -38,7 +42,7 @@ describe("shared platform utilities", () => {
     it("resolves Windows binary extensions correctly", () => {
       expect(resolveCliBinary("claude", "win32")).toBe("claude.exe");
       expect(resolveCliBinary("antigravity", "win32")).toBe("agy.exe");
-      expect(resolveCliBinary("codex", "win32")).toBe("codex.cmd");
+      expect(resolveCliBinary("codex", "win32")).toBe("codex.exe");
       expect(resolveCliBinary("custom", "win32")).toBe("custom.cmd");
     });
 
@@ -243,6 +247,174 @@ describe("main process platform adapter", () => {
       expect(success).toBe(true);
       expect(killSpy).toHaveBeenCalledWith(-5678, "SIGKILL");
       killSpy.mockRestore();
+    });
+  });
+
+  describe("binary resolution and discovery", () => {
+    describe("getExecutableCandidates", () => {
+      it("returns Windows executable candidate names with priority on .exe", () => {
+        expect(getExecutableCandidates("codex", "win32")).toEqual([
+          "codex.exe",
+          "codex.cmd",
+          "codex.bat",
+          "codex",
+        ]);
+        expect(getExecutableCandidates("antigravity", "win32")).toEqual([
+          "agy.exe",
+          "agy.cmd",
+          "agy.bat",
+          "agy",
+        ]);
+        expect(getExecutableCandidates("claude", "win32")).toEqual([
+          "claude.exe",
+          "claude.cmd",
+          "claude.bat",
+          "claude",
+        ]);
+        expect(getExecutableCandidates("custom", "win32")).toEqual([
+          "custom.exe",
+          "custom.cmd",
+          "custom.bat",
+          "custom",
+        ]);
+      });
+
+      it("returns POSIX candidate names on non-Windows", () => {
+        expect(getExecutableCandidates("codex", "darwin")).toEqual(["codex"]);
+        expect(getExecutableCandidates("antigravity", "darwin")).toEqual(["agy"]);
+        expect(getExecutableCandidates("claude", "linux")).toEqual(["claude"]);
+      });
+    });
+
+    describe("getPlatformFallbackDirectories", () => {
+      it("includes OpenAI/Codex/bin and other standard directories on Windows", () => {
+        const dirs = getPlatformFallbackDirectories("win32", {
+          LOCALAPPDATA: "C:\\Users\\test\\AppData\\Local",
+          APPDATA: "C:\\Users\\test\\AppData\\Roaming",
+          USERPROFILE: "C:\\Users\\test",
+          ProgramFiles: "C:\\Program Files",
+        });
+
+        expect(dirs).toContain(
+          path.join("C:\\Users\\test\\AppData\\Local", "Programs", "OpenAI", "Codex", "bin"),
+        );
+        expect(dirs).toContain(
+          path.join("C:\\Users\\test\\AppData\\Local", "Programs", "Codex", "bin"),
+        );
+        expect(dirs).toContain(
+          path.join("C:\\Program Files", "OpenAI", "Codex", "bin"),
+        );
+        expect(dirs).toContain(
+          path.join("C:\\Users\\test\\AppData\\Local", "pnpm"),
+        );
+        expect(dirs).toContain(
+          path.join("C:\\Users\\test\\AppData\\Roaming", "npm"),
+        );
+      });
+
+      it("includes standard Homebrew and local bin paths on macOS", () => {
+        const dirs = getPlatformFallbackDirectories("darwin", {
+          HOME: "/Users/testuser",
+        });
+        expect(dirs).toContain("/opt/homebrew/bin");
+        expect(dirs).toContain("/usr/local/bin");
+        expect(dirs).toContain("/Users/testuser/.local/bin");
+      });
+    });
+
+    describe("findCliBinaryPath", () => {
+      it("finds the candidate in PATH directory on Windows", () => {
+        const mockFiles = new Set([
+          "C:\\bin\\codex.exe",
+        ]);
+
+        const result = findCliBinaryPath("codex", {
+          platform: "win32",
+          env: { PATH: "C:\\bin;C:\\Windows" },
+          fsExists: (p) => mockFiles.has(p),
+        });
+
+        expect(result).toBe("C:\\bin\\codex.exe");
+      });
+
+      it("finds candidate in fallback directory when PATH does not contain it", () => {
+        const mockFiles = new Set([
+          path.join("C:\\Users\\test\\AppData\\Local", "Programs", "OpenAI", "Codex", "bin", "codex.exe"),
+        ]);
+
+        const result = findCliBinaryPath("codex", {
+          platform: "win32",
+          env: {
+            PATH: "C:\\Windows\\System32",
+            LOCALAPPDATA: "C:\\Users\\test\\AppData\\Local",
+          },
+          fsExists: (p) => mockFiles.has(p),
+        });
+
+        expect(result).toBe(
+          path.join("C:\\Users\\test\\AppData\\Local", "Programs", "OpenAI", "Codex", "bin", "codex.exe"),
+        );
+      });
+
+      it("prefers .exe over .cmd when both exist in directory", () => {
+        const mockFiles = new Set([
+          "C:\\bin\\codex.exe",
+          "C:\\bin\\codex.cmd",
+        ]);
+
+        const result = findCliBinaryPath("codex", {
+          platform: "win32",
+          env: { PATH: "C:\\bin" },
+          fsExists: (p) => mockFiles.has(p),
+        });
+
+        expect(result).toBe("C:\\bin\\codex.exe");
+      });
+
+      it("supports fallback to .cmd if only .cmd exists", () => {
+        const mockFiles = new Set([
+          "C:\\bin\\codex.cmd",
+        ]);
+
+        const result = findCliBinaryPath("codex", {
+          platform: "win32",
+          env: { PATH: "C:\\bin" },
+          fsExists: (p) => mockFiles.has(p),
+        });
+
+        expect(result).toBe("C:\\bin\\codex.cmd");
+      });
+
+      it("returns undefined if executable cannot be found", () => {
+        const result = findCliBinaryPath("nonexistent_cli", {
+          platform: "win32",
+          env: { PATH: "C:\\bin" },
+          fsExists: () => false,
+        });
+
+        expect(result).toBeUndefined();
+      });
+    });
+
+    describe("resolveCliBinaryPath", () => {
+      it("returns found full path when executable exists", () => {
+        const mockFiles = new Set(["C:\\tools\\codex.exe"]);
+        const result = resolveCliBinaryPath("codex", {
+          platform: "win32",
+          env: { PATH: "C:\\tools" },
+          fsExists: (p) => mockFiles.has(p),
+        });
+        expect(result).toBe("C:\\tools\\codex.exe");
+      });
+
+      it("falls back to default resolveCliBinary filename when not found", () => {
+        const result = resolveCliBinaryPath("codex", {
+          platform: "win32",
+          env: { PATH: "C:\\tools" },
+          fsExists: () => false,
+        });
+        expect(result).toBe("codex.exe");
+      });
     });
   });
 });

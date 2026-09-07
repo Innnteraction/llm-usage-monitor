@@ -5,7 +5,7 @@ import {
 import { mkdtemp, rmdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { resolveCliBinary } from "../../shared/index";
+import { resolveCliBinaryPath } from "../../main/platform/index";
 
 const VERSION_ARGS = ["--version"] as const;
 const USAGE_ARGS = [
@@ -98,7 +98,9 @@ export class AntigravityCliRunner implements AntigravityProcessRunner {
   constructor(options: AntigravityCliRunnerOptions = {}) {
     this.spawn = options.spawn ?? createNodeSpawn;
     this.platform = options.platform ?? process.platform;
-    this.command = options.command ?? resolveCliBinary("antigravity", this.platform);
+    this.command =
+      options.command ??
+      resolveCliBinaryPath("antigravity", { platform: this.platform });
     this.createTempDirectory =
       options.createTempDirectory ??
       (() => mkdtemp(path.join(tmpdir(), "llm-usage-monitor-agy-")));
