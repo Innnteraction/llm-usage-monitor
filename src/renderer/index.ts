@@ -6,5 +6,8 @@ export {
   formatPercent,
   formatResetAt,
   isResetPending,
+  getResetElapsedPercent,
+  getResetCountdownStyle,
   placeTooltip,
 } from "./presentation";
+export type { ResetCountdownStyle } from "./presentation";

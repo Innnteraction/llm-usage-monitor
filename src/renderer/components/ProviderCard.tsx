@@ -4,7 +4,6 @@ import type {
   ProviderSnapshot,
 } from "../../shared/index";
 import {
-  authKindNames,
   formatUpdatedAt,
   hasFableWindow,
   missingCoreLabels,
@@ -77,11 +76,6 @@ export const ProviderCard = ({
               activeHelp={activeHelp}
               onActiveHelpChange={onActiveHelpChange}
             />
-          ) : null}
-          {provider.providerId === "claude" && provider.authKind ? (
-            <span className="account-client">
-              CLI/{authKindNames[provider.authKind]}
-            </span>
           ) : null}
         </div>
         <span className={`status status-${statusTone}`}>
@@ -191,7 +185,10 @@ export const ProviderCard = ({
             onActiveHelpChange={onActiveHelpChange}
           />
         ) : null}
-        <span>source {sources.join(", ")}</span>
+        <span>
+          source {sources.join(", ")}
+          {provider.providerId === "claude" ? " (Desktop not inspected)" : ""}
+        </span>
         <span>
           updated{" "}
           {formatUpdatedAt(

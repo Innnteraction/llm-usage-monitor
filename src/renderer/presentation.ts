@@ -23,6 +23,105 @@ export const isResetPending = (
 ): boolean =>
   resetsAt !== undefined && new Date(resetsAt).getTime() <= now;
 
+export const getWindowDurationMs = (kind: string): number => {
+  switch (kind) {
+    case "five_hour":
+      return 5 * 60 * 60 * 1000;
+    case "weekly":
+    case "model_weekly":
+      return 7 * 24 * 60 * 60 * 1000;
+    default:
+      return 5 * 60 * 60 * 1000;
+  }
+};
+
+export const getResetElapsedPercent = (
+  resetsAt: string | undefined,
+  now: number,
+  kind: string,
+): number | undefined => {
+  if (!resetsAt) return undefined;
+  const resetTime = new Date(resetsAt).getTime();
+  if (!Number.isFinite(resetTime)) return undefined;
+  if (resetTime <= now) return 100;
+
+  const remainingMs = resetTime - now;
+  const durationMs = getWindowDurationMs(kind);
+  const elapsedMs = durationMs - remainingMs;
+  const percent = (elapsedMs / durationMs) * 100;
+  return Math.min(100, Math.max(0, percent));
+};
+
+export interface ResetCountdownStyle {
+  backgroundImage: string;
+  backgroundSize: string;
+  WebkitBackgroundClip: string;
+  backgroundClip: string;
+  WebkitTextFillColor: string;
+  animation: string;
+  filter?: string;
+}
+
+export const getResetCountdownStyle = (
+  resetsAt: string | undefined,
+  now: number,
+  kind: string,
+): ResetCountdownStyle | undefined => {
+  const elapsed = getResetElapsedPercent(resetsAt, now, kind);
+  if (elapsed === undefined || elapsed >= 100) return undefined;
+
+  const isFiveHour = kind === "five_hour";
+  const baseStyle = {
+    backgroundSize: "200% 100%",
+    WebkitBackgroundClip: "text",
+    backgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+  };
+
+  if (elapsed < 75) {
+    const fillEnd = Math.max(5, Math.round(elapsed));
+    const speed = isFiveHour ? 5.5 : 8.5;
+    return {
+      ...baseStyle,
+      backgroundImage: `linear-gradient(90deg, #7c7c7c 0%, #c4c4c4 ${fillEnd * 0.5}%, #9e9e9e ${fillEnd}%, #7c7c7c ${fillEnd + 8}%, #7c7c7c 100%)`,
+      animation: `smooth-shimmer-flow ${speed}s linear infinite`,
+    };
+  }
+
+  if (elapsed < 88) {
+    const fillEnd = Math.round(elapsed);
+    const speed = isFiveHour ? 4.2 : 6.0;
+    return {
+      ...baseStyle,
+      backgroundImage: `linear-gradient(90deg, #707070 0%, #ffe9b8 ${fillEnd * 0.4}%, #ffffff ${fillEnd - 4}%, #e2b070 ${fillEnd}%, #707070 ${fillEnd + 5}%, #707070 100%)`,
+      animation: `smooth-shimmer-flow ${speed}s linear infinite`,
+    };
+  }
+
+  if (elapsed < 98) {
+    const speed = isFiveHour
+      ? 2.5 - ((elapsed - 88) / 10) * 0.7
+      : 4.15 - ((elapsed - 88) / 10) * 1.05;
+    return {
+      ...baseStyle,
+      backgroundImage:
+        "linear-gradient(90deg, #f49ac2 0%, #fbb489 16%, #fef3a3 33%, #a8e6cf 50%, #a0e0fc 66%, #c3b1e1 83%, #f49ac2 100%)",
+      animation: `pastel-rainbow-flow ${speed.toFixed(2)}s linear infinite`,
+      filter: "drop-shadow(0 0 3px rgba(244, 154, 194, 0.25))",
+    };
+  }
+
+  const speed = isFiveHour ? 1.1 : 1.8;
+  return {
+    ...baseStyle,
+    backgroundImage:
+      "linear-gradient(90deg, #ff1955 0%, #ff8c00 17%, #ffdc00 33%, #00e678 50%, #00dcff 67%, #8c4bff 83%, #ff1955 100%)",
+    animation: `pastel-rainbow-flow ${speed}s linear infinite`,
+    filter:
+      "drop-shadow(0 0 5px rgba(255, 25, 85, 0.5)) drop-shadow(0 0 10px rgba(0, 220, 255, 0.35))",
+  };
+};
+
 export const formatCompactCountdown = (
   resetsAt: string | undefined,
   now: number,
@@ -98,6 +197,7 @@ export const placeTooltip = ({
   viewport,
   footerTop,
   preferAbove = false,
+  placementPreference = "auto",
   gap = 6,
   margin = 20,
 }: {
@@ -106,12 +206,28 @@ export const placeTooltip = ({
   viewport: { width: number; height: number };
   footerTop?: number;
   preferAbove?: boolean;
+  placementPreference?: "auto" | "right" | "below" | "above";
   gap?: number;
   margin?: number;
-}): { left: number; top: number; maxHeight: number; placement: "above" | "below" } => {
+}): { left: number; top: number; maxHeight: number; placement: "above" | "below" | "right" } => {
   const { width, height } = tooltip;
   const protectedBottom = Math.min(viewport.height - margin, (footerTop ?? viewport.height) - gap);
-  const left = Math.max(margin, Math.min(anchor.left, viewport.width - margin - width));
+
+  if (placementPreference === "right") {
+    const rawLeft = anchor.right + gap;
+    const fitsRight = rawLeft + width <= viewport.width - margin;
+    const left = fitsRight
+      ? rawLeft
+      : Math.max(margin, viewport.width - margin - width);
+    const top = Math.max(
+      margin,
+      Math.min(anchor.top, protectedBottom - height),
+    );
+    const maxHeight = Math.max(0, protectedBottom - top);
+    return { left, top, maxHeight, placement: "right" };
+  }
+
+  let left = Math.max(margin, Math.min(anchor.left, viewport.width - margin - width));
   const belowTop = anchor.bottom + gap;
   const fitsBelow = belowTop + height <= protectedBottom;
   const aboveTop = anchor.top - gap - height;
@@ -120,6 +236,15 @@ export const placeTooltip = ({
   const top = placement === "below"
     ? belowTop
     : Math.max(margin, Math.min(aboveTop, protectedBottom - height));
+
+  const overlapsAnchorY = top < anchor.bottom && top + height > anchor.top;
+  if (overlapsAnchorY) {
+    const rightDislodged = anchor.right + gap;
+    if (rightDislodged + width <= viewport.width - margin) {
+      left = rightDislodged;
+    }
+  }
+
   const maxHeight = Math.max(0, protectedBottom - top);
 
   return { left, top, maxHeight, placement };

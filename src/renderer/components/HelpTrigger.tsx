@@ -24,6 +24,7 @@ export interface HelpTriggerProps {
   ariaPressed?: boolean;
   ariaKeyshortcuts?: string;
   disabled?: boolean;
+  placementPreference?: "auto" | "right" | "below" | "above";
 }
 
 export const HelpTrigger: FC<HelpTriggerProps> = ({
@@ -41,6 +42,7 @@ export const HelpTrigger: FC<HelpTriggerProps> = ({
   ariaPressed,
   ariaKeyshortcuts,
   disabled,
+  placementPreference = "auto",
 }) => {
   const tooltipId = `${id}-tooltip`;
   const isOpen = activeHelp === id;
@@ -94,6 +96,7 @@ export const HelpTrigger: FC<HelpTriggerProps> = ({
         viewport: { width: window.innerWidth, height: window.innerHeight },
         footerTop,
         preferAbove: !isHeader,
+        placementPreference,
       });
       const overlapsAnotherTrigger =
         !isHeader &&
@@ -136,7 +139,7 @@ export const HelpTrigger: FC<HelpTriggerProps> = ({
       window.removeEventListener("resize", reposition);
       observer.disconnect();
     };
-  }, [description, isOpen, onActiveHelpChange]);
+  }, [description, isOpen, onActiveHelpChange, placementPreference]);
 
   useEffect(() => {
     if (!isOpen) return;

@@ -57,6 +57,17 @@ export const App = () => {
         refreshing={Boolean(snapshot?.refreshing.length)}
         onRefresh={refresh}
         disabled={!snapshot || snapshot.refreshing.length > 0}
+        activeHelp={activeHelp}
+        onActiveHelpChange={setActiveHelp}
+        compactMode={compactMode}
+        onToggleCompactMode={toggleCompactMode}
+        tokensVisible={tokensVisible}
+        tokenVisibilityPending={tokenVisibilityPending}
+        onToggleTokenVisibility={toggleTokenVisibility}
+        effectiveTheme={effectiveTheme}
+        onToggleTheme={toggleTheme}
+        alwaysOnTop={alwaysOnTop}
+        onToggleAlwaysOnTop={toggleAlwaysOnTop}
       />
 
       {error ? (
@@ -79,7 +90,12 @@ export const App = () => {
         <div ref={providerListContentRef} className="provider-list-content">
           {snapshot ? (
             compactMode ? (
-              <CompactQuotaTable providers={snapshot.providers} now={now} />
+              <CompactQuotaTable
+                providers={snapshot.providers}
+                now={now}
+                activeHelp={activeHelp}
+                onActiveHelpChange={setActiveHelp}
+              />
             ) : (
               snapshot.providers.map((provider, index) => (
                 <ProviderCard
@@ -100,20 +116,7 @@ export const App = () => {
         </div>
       </section>
 
-      <Footer
-        footerRef={appFooterRef}
-        activeHelp={activeHelp}
-        onActiveHelpChange={setActiveHelp}
-        compactMode={compactMode}
-        onToggleCompactMode={toggleCompactMode}
-        tokensVisible={tokensVisible}
-        tokenVisibilityPending={tokenVisibilityPending}
-        onToggleTokenVisibility={toggleTokenVisibility}
-        effectiveTheme={effectiveTheme}
-        onToggleTheme={toggleTheme}
-        alwaysOnTop={alwaysOnTop}
-        onToggleAlwaysOnTop={toggleAlwaysOnTop}
-      />
+      <Footer footerRef={appFooterRef} />
     </main>
   );
 };

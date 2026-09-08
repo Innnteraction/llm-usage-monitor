@@ -539,10 +539,10 @@ test("updates the countdown on its 30 second timer without refreshing provider v
       .locator(".quota")
       .filter({ hasText: "7d" })
       .getByRole("button", { name: /resets/ });
-    await expect(codexWeeklyReset).toHaveText("resets 1m");
+    await expect(codexWeeklyReset).toHaveText("1m");
     const updated = await page.locator(".provider-card").first().locator("footer").getByText(/updated/).textContent();
     await page.clock.runFor(30_000);
-    await expect(codexWeeklyReset).toHaveText("resets 0m");
+    await expect(codexWeeklyReset).toHaveText("0m");
     await expect(weekly).toHaveText("63%");
     await expect(page.locator(".provider-card").first().locator("footer").getByText(/updated/)).toHaveText(updated!);
     await expect(page.getByRole("button", { name: "refresh" })).toBeEnabled();

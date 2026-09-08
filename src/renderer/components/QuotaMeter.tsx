@@ -3,6 +3,7 @@ import {
   formatPercent,
   formatQuotaCountdown,
   formatResetAt,
+  getResetCountdownStyle,
   isResetPending,
 } from "../presentation";
 import { usageTone } from "../selectors";
@@ -68,24 +69,41 @@ export const QuotaMeter = ({
             activeHelp={activeHelp}
             onActiveHelpChange={onActiveHelpChange}
           />
-          <HelpTrigger
-            id={`${providerId}-${window.id}-reset`}
-            label={
-              resetPending
-                ? "reset pending"
-                : `resets ${formatQuotaCountdown(window.resetsAt, now)}`
-            }
-            description={
-              resetPending
-                ? `${identity}Reset pending verification: local reset time is ${formatResetAt(window.resetsAt!)}. Retaining last quota until next provider refresh.`
-                : window.resetsAt
-                  ? `${identity}Local reset time: ${formatResetAt(window.resetsAt)}.${staleNotice}`
-                  : `${identity}Reset time not provided.`
-            }
-            className="quota-reset"
-            activeHelp={activeHelp}
-            onActiveHelpChange={onActiveHelpChange}
-          />
+          {(() => {
+            const countdownText = formatQuotaCountdown(window.resetsAt, now);
+            const countdownStyle = resetPending
+              ? undefined
+              : getResetCountdownStyle(window.resetsAt, now, window.kind);
+            const countdownLabel = countdownStyle ? (
+              <span className="quota-countdown" style={countdownStyle}>
+                {countdownText}
+              </span>
+            ) : (
+              countdownText
+            );
+
+            return (
+              <HelpTrigger
+                id={`${providerId}-${window.id}-reset`}
+                label={resetPending ? "reset pending" : countdownLabel}
+                ariaLabel={
+                  resetPending
+                    ? "reset pending"
+                    : `resets ${countdownText}`
+                }
+                description={
+                  resetPending
+                    ? `${identity}Reset pending verification: local reset time is ${formatResetAt(window.resetsAt!)}. Retaining last quota until next provider refresh.`
+                    : window.resetsAt
+                      ? `${identity}Local reset time: ${formatResetAt(window.resetsAt)}.${staleNotice}`
+                      : `${identity}Reset time not provided.`
+                }
+                className="quota-reset"
+                activeHelp={activeHelp}
+                onActiveHelpChange={onActiveHelpChange}
+              />
+            );
+          })()}
         </>
       )}
       {!unavailable && remaining !== undefined ? (
