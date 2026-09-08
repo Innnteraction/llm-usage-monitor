@@ -88,11 +88,10 @@ export const getResetCountdownStyle = (
   };
 
   if (elapsed < 75) {
-    const fillEnd = Math.max(5, Math.round(elapsed));
     const speed = isFiveHour ? 5.5 : 8.5;
     const bg = isLight
-      ? `linear-gradient(90deg, #64748b 0%, #0f172a ${fillEnd * 0.5}%, #334155 ${fillEnd}%, #64748b ${fillEnd + 8}%, #64748b 100%)`
-      : `linear-gradient(90deg, #7c7c7c 0%, #c4c4c4 ${fillEnd * 0.5}%, #9e9e9e ${fillEnd}%, #7c7c7c ${fillEnd + 8}%, #7c7c7c 100%)`;
+      ? "linear-gradient(90deg, #64748b 0%, #64748b 25%, #334155 40%, #0f172a 50%, #334155 60%, #64748b 75%, #64748b 100%)"
+      : "linear-gradient(90deg, #7c7c7c 0%, #7c7c7c 25%, #9e9e9e 40%, #c4c4c4 50%, #9e9e9e 60%, #7c7c7c 75%, #7c7c7c 100%)";
     return {
       ...baseStyle,
       backgroundImage: bg,
