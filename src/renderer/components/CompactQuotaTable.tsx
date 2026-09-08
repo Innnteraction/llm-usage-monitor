@@ -1,16 +1,16 @@
 import { useState } from "react";
-import type { ProviderSnapshot } from "../../shared/index";
+import type { ProviderSnapshot, QuotaWindow } from "../../shared/index";
 import {
   formatCompactCountdown,
-  formatCompactWindowLabel,
   formatPercent,
+  getResetCountdownStyle,
+  isResetPending,
 } from "../presentation";
 import {
   formatUpdatedAt,
   providerErrorHelp,
   providerNames,
   providerStatusTone,
-  selectDisplayWindows,
   usageTone,
 } from "../selectors";
 import { IconAntigravity, IconClaude, IconOpenAI } from "../icons";
@@ -21,6 +21,7 @@ export interface CompactQuotaTableProps {
   now: number;
   activeHelp?: string;
   onActiveHelpChange?: (id?: string) => void;
+  effectiveTheme?: "light" | "dark";
 }
 
 const ProviderIcon = ({
@@ -45,11 +46,190 @@ const ProviderIcon = ({
   }
 };
 
+interface CapsuleBarProps {
+  label: string;
+  usedPercent?: number;
+  tone?: "low" | "medium" | "high" | "stale";
+  isFable?: boolean;
+  isRainbow?: boolean;
+  title?: string;
+}
+
+const CapsuleBar = ({
+  label,
+  usedPercent,
+  tone,
+  isFable = false,
+  isRainbow = false,
+  title,
+}: CapsuleBarProps) => {
+  const widthPercent = isRainbow
+    ? 100
+    : usedPercent !== undefined
+      ? Math.min(100, Math.max(0, usedPercent))
+      : 0;
+
+  let fillToneClass = "";
+  if (isRainbow) {
+    fillToneClass = "tone-rainbow";
+  } else if (tone === "stale") {
+    fillToneClass = "tone-stale";
+  } else if (isFable) {
+    if (usedPercent !== undefined) {
+      if (usedPercent >= 80 || tone === "high") {
+        fillToneClass = "tone-fable-high";
+      } else if (usedPercent >= 50 || tone === "medium") {
+        fillToneClass = "tone-fable-medium";
+      } else {
+        fillToneClass = "tone-fable-low";
+      }
+    } else {
+      fillToneClass = tone ? `tone-${tone}` : "";
+    }
+  } else if (tone) {
+    fillToneClass = `tone-${tone}`;
+  }
+
+  return (
+    <div
+      className={`compact-capsule${isFable ? " capsule-fable" : ""}`}
+      title={title}
+      role="progressbar"
+      aria-valuenow={usedPercent}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
+      <span className="capsule-label-base">{label}</span>
+      {widthPercent > 0 && (
+        <div
+          className={`capsule-fill ${fillToneClass}`}
+          style={{ width: `${widthPercent}%` }}
+        >
+          <span className="capsule-label-inverted">{label}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const WindowSlot = ({
+  window,
+  now,
+  label,
+  shortLabel,
+  variant = "default",
+  theme = "dark",
+  showPlaceholder = false,
+}: {
+  window?: QuotaWindow;
+  now: number;
+  label?: string;
+  shortLabel: string;
+  variant?: "default" | "fable";
+  theme?: "light" | "dark";
+  showPlaceholder?: boolean;
+}) => {
+  const isFable = variant === "fable";
+  if (!window) {
+    if (showPlaceholder) {
+      return (
+        <div className={`compact-slot${isFable ? " slot-fable" : ""}`}>
+          <CapsuleBar
+            label={shortLabel}
+            tone="stale"
+            isFable={isFable}
+            title={`${label ?? shortLabel}: not tracked`}
+          />
+          <span className="compact-percent">
+            <span className="compact-percent-unavailable">--%</span>
+          </span>
+          <span className="compact-time" title={`${label ?? shortLabel}: not tracked`}>
+            --
+          </span>
+        </div>
+      );
+    }
+    return <div className="compact-slot slot-empty" aria-hidden="true" />;
+  }
+
+  const used = window.usedPercent;
+  const unavailable = used === undefined || window.status === "unavailable";
+  const tone = unavailable ? undefined : usageTone(used, window.status);
+  const resetPending = isResetPending(window.resetsAt, now);
+  const countdown = resetPending
+    ? "pending"
+    : formatCompactCountdown(window.resetsAt, now);
+  const countdownStyle =
+    resetPending || window.status === "stale"
+      ? undefined
+      : getResetCountdownStyle(window.resetsAt, now, window.kind, theme);
+  const windowTitle = `${label ?? window.label} (${countdown}): ${unavailable ? "unavailable" : formatPercent(used)}${window.status === "stale" ? " [stale]" : ""}`;
+
+  let percentToneClass = tone ? `tone-${tone}` : "compact-percent-unavailable";
+  if (isFable && !unavailable && used !== undefined && tone !== "stale") {
+    if (used >= 80 || tone === "high") {
+      percentToneClass = "tone-fable-high";
+    } else if (used >= 50 || tone === "medium") {
+      percentToneClass = "tone-fable-medium";
+    } else {
+      percentToneClass = "tone-fable-low";
+    }
+  }
+
+  return (
+    <div className={`compact-slot${isFable ? " slot-fable" : ""}`}>
+      <CapsuleBar
+        label={shortLabel}
+        usedPercent={unavailable ? undefined : used}
+        tone={tone}
+        isFable={isFable}
+        title={windowTitle}
+      />
+      <span className="compact-percent">
+        {unavailable ? (
+          <span className="compact-percent-unavailable">--%</span>
+        ) : (
+          <span className={percentToneClass}>
+            {formatPercent(used)}
+          </span>
+        )}
+      </span>
+      <span
+        className="compact-time"
+        title={windowTitle}
+        style={countdownStyle}
+      >
+        {countdown}
+      </span>
+    </div>
+  );
+};
+
+const CodexUnlimitedSlot = () => (
+  <div className="compact-slot slot-unlimited">
+    <CapsuleBar
+      label="5h"
+      isRainbow
+      title="Codex has no 5h session limit (Unlimited)"
+    />
+    <span className="compact-percent">
+      <span className="compact-percent-unavailable">--%</span>
+    </span>
+    <span
+      className="compact-time compact-unlimited-time"
+      title="Codex has no 5h session limit (Unlimited)"
+    >
+      ∞
+    </span>
+  </div>
+);
+
 export const CompactQuotaTable = ({
   providers,
   now,
   activeHelp,
   onActiveHelpChange = () => {},
+  effectiveTheme = "dark",
 }: CompactQuotaTableProps) => {
   const [expandedErrors, setExpandedErrors] = useState<Record<string, boolean>>(
     {},
@@ -65,25 +245,33 @@ export const CompactQuotaTable = ({
   return (
     <div className="compact-table" role="table" aria-label="Compact quota summary">
       {providers.map((provider) => {
-        const windows = selectDisplayWindows(provider);
+        const statusTone = providerStatusTone(provider, now);
+        const hasError = Boolean(provider.error);
+        const isErrorExpanded = Boolean(expandedErrors[provider.providerId]);
+
+        // 5h window
+        const fiveHourWindow =
+          provider.providerId === "antigravity"
+            ? provider.quotaWindows.find(
+                (w) => w.id === "agy-gemini-5h" || w.kind === "five_hour",
+              )
+            : provider.quotaWindows.find((w) => w.kind === "five_hour");
+
+        // 7d window
         const weeklyWindow =
           provider.providerId === "antigravity"
             ? provider.quotaWindows.find((w) => w.id === "agy-gemini-weekly") ??
               provider.quotaWindows.find((w) => w.kind === "weekly")
             : provider.quotaWindows.find((w) => w.kind === "weekly");
-        const weeklyUsed = weeklyWindow?.usedPercent;
-        const weeklyTone = usageTone(
-          weeklyUsed,
-          weeklyWindow?.status ?? provider.status,
-        );
 
-        const statusTone = providerStatusTone(provider, now);
-        const windowLabels = windows.map((w) => formatCompactWindowLabel(w));
-        const resets = windows.map((w) =>
-          formatCompactCountdown(w.resetsAt, now),
-        );
-        const hasError = Boolean(provider.error);
-        const isErrorExpanded = Boolean(expandedErrors[provider.providerId]);
+        // fable window (Claude only)
+        const fableWindow =
+          provider.providerId === "claude"
+            ? provider.quotaWindows.find(
+                (w) =>
+                  w.kind === "model_weekly" && /\bfable\b/i.test(w.label),
+              )
+            : undefined;
 
         return (
           <div
@@ -140,55 +328,38 @@ export const CompactQuotaTable = ({
                   onActiveHelpChange={onActiveHelpChange}
                 />
               </div>
-              <div className="compact-gauge-cell">
-                {weeklyUsed === undefined || weeklyWindow?.status === "unavailable" ? (
-                  <span className="quota-not-provided-text">--</span>
-                ) : (
-                  <progress
-                    className={`quota-meter tone-${weeklyTone}`}
-                    max={100}
-                    value={weeklyUsed}
-                    title={`Weekly limit (${formatCompactCountdown(weeklyWindow?.resetsAt, now)}): ${formatPercent(weeklyUsed)}${weeklyWindow?.status === "stale" ? " [stale]" : ""}`}
-                  />
-                )}
-              </div>
-              <span className="compact-percent">
-                {windows.length === 0 ? (
-                  <span className="compact-percent-unavailable">--</span>
-                ) : (
-                  windows.map((w, index) => {
-                    const used = w.usedPercent;
-                    const unavailable =
-                      used === undefined || w.status === "unavailable";
-                    const tone = unavailable
-                      ? undefined
-                      : usageTone(used, w.status);
-                    const text = unavailable ? "--" : formatPercent(used);
 
-                    return (
-                      <span key={w.id || index}>
-                        {index > 0 && (
-                          <span className="compact-separator">|</span>
-                        )}
-                        <span
-                          className={
-                            tone ? `tone-${tone}` : "compact-percent-unavailable"
-                          }
-                        >
-                          {text}
-                        </span>
-                      </span>
-                    );
-                  })
-                )}
-              </span>
-              <span className="compact-window">
-                {windowLabels.length > 0 ? windowLabels.join("|") : "--"}
-              </span>
-              <span className="compact-reset">
-                {resets.length > 0 ? resets.join("|") : "--"}
-              </span>
+              {provider.providerId === "codex" ? (
+                <CodexUnlimitedSlot />
+              ) : (
+                <WindowSlot
+                  window={fiveHourWindow}
+                  now={now}
+                  label="5h session"
+                  shortLabel="5h"
+                  theme={effectiveTheme}
+                />
+              )}
+
+              <WindowSlot
+                window={weeklyWindow}
+                now={now}
+                label="7d weekly"
+                shortLabel="7d"
+                theme={effectiveTheme}
+              />
+
+              <WindowSlot
+                window={fableWindow}
+                now={now}
+                label="Fable weekly"
+                shortLabel="fable"
+                variant="fable"
+                theme={effectiveTheme}
+                showPlaceholder={provider.providerId === "claude"}
+              />
             </div>
+
             {hasError && isErrorExpanded ? (
               <div className="compact-error-row" role="status">
                 <p className="provider-error">

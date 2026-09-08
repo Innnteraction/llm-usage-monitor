@@ -51,7 +51,10 @@ export const App = () => {
   });
 
   return (
-    <main ref={appShellRef} className="app-shell">
+    <main
+      ref={appShellRef}
+      className={`app-shell${compactMode ? " compact-mode" : ""}`}
+    >
       <Header
         headerRef={appHeaderRef}
         refreshing={Boolean(snapshot?.refreshing.length)}
@@ -95,6 +98,7 @@ export const App = () => {
                 now={now}
                 activeHelp={activeHelp}
                 onActiveHelpChange={setActiveHelp}
+                effectiveTheme={effectiveTheme}
               />
             ) : (
               snapshot.providers.map((provider, index) => (

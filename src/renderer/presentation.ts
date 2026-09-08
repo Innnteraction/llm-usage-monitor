@@ -66,11 +66,20 @@ export const getResetCountdownStyle = (
   resetsAt: string | undefined,
   now: number,
   kind: string,
+  theme?: "light" | "dark",
 ): ResetCountdownStyle | undefined => {
   const elapsed = getResetElapsedPercent(resetsAt, now, kind);
   if (elapsed === undefined || elapsed >= 100) return undefined;
 
+  const resolvedTheme: "light" | "dark" =
+    theme ??
+    (typeof document !== "undefined" &&
+    document.documentElement?.dataset?.theme === "light"
+      ? "light"
+      : "dark");
+
   const isFiveHour = kind === "five_hour";
+  const isLight = resolvedTheme === "light";
   const baseStyle = {
     backgroundSize: "200% 100%",
     WebkitBackgroundClip: "text",
@@ -81,9 +90,12 @@ export const getResetCountdownStyle = (
   if (elapsed < 75) {
     const fillEnd = Math.max(5, Math.round(elapsed));
     const speed = isFiveHour ? 5.5 : 8.5;
+    const bg = isLight
+      ? `linear-gradient(90deg, #64748b 0%, #0f172a ${fillEnd * 0.5}%, #334155 ${fillEnd}%, #64748b ${fillEnd + 8}%, #64748b 100%)`
+      : `linear-gradient(90deg, #7c7c7c 0%, #c4c4c4 ${fillEnd * 0.5}%, #9e9e9e ${fillEnd}%, #7c7c7c ${fillEnd + 8}%, #7c7c7c 100%)`;
     return {
       ...baseStyle,
-      backgroundImage: `linear-gradient(90deg, #7c7c7c 0%, #c4c4c4 ${fillEnd * 0.5}%, #9e9e9e ${fillEnd}%, #7c7c7c ${fillEnd + 8}%, #7c7c7c 100%)`,
+      backgroundImage: bg,
       animation: `smooth-shimmer-flow ${speed}s linear infinite`,
     };
   }
@@ -91,9 +103,12 @@ export const getResetCountdownStyle = (
   if (elapsed < 88) {
     const fillEnd = Math.round(elapsed);
     const speed = isFiveHour ? 4.2 : 6.0;
+    const bg = isLight
+      ? `linear-gradient(90deg, #64748b 0%, #b45309 ${fillEnd * 0.4}%, #78350f ${fillEnd - 4}%, #d97706 ${fillEnd}%, #64748b ${fillEnd + 5}%, #64748b 100%)`
+      : `linear-gradient(90deg, #707070 0%, #ffe9b8 ${fillEnd * 0.4}%, #ffffff ${fillEnd - 4}%, #e2b070 ${fillEnd}%, #707070 ${fillEnd + 5}%, #707070 100%)`;
     return {
       ...baseStyle,
-      backgroundImage: `linear-gradient(90deg, #707070 0%, #ffe9b8 ${fillEnd * 0.4}%, #ffffff ${fillEnd - 4}%, #e2b070 ${fillEnd}%, #707070 ${fillEnd + 5}%, #707070 100%)`,
+      backgroundImage: bg,
       animation: `smooth-shimmer-flow ${speed}s linear infinite`,
     };
   }
@@ -102,12 +117,14 @@ export const getResetCountdownStyle = (
     const speed = isFiveHour
       ? 2.5 - ((elapsed - 88) / 10) * 0.7
       : 4.15 - ((elapsed - 88) / 10) * 1.05;
+    const bg = isLight
+      ? "linear-gradient(90deg, #c026d3 0%, #ea580c 16%, #ca8a04 33%, #16a34a 50%, #0284c7 66%, #7c3aed 83%, #c026d3 100%)"
+      : "linear-gradient(90deg, #f49ac2 0%, #fbb489 16%, #fef3a3 33%, #a8e6cf 50%, #a0e0fc 66%, #c3b1e1 83%, #f49ac2 100%)";
     return {
       ...baseStyle,
-      backgroundImage:
-        "linear-gradient(90deg, #f49ac2 0%, #fbb489 16%, #fef3a3 33%, #a8e6cf 50%, #a0e0fc 66%, #c3b1e1 83%, #f49ac2 100%)",
+      backgroundImage: bg,
       animation: `pastel-rainbow-flow ${speed.toFixed(2)}s linear infinite`,
-      filter: "drop-shadow(0 0 3px rgba(244, 154, 194, 0.25))",
+      filter: isLight ? undefined : "drop-shadow(0 0 3px rgba(244, 154, 194, 0.25))",
     };
   }
 
@@ -117,8 +134,9 @@ export const getResetCountdownStyle = (
     backgroundImage:
       "linear-gradient(90deg, #ff1955 0%, #ff8c00 17%, #ffdc00 33%, #00e678 50%, #00dcff 67%, #8c4bff 83%, #ff1955 100%)",
     animation: `pastel-rainbow-flow ${speed}s linear infinite`,
-    filter:
-      "drop-shadow(0 0 5px rgba(255, 25, 85, 0.5)) drop-shadow(0 0 10px rgba(0, 220, 255, 0.35))",
+    filter: isLight
+      ? "drop-shadow(0 0 3px rgba(255, 25, 85, 0.35))"
+      : "drop-shadow(0 0 5px rgba(255, 25, 85, 0.5)) drop-shadow(0 0 10px rgba(0, 220, 255, 0.35))",
   };
 };
 
