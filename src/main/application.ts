@@ -109,7 +109,7 @@ const positionNearTray = (
   window.setPosition(position.x, position.y, false);
 };
 
-const MINI_WINDOW_HEIGHT = 160;
+const MINI_WINDOW_HEIGHT = 124;
 
 const resizeWindow = (
   window: BrowserWindow,

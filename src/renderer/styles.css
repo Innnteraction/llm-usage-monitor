@@ -67,7 +67,11 @@ button:disabled {
 }
 
 .app-shell.compact-mode {
-  padding: 12px 10px 6px 10px;
+  padding: 10px 10px 6px 10px;
+}
+
+.app-shell.compact-mode .provider-list {
+  margin-top: 8px;
 }
 
 .app-header {
@@ -1043,9 +1047,9 @@ h2 {
 
 .compact-row {
   display: grid;
-  grid-template-columns: 20px 1fr 1fr 1fr;
+  grid-template-columns: 22px 1fr 1fr 1fr;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   line-height: 1.3;
   padding: 3px 2px;
   border-radius: 4px;
@@ -1064,10 +1068,13 @@ h2 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
+  width: 22px;
   height: 18px;
+  margin-right: 5px;
   flex-shrink: 0;
   user-select: none;
+  position: relative;
+  z-index: 1;
 }
 
 .compact-brand-trigger {
@@ -1081,7 +1088,7 @@ h2 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
+  width: 22px;
   height: 18px;
   padding: 0;
   border: none;
@@ -1096,7 +1103,8 @@ h2 {
 .compact-brand-trigger .local-token-trigger:hover,
 .compact-brand-trigger .local-token-trigger:focus-visible {
   opacity: 1;
-  transform: scale(1.08);
+  transform: scale(1.05);
+  transform-origin: center center;
   outline: none;
 }
 
