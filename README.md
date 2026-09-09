@@ -30,11 +30,12 @@ Codex, Claude Code, Antigravity(`agy`)의 5시간·주간 사용량 쿼터(Quota
 | --- | --- |
 | Node.js | 24.x |
 | pnpm | 9.15 이상 10 미만 (`packageManager` 필드로 고정) |
-| Codex | `codex` CLI 로그인 상태 |
+| Codex | `codex` CLI 또는 Codex Desktop 앱 로그인 상태 |
 | Claude Code | `claude` CLI 설치 및 로그인 상태 |
 | Antigravity (선택) | `agy` 1.1.11 이상이 PATH에 있고 로그인 상태 |
 
-macOS에서는 GUI 앱으로 실행돼도 `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, `~/.cargo/bin`을 PATH에 자동 병합하므로 별도 설정 없이 CLI를 찾습니다.
+- **Codex**: 별도 CLI를 설치하지 않아도 **Codex Desktop 앱**이 설치되어 로그인되어 있으면 바이너리와 세션 로그를 자동 감지해 즉시 연동됩니다.
+- **macOS**: GUI 앱으로 실행돼도 `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, `~/.cargo/bin`을 PATH에 자동 병합하므로 별도 설정 없이 CLI를 찾습니다.
 
 ### 2. 설치
 
@@ -103,7 +104,10 @@ claude --safe-mode --ax-screen-reader --restricted --strict-mcp-config --tools "
 
 ### Codex
 
-`codex` CLI에 로그인되어 있으면 추가 설정 없이 동작합니다. 로그인이 풀리면 카드에 `Sign in with the CLI to view quota.`가 표시되니 터미널에서 `codex login`을 다시 실행하세요.
+`codex` CLI 또는 **Codex Desktop 앱**에 로그인되어 있으면 추가 설정 없이 동작합니다.
+
+- **Desktop 앱 단독 사용 지원**: 별도의 CLI를 설치하지 않았더라도 Codex Desktop 앱이 설치되어 있으면 `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin` 등의 기본 경로와 `~/.codex/sessions`의 세션 로그를 자동으로 감지하므로, 터미널 PATH 설정 없이도 계정 쿼터와 로컬 토큰 사용량을 모두 추적합니다.
+- **로그인 상태 유지**: 로그인이 풀리면 카드에 `Sign in with the CLI to view quota.`가 표시되니 터미널에서 `codex login`을 실행하거나 Desktop 앱에서 다시 로그인하세요.
 
 ### Antigravity (선택)
 
@@ -121,7 +125,7 @@ claude --safe-mode --ax-screen-reader --restricted --strict-mcp-config --tools "
   - 상세 뷰: 프로바이더별 계정, 진행 막대, 리셋 카운트다운, 로컬 토큰 2줄 보조 뷰
   - 간이 모드: 전 프로바이더의 주간/5h 쿼터를 한 줄씩 요약한 컴팩트 테이블 (`Ctrl/Cmd+Shift+C`)
 - **핀 고정과 자유 배치**
-  - 상단 헤더를 드래그해 화면 어디든 배치하고 마지막 위치를 기억
+  - 화면 내 어느 영역이든(상단 헤더, 카드 여백, 게이지 바 등) 클릭하고 드래그해 자유롭게 배치하고 마지막 위치를 기억
   - 핀 고정(`Ctrl/Cmd+Shift+P`) 시 다른 창에 가려지지 않으며, 재시작 후에도 핀 상태 유지
 - **로컬 토큰 집계**
   - 계정 쿼터와 분리해 이 PC의 CLI 세션 로그(JSONL)를 청크 스트리밍과 체크포인트로 집계 (총 토큰, 입·출력, 캐시 읽기/쓰기)
@@ -149,7 +153,7 @@ claude --safe-mode --ax-screen-reader --restricted --strict-mcp-config --tools "
 
 마우스 조작과 트레이 메뉴:
 
-- 창 이동: 상단 헤더를 드래그합니다. 마지막 위치는 자동으로 기억됩니다.
+- 창 이동: 화면 내 어느 곳이든(헤더, 본문 카드 여백, 게이지 바 등) 클릭하고 드래그합니다. 텍스트 드래그 선택이 방지되어 자연스럽게 이동할 수 있으며, 마지막 위치는 자동으로 기억됩니다.
 - 상세 정보: 게이지·수치·버튼에 마우스를 올리거나 포커스하면 툴팁이 뜹니다.
 - 트레이 아이콘 우클릭: `열기`, `새로고침`, `기본 위치로 재설정`, `로그인 시 시작`(Windows: `Windows 로그인 시 시작`), `종료`.
 
