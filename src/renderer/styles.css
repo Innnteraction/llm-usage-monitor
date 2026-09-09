@@ -32,6 +32,9 @@ body {
   margin: 0;
   overflow: hidden;
   background: var(--surface);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-app-region: drag;
 }
 
 button {
@@ -43,6 +46,21 @@ button {
   font-size: 0.68rem;
   font-weight: 700;
   cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+[role="button"],
+a,
+input,
+select,
+textarea {
+  -webkit-app-region: no-drag;
+}
+
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 button:hover,
@@ -702,6 +720,7 @@ h2 {
   overflow-wrap: anywhere;
   overflow-y: auto;
   white-space: normal;
+  -webkit-app-region: no-drag;
 }
 
 .additional-limits {
@@ -1058,6 +1077,7 @@ h2 {
 
 .compact-row.is-error-row {
   cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 
 .compact-row.is-error-row:hover {

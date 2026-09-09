@@ -1,4 +1,4 @@
-# LLM Usage Monitor (v0.9.4)
+# LLM Usage Monitor (v0.9.5)
 
 Codex, Claude Code, Antigravity(`agy`)의 5시간·주간 사용량 쿼터(Quota)와 이 PC의 로컬 토큰 사용량을 한눈에 보여주는 macOS·Windows 트레이 앱입니다.
 
