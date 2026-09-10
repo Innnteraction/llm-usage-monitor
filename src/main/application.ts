@@ -170,7 +170,7 @@ export const startApplication = (): void => {
   let beforeQuit: ((event: { preventDefault(): void }) => void) | undefined;
   let mainWindow: BrowserWindow | undefined;
   let tray: Tray | undefined;
-  let tokensVisible = false;
+  let tokensVisible = true;
   let requestedContentHeight: number | undefined;
   let isAlwaysOnTop = false;
   let customPosition: { x: number; y: number } | undefined;

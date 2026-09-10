@@ -378,8 +378,25 @@ function asBuffer(chunk: Buffer | string): Buffer {
 }
 
 function isSupportedVersion(value: string): boolean {
-  const match = /^v?1\.1\.(\d+)$/.exec(value.trim());
-  return match !== null && Number(match[1]) >= 11;
+  const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value.trim());
+  if (!match) {
+    return false;
+  }
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+  if (major > 1) {
+    return true;
+  }
+  if (major === 1) {
+    if (minor > 1) {
+      return true;
+    }
+    if (minor === 1) {
+      return patch >= 11;
+    }
+  }
+  return false;
 }
 
 function isUsageJson(value: string): boolean {

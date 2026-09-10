@@ -17,8 +17,6 @@ export const App = () => {
     compactMode,
     toggleCompactMode,
     tokensVisible,
-    tokenVisibilityPending,
-    toggleTokenVisibility,
     finishTokenVisibilityAdjust,
     displayError,
     setDisplayError,
@@ -64,9 +62,6 @@ export const App = () => {
         onActiveHelpChange={setActiveHelp}
         compactMode={compactMode}
         onToggleCompactMode={toggleCompactMode}
-        tokensVisible={tokensVisible}
-        tokenVisibilityPending={tokenVisibilityPending}
-        onToggleTokenVisibility={toggleTokenVisibility}
         effectiveTheme={effectiveTheme}
         onToggleTheme={toggleTheme}
         alwaysOnTop={alwaysOnTop}

@@ -7,7 +7,6 @@ import {
   IconMoon,
   IconPin,
   IconSun,
-  IconTokens,
 } from "../icons";
 import {
   APP_NAME,
@@ -25,9 +24,6 @@ export interface HeaderProps {
   onActiveHelpChange: (id?: string) => void;
   compactMode: boolean;
   onToggleCompactMode: () => void;
-  tokensVisible: boolean;
-  tokenVisibilityPending: boolean;
-  onToggleTokenVisibility: () => void;
   effectiveTheme: "light" | "dark";
   onToggleTheme: () => void;
   alwaysOnTop: boolean;
@@ -43,9 +39,6 @@ export const Header: FC<HeaderProps> = ({
   onActiveHelpChange,
   compactMode,
   onToggleCompactMode,
-  tokensVisible,
-  tokenVisibilityPending,
-  onToggleTokenVisibility,
   effectiveTheme,
   onToggleTheme,
   alwaysOnTop,
@@ -106,19 +99,6 @@ export const Header: FC<HeaderProps> = ({
           onActiveHelpChange={onActiveHelpChange}
         />
         <HelpTrigger
-          id="token-visibility-toggle"
-          label={<IconTokens filled={tokensVisible} />}
-          className="display-toggle token-toggle"
-          ariaLabel="Tokens"
-          ariaPressed={tokensVisible}
-          ariaKeyshortcuts={`${ariaModKey}+Shift+T`}
-          disabled={tokenVisibilityPending}
-          onClick={onToggleTokenVisibility}
-          description={`Tokens: ${tokensVisible ? "on" : "off"} (${modKey}+Shift+T)`}
-          activeHelp={activeHelp}
-          onActiveHelpChange={onActiveHelpChange}
-        />
-        <HelpTrigger
           id="theme-toggle"
           label={effectiveTheme === "dark" ? <IconMoon filled /> : <IconSun filled />}
           className="display-toggle theme-toggle"
@@ -170,12 +150,6 @@ export const Header: FC<HeaderProps> = ({
                     <kbd>{modKey}</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>
                   </span>
                   <span className="help-desc">Toggle compact mode</span>
-                </li>
-                <li className="help-shortcut-row">
-                  <span className="help-keys">
-                    <kbd>{modKey}</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>
-                  </span>
-                  <span className="help-desc">Toggle local tokens</span>
                 </li>
                 <li className="help-shortcut-row">
                   <span className="help-keys">

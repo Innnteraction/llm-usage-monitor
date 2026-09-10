@@ -75,11 +75,17 @@ async function nextCall(calls: Call[], index: number): Promise<Call> {
   throw new Error("expected process call");
 }
 
-async function completeSupportedRun(calls: Call[], usage = '{"status":"success"}'): Promise<void> {
-  const version = await nextCall(calls, 0);
-  version.child.emitStdout("v1.1.25"); version.child.emitClose();
+async function completeSupportedRun(
+  calls: Call[],
+  usage = '{"status":"success"}',
+  version = "v1.1.25",
+): Promise<void> {
+  const versionCall = await nextCall(calls, 0);
+  versionCall.child.emitStdout(version);
+  versionCall.child.emitClose();
   const usageCall = await nextCall(calls, 1);
-  usageCall.child.emitStdout(usage); usageCall.child.emitClose();
+  usageCall.child.emitStdout(usage);
+  usageCall.child.emitClose();
 }
 
 describe("AntigravityCliRunner", () => {
@@ -98,19 +104,23 @@ describe("AntigravityCliRunner", () => {
     expect(removed).toEqual(["C:/temp/agy-unique"]);
   });
 
-  it("rejects versions older than 1.1.11 without invoking usage, while accepting newer patches", async () => {
-    const old = createSpawn();
-    const oldRunner = new AntigravityCliRunner({ spawn: old.spawn, createTempDirectory: async () => "C:/temp/old", removeEmptyDirectory: async () => undefined });
-    const oldResult = oldRunner.readUsage();
-    (await nextCall(old.calls, 0)).child.emitStdout("1.1.10"); old.calls[0]!.child.emitClose();
-    await expect(oldResult).rejects.toMatchObject({ reason: "unsupported" });
-    expect(old.calls).toHaveLength(1);
+  it("rejects versions older than 1.1.11 without invoking usage, while accepting newer patches, minor, and major versions", async () => {
+    for (const rejectedVersion of ["1.1.10", "1.0.5", "0.9.0", "invalid"]) {
+      const old = createSpawn();
+      const oldRunner = new AntigravityCliRunner({ spawn: old.spawn, createTempDirectory: async () => "C:/temp/old", removeEmptyDirectory: async () => undefined });
+      const oldResult = oldRunner.readUsage();
+      (await nextCall(old.calls, 0)).child.emitStdout(rejectedVersion); old.calls[0]!.child.emitClose();
+      await expect(oldResult).rejects.toMatchObject({ reason: "unsupported" });
+      expect(old.calls).toHaveLength(1);
+    }
 
-    const current = createSpawn();
-    const currentRunner = new AntigravityCliRunner({ spawn: current.spawn, createTempDirectory: async () => "C:/temp/new", removeEmptyDirectory: async () => undefined });
-    const currentResult = currentRunner.readUsage();
-    await completeSupportedRun(current.calls);
-    await expect(currentResult).resolves.toBe('{"status":"success"}');
+    for (const acceptedVersion of ["1.1.11", "1.1.25", "1.2.0", "1.3.0", "2.0.0"]) {
+      const current = createSpawn();
+      const currentRunner = new AntigravityCliRunner({ spawn: current.spawn, createTempDirectory: async () => "C:/temp/new", removeEmptyDirectory: async () => undefined });
+      const currentResult = currentRunner.readUsage();
+      await completeSupportedRun(current.calls, '{"status":"success"}', acceptedVersion);
+      await expect(currentResult).resolves.toBe('{"status":"success"}');
+    }
   });
 
   it("classifies missing executables, spawn throws, non-closing errors, and service output without exposing secrets", async () => {

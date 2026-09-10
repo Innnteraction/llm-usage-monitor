@@ -14,7 +14,7 @@ agy --print /usage --output-format json --print-timeout 20s
 
 [공식 변경 기록](https://antigravity.google/changelog)의 1.1.11(2026-08-07)은 read-only slash command의 JSON 결과와 에이전트 턴·quota 소비·대화 생성 없는 동작을 명시한다. [Models 문서](https://antigravity.google/docs/models/)는 Gemini 및 Claude/GPT 모델군의 주간·5시간 잔여량을 설명한다. 이 모델군 이름은 Antigravity 내부 구분이며 이전 Gemini CLI 호환 기능이 아니다.
 
-2026-09-03 Windows에서 `agy` 1.1.25의 JSON 구조와 아래 필드 계약을 검사했다. 종료 성공, `num_turns: 0`, 유효한 잔여 비율과 reset 시각을 확인했다. 실제 수치·날짜·계정·원문은 저장하지 않았고 필드 타입, 허용 enum 분류와 Boolean 결과만 출력했다. 조사 도중 설치 버전 1.1.23→1.1.24→1.1.25가 관측됐으나 앱이 업데이트를 실행한 것은 아니며 변경 원인은 확인되지 않았다.
+2026-09-03 Windows에서 `agy` 1.1.25의 JSON 구조와 아래 필드 계약을 검사했고, 2026-09-10 `agy` 1.2.0에서도 동일한 필드 계약과 호환성을 확인했다. 종료 성공, `num_turns: 0`, 유효한 잔여 비율과 reset 시각을 확인했다. 실제 수치·날짜·계정·원문은 저장하지 않았고 필드 타입, 허용 enum 분류와 Boolean 결과만 출력했다. 조사 도중 설치 버전 1.1.23→1.1.24→1.1.25→1.2.0이 관측됐으나 앱이 업데이트를 실행한 것은 아니며 변경 원인은 확인되지 않았다.
 
 ## 정규화 계약
 
@@ -36,7 +36,7 @@ agy --print /usage --output-format json --print-timeout 20s
 
 ## 인증·프로세스 경계
 
-- 실행기는 1.1.11 이상인 1.1.x를 대상으로 하고, 다른 major/minor나 해석할 수 없는 버전에서는 usage 명령을 실행하지 않는다. patch별 문자열 고정 대신 매 응답의 JSON 계약도 검증한다.
+- 실행기는 1.1.11 이상(상위 minor 및 major 버전 포함)을 대상으로 하며, 최소 요구 버전 미만이나 해석할 수 없는 형식에서는 usage 명령을 실행하지 않는다. 실제 출력 구조는 매 응답마다 JSON 스키마 계약으로 엄격하게 검증한다.
 - 앱은 credential, keyring, vendor 설정 파일을 직접 읽거나 쓰지 않는다. 로그인과 refresh는 CLI가 소유한다.
 - 신규 빈 임시 디렉터리에서 고정 인자로 실행한다. 전역 plugins·hooks·MCP까지 완전 격리됐다는 뜻은 아니다. 공식 CLI-direct 경로를 유지하고 이를 일반 agent 실행에 재사용하지 않는다.
 - stdout·stderr는 메모리에서 크기를 제한하고 원문 파일이나 로그를 만들지 않는다. 고정 오류 코드와 복구 안내만 외부로 내보낸다.

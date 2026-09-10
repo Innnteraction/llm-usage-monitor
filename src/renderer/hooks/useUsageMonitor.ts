@@ -14,7 +14,7 @@ export const useUsageMonitor = () => {
   const [notice, setNotice] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [compactMode, setCompactMode] = useState(false);
-  const [tokensVisible, setTokensVisible] = useState(false);
+  const [tokensVisible, setTokensVisible] = useState(true);
   const [tokenVisibilityPending, setTokenVisibilityPending] = useState(false);
   const [displayError, setDisplayError] = useState("");
   const [systemTheme, setSystemTheme] = useState<"light" | "dark">(() =>
@@ -135,9 +135,6 @@ export const useUsageMonitor = () => {
       if (isShortcutMatch(event, "KeyC", isMac)) {
         event.preventDefault();
         toggleCompactMode();
-      } else if (isShortcutMatch(event, "KeyT", isMac)) {
-        event.preventDefault();
-        toggleTokenVisibility();
       } else if (isShortcutMatch(event, "KeyL", isMac)) {
         event.preventDefault();
         toggleTheme();
@@ -148,7 +145,7 @@ export const useUsageMonitor = () => {
     };
     window.addEventListener("keydown", handleKeyboard);
     return () => window.removeEventListener("keydown", handleKeyboard);
-  }, [toggleAlwaysOnTop, toggleCompactMode, toggleTheme, toggleTokenVisibility]);
+  }, [toggleAlwaysOnTop, toggleCompactMode, toggleTheme]);
 
   // IPC subscription and initial state
   useEffect(() => {
