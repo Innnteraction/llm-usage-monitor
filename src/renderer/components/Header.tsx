@@ -1,9 +1,9 @@
 import { useEffect, useState, type FC, type RefObject } from "react";
 import { HelpTrigger } from "./HelpTrigger";
 import {
-  IconCompactCollapse,
-  IconCompactExpand,
+  IconAddSquare,
   IconHelp,
+  IconMinusSquare,
   IconMoon,
   IconPin,
   IconSun,
@@ -84,10 +84,9 @@ export const Header: FC<HeaderProps> = ({
       <div className="header-actions">
         <HelpTrigger
           id="compact-mode-toggle"
-          label={compactMode ? <IconCompactExpand /> : <IconCompactCollapse />}
+          label={compactMode ? <IconAddSquare /> : <IconMinusSquare />}
           className="display-toggle compact-toggle"
           ariaLabel={compactMode ? "Expand to detailed mode" : "Collapse to compact mode"}
-          ariaPressed={compactMode}
           ariaKeyshortcuts={`${ariaModKey}+Shift+C`}
           onClick={onToggleCompactMode}
           description={
@@ -128,10 +127,11 @@ export const Header: FC<HeaderProps> = ({
         />
         <HelpTrigger
           id="keyboard-help"
-          label={<IconHelp />}
+          label={<IconHelp filled={activeHelp === "keyboard-help"} />}
           className="help-trigger-toggle header-help-trigger"
           testId="keyboard-help-trigger"
           ariaLabel="Shortcuts and help"
+          ariaPressed={activeHelp === "keyboard-help"}
           description={
             <div className="help-content">
               <div className="help-header">
