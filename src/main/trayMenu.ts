@@ -1,4 +1,4 @@
-import { APP_NAME, APP_VERSION } from "../shared/index";
+import { APP_NAME, APP_VERSION, getMessages, type Locale } from "../shared/index";
 import { getLaunchAtLoginLabel } from "./platform/index";
 
 export interface TrayMenuActions {
@@ -46,32 +46,36 @@ export const createTrayMenuTemplate = (
   getLaunchAtLogin: () => boolean,
   actions: TrayMenuActions,
   platform: NodeJS.Platform = process.platform,
-) => [
-  { label: `${APP_NAME} v${APP_VERSION}`, enabled: false },
-  { type: "separator" as const },
-  { label: "열기", click: actions.open },
-  { label: "새로고침", click: actions.refresh },
-  ...(actions.resetPosition
-    ? [{ label: "기본 위치로 재설정", click: actions.resetPosition }]
-    : []),
-  {
-    label: getLaunchAtLoginLabel(platform),
-    type: "checkbox" as const,
-    checked: getLaunchAtLogin(),
-    click: (menuItem: { checked: boolean }) => {
-      const requestedChecked = menuItem.checked;
-      void Promise.resolve()
-        .then(() => actions.setLaunchAtLogin(requestedChecked))
-        .catch(() => undefined)
-        .then(() => {
-          try {
-            menuItem.checked = getLaunchAtLogin();
-          } catch {
-            // The existing menu item remains usable when the OS setting is unavailable.
-          }
-        });
+  locale: Locale = "en",
+) => {
+  const messages = getMessages(locale).tray;
+  return [
+    { label: `${APP_NAME} v${APP_VERSION}`, enabled: false },
+    { type: "separator" as const },
+    { label: messages.open, click: actions.open },
+    { label: messages.refresh, click: actions.refresh },
+    ...(actions.resetPosition
+      ? [{ label: messages.resetPosition, click: actions.resetPosition }]
+      : []),
+    {
+      label: getLaunchAtLoginLabel(platform, locale),
+      type: "checkbox" as const,
+      checked: getLaunchAtLogin(),
+      click: (menuItem: { checked: boolean }) => {
+        const requestedChecked = menuItem.checked;
+        void Promise.resolve()
+          .then(() => actions.setLaunchAtLogin(requestedChecked))
+          .catch(() => undefined)
+          .then(() => {
+            try {
+              menuItem.checked = getLaunchAtLogin();
+            } catch {
+              // The existing menu item remains usable when the OS setting is unavailable.
+            }
+          });
+      },
     },
-  },
-  { type: "separator" as const },
-  { label: "종료", click: actions.quit },
-];
+    { type: "separator" as const },
+    { label: messages.quit, click: actions.quit },
+  ];
+};

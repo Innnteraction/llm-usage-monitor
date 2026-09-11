@@ -1,0 +1,36 @@
+import type { I18nMessages } from "../types";
+
+export const en: I18nMessages = {
+  tray: {
+    open: "Open",
+    refresh: "Refresh",
+    resetPosition: "Reset Position",
+    launchAtLoginWin: "Start on Windows login",
+    launchAtLoginMac: "Start at login",
+    quit: "Quit",
+  },
+  errors: {
+    not_installed: "CLI is not installed.",
+    not_authenticated: "Sign in with the CLI to view quota.",
+    workspace_trust_required: "Workspace trust confirmation required.",
+    unsupported_output: "Unsupported CLI response format.",
+    rate_limited: "Request limit reached.",
+    network: "Check network connection.",
+    timeout: "CLI request timed out.",
+    process_failed: "CLI process execution failed.",
+    unavailable: "Quota is currently unavailable.",
+    unexpected: "An unexpected error occurred.",
+  },
+  ui: {
+    appName: "LLM Usage Monitor",
+    loading: "Loading quota…",
+    refreshQuota: "Refresh quota",
+    expandDetailed: "Expand to detailed mode",
+    collapseCompact: "Collapse to compact mode",
+    alwaysOnTop: "Always on top",
+    toggleTheme: "Toggle theme",
+    localSessionTokens: "Local session tokens",
+    additionalLimits: (count: number) => `+${count} additional limits`,
+    lastSuccessful: (time: string) => ` Last successful ${time}.`,
+  },
+};

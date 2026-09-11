@@ -13,6 +13,7 @@ import {
 export interface QuotaProvider {
   readonly id: ProviderId;
   fetchQuota(): Promise<ProviderSnapshot>;
+  dispose?(): Promise<void>;
 }
 
 export interface UsageStoreOptions {

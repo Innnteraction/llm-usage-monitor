@@ -6,27 +6,10 @@ import {
   screen,
   Tray,
 } from "electron";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import {
-  ClaudeQuotaProvider,
-  CodexQuotaProvider,
-  AntigravityQuotaProvider,
-  createClaudeInitialSnapshot,
-  createCodexInitialSnapshot,
-  createAntigravityInitialSnapshot,
-} from "../providers/index";
+import { UsageMonitorCore } from "../core/index";
 import type { ProviderId } from "../shared/index";
-import {
-  createLocalUsageCoordinator,
-  createUsagePoller,
-  createUsageStore,
-} from "../usage/index";
-import {
-  ClaudeLocalUsageScanner,
-  CodexLocalUsageScanner,
-  LocalUsageCheckpointStore,
-} from "../local-usage/index";
 import { openClaudeSetup } from "./claudeSetup";
 import { registerIpcHandlers } from "./ipc";
 import { configureRuntime, registerRendererDiagnostics, registerRuntimeDiagnostics } from "./runtime";
@@ -35,12 +18,6 @@ import {
   getAlwaysOnTopLevel,
   setupPlatformDock,
 } from "./platform/index";
-import {
-  mergeCachedSnapshots,
-  SNAPSHOT_CACHE_FILENAME,
-  SnapshotCache,
-} from "./snapshotCache";
-import { createFakeUsageStore } from "./fakeUsage";
 import { createTrayIcon } from "./trayIcon";
 import { createBeforeQuitHandler, createTrayMenuTemplate } from "./trayMenu";
 import {
@@ -52,21 +29,7 @@ import {
 
 const WINDOW_SIZE = { width: 480, height: 360 };
 const COMPACT_WINDOW_HEIGHT = 304;
-const CLAUDE_SETUP_READY_MARKER = "claude-setup-ready-v1";
-
-const pathExists = async (filePath: string): Promise<boolean> => {
-  try {
-    await access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const markClaudeSetupReady = async (filePath: string): Promise<void> => {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, "ready\n", { encoding: "utf8", flag: "w" });
-};
+const MINI_WINDOW_HEIGHT = 124;
 
 interface StoredPreferences {
   alwaysOnTop?: boolean;
@@ -108,8 +71,6 @@ const positionNearTray = (
   });
   window.setPosition(position.x, position.y, false);
 };
-
-const MINI_WINDOW_HEIGHT = 124;
 
 const resizeWindow = (
   window: BrowserWindow,
@@ -217,58 +178,13 @@ export const startApplication = (): void => {
     const keepVisibleForTest =
       useFakeProviders &&
       process.env.LLM_USAGE_MONITOR_E2E_KEEP_VISIBLE !== "0";
-    const markerPath = path.join(
-      app.getPath("userData"),
-      CLAUDE_SETUP_READY_MARKER,
-    );
-    const setupWasReady = await pathExists(markerPath);
-    const initialTime = new Date();
-    const antigravityProvider = new AntigravityQuotaProvider();
-    const providers = [new CodexQuotaProvider(), new ClaudeQuotaProvider(), antigravityProvider];
-    const defaultSnapshots = [
-      createCodexInitialSnapshot(initialTime),
-      createClaudeInitialSnapshot(initialTime),
-      createAntigravityInitialSnapshot(initialTime),
-    ];
-    const snapshotCache = useFakeProviders
-      ? undefined
-      : new SnapshotCache(
-          path.join(app.getPath("userData"), SNAPSHOT_CACHE_FILENAME),
-        );
-    const cachedSnapshots = (await snapshotCache?.load()) ?? [];
-    const store = useFakeProviders
-      ? createFakeUsageStore()
-      : createUsageStore({
-          providers,
-          initialSnapshots: mergeCachedSnapshots(
-            defaultSnapshots,
-            cachedSnapshots,
-          ),
-        });
-    const poller = useFakeProviders
-      ? undefined
-      : createUsagePoller({
-          store,
-          providerIds: providers.map(({ id }) => id),
-        });
-    const checkpointStore = useFakeProviders
-      ? undefined
-      : new LocalUsageCheckpointStore(
-          path.join(app.getPath("userData"), "local-usage-index-v1.json"),
-        );
-    const localUsageCoordinator = useFakeProviders
-      ? undefined
-      : createLocalUsageCoordinator({
-          store,
-          scanners: [
-            new CodexLocalUsageScanner({
-              checkpointStore: checkpointStore!,
-            }),
-            new ClaudeLocalUsageScanner({
-              checkpointStore: checkpointStore!,
-            }),
-          ],
-        });
+
+    const core = await UsageMonitorCore.create({
+      userDataDir: app.getPath("userData"),
+      useFakeProviders,
+    });
+    const setupWasReady = await core.isClaudeSetupReady();
+
     const preferencesPath = path.join(
       app.getPath("userData"),
       "preferences-v1.json",
@@ -339,27 +255,11 @@ export const startApplication = (): void => {
       }
     });
 
-    const pendingBackground = new Set<Promise<unknown>>();
-    const trackBackground = <T>(operation: Promise<T>): Promise<T> => {
-      pendingBackground.add(operation);
-      void operation.then(
-        () => pendingBackground.delete(operation),
-        () => pendingBackground.delete(operation),
-      );
-      return operation;
-    };
     const refreshUsage = (providerId?: ProviderId): Promise<void> =>
-      trackBackground(
-        Promise.all([
-          poller?.refresh(providerId) ?? store.refresh(providerId),
-          providerId === "antigravity"
-            ? undefined
-            : localUsageCoordinator?.refresh(providerId),
-        ]).then(() => undefined),
-      );
+      core.refresh(providerId);
 
     const ipcController = registerIpcHandlers(ipcMain, mainWindow, {
-      getState: async () => store.getState(),
+      getState: async () => core.getState(),
       refresh: async (providerId) => {
         if (isQuitting) return;
         await refreshUsage(providerId);
@@ -398,64 +298,32 @@ export const startApplication = (): void => {
         return isAlwaysOnTop;
       },
     });
-    const unsubscribe = store.subscribe(ipcController.publishState);
-    const unsubscribeCache = snapshotCache
-      ? store.subscribe((state) => {
-          void snapshotCache.save(state);
-        })
-      : () => undefined;
-    let setupReadyWritten = setupWasReady;
-    const unsubscribeSetup = store.subscribe((state) => {
-      if (
-        !setupReadyWritten &&
-        state.providers.some(
-          ({ providerId, status }) =>
-            providerId === "claude" && status === "fresh",
-        )
-      ) {
-        setupReadyWritten = true;
-        void trackBackground(
-          markClaudeSetupReady(markerPath).catch(() => {
-            setupReadyWritten = false;
-          }),
-        );
-      }
-    });
+
+    const unsubscribe = core.subscribe(ipcController.publishState);
+
     let shutdownPromise: Promise<void> | undefined;
     shutdown = (): Promise<void> => {
       shutdownPromise ??= (async () => {
         mainWindow?.hide();
         unsubscribe();
-        unsubscribeCache();
-        unsubscribeSetup();
         ipcController.dispose();
         try {
-          await Promise.allSettled([
-            antigravityProvider.close(),
-            poller?.stop(),
-            localUsageCoordinator?.stop(),
-            ...pendingBackground,
-          ]);
+          await core.stop();
         } finally {
-          try {
-            await snapshotCache?.flush();
-          } catch {
-            // A best-effort cache flush must not leave IPC or tray resources alive.
-          }
           tray?.destroy();
           tray = undefined;
         }
       })();
       return shutdownPromise;
     };
+
     beforeQuit = createBeforeQuitHandler({
       hide: () => mainWindow?.hide(),
       shutdown,
       quit: () => app.quit(),
     });
-    void Promise.all([poller?.start(), localUsageCoordinator?.start()]).catch(
-      () => undefined,
-    );
+
+    void core.start().catch(() => undefined);
 
     const refreshAll = (): void => {
       if (isQuitting) return;
@@ -465,6 +333,7 @@ export const startApplication = (): void => {
       if (isQuitting) return;
       app.setLoginItemSettings({ openAtLogin: enabled });
     };
+
     tray = new Tray(createTrayIcon());
     tray.setToolTip("LLM Usage Monitor");
     if (process.platform === "darwin") {

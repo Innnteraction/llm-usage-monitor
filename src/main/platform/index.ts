@@ -133,8 +133,12 @@ export function getAlwaysOnTopLevel(
 
 export function getLaunchAtLoginLabel(
   platform: NodeJS.Platform = process.platform,
+  locale: "en" | "ko" = "en",
 ): string {
-  return platform === "win32" ? "Windows 로그인 시 시작" : "로그인 시 시작";
+  if (locale === "ko") {
+    return platform === "win32" ? "Windows 로그인 시 시작" : "로그인 시 시작";
+  }
+  return platform === "win32" ? "Start on Windows login" : "Start at login";
 }
 
 export function setupPlatformDock(

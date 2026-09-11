@@ -1,0 +1,36 @@
+import type { I18nMessages } from "../types";
+
+export const ko: I18nMessages = {
+  tray: {
+    open: "열기",
+    refresh: "새로고침",
+    resetPosition: "기본 위치로 재설정",
+    launchAtLoginWin: "Windows 로그인 시 시작",
+    launchAtLoginMac: "로그인 시 시작",
+    quit: "종료",
+  },
+  errors: {
+    not_installed: "CLI가 설치되어 있지 않습니다.",
+    not_authenticated: "쿼터를 보려면 CLI로 로그인하세요.",
+    workspace_trust_required: "워크스페이스 신뢰 확인이 필요합니다.",
+    unsupported_output: "지원되지 않는 CLI 응답 형식입니다.",
+    rate_limited: "요청 한도에 도달했습니다.",
+    network: "네트워크 연결을 확인하세요.",
+    timeout: "CLI 요청 시간이 초과되었습니다.",
+    process_failed: "CLI 프로세스 실행에 실패했습니다.",
+    unavailable: "쿼터를 일시적으로 사용할 수 없습니다.",
+    unexpected: "예기치 않은 오류가 발생했습니다.",
+  },
+  ui: {
+    appName: "LLM Usage Monitor",
+    loading: "쿼터 로딩 중…",
+    refreshQuota: "쿼터 새로고침",
+    expandDetailed: "상세 모드로 펼치기",
+    collapseCompact: "컴팩트 모드로 접기",
+    alwaysOnTop: "항상 위에 표시",
+    toggleTheme: "테마 전환",
+    localSessionTokens: "로컬 세션 토큰",
+    additionalLimits: (count: number) => `+${count}개 추가 한도`,
+    lastSuccessful: (time: string) => ` 마지막 정상 수집: ${time}.`,
+  },
+};

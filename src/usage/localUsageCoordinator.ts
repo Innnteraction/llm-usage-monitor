@@ -99,10 +99,15 @@ export function createLocalUsageCoordinator({
     );
   };
 
-  const refresh = async (providerId?: LocalUsageProviderId): Promise<void> => {
-    const providerIds = providerId ? [providerId] : [...scannerById.keys()];
+  const refresh = async (providerId?: string): Promise<void> => {
+    const providerIds = providerId
+      ? scannerById.has(providerId as LocalUsageProviderId)
+        ? [providerId as LocalUsageProviderId]
+        : []
+      : [...scannerById.keys()];
     await Promise.all(providerIds.map(request));
   };
+
 
   return {
     async start(): Promise<void> {

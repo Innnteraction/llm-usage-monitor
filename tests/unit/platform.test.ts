@@ -112,10 +112,16 @@ describe("main process platform adapter", () => {
   });
 
   describe("getLaunchAtLoginLabel", () => {
-    it("returns Windows-specific label on Windows and generic on macOS/Linux", () => {
-      expect(getLaunchAtLoginLabel("win32")).toBe("Windows 로그인 시 시작");
-      expect(getLaunchAtLoginLabel("darwin")).toBe("로그인 시 시작");
-      expect(getLaunchAtLoginLabel("linux")).toBe("로그인 시 시작");
+    it("returns English label by default on Windows and macOS/Linux", () => {
+      expect(getLaunchAtLoginLabel("win32")).toBe("Start on Windows login");
+      expect(getLaunchAtLoginLabel("darwin")).toBe("Start at login");
+      expect(getLaunchAtLoginLabel("linux")).toBe("Start at login");
+    });
+
+    it("returns Korean label when requested", () => {
+      expect(getLaunchAtLoginLabel("win32", "ko")).toBe("Windows 로그인 시 시작");
+      expect(getLaunchAtLoginLabel("darwin", "ko")).toBe("로그인 시 시작");
+      expect(getLaunchAtLoginLabel("linux", "ko")).toBe("로그인 시 시작");
     });
   });
 

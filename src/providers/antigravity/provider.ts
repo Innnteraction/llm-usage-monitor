@@ -131,6 +131,11 @@ export class AntigravityQuotaProvider {
     await Promise.allSettled([...this.activeRunners].map((runner) => runner.close()));
   }
 
+  async dispose(): Promise<void> {
+    await this.close();
+  }
+
+
   private failureSnapshot(
     fetchedAt: string,
     code: keyof typeof ERROR_MESSAGES,

@@ -41,8 +41,8 @@ export const ProviderCard = ({
   const sources = [
     ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
   ];
-  if (provider.providerId === "antigravity" && sources.length === 0) {
-    sources.push("Antigravity CLI");
+  if (sources.length === 0 && providerNames[provider.providerId]) {
+    sources.push(`${providerNames[provider.providerId]} CLI`);
   }
   const primaryWindows = selectDisplayWindows(provider);
   const missingCores = missingCoreLabels(provider);
@@ -177,7 +177,7 @@ export const ProviderCard = ({
         </div>
       ) : null}
       <footer>
-        {tokensVisible && provider.providerId !== "antigravity" ? (
+        {tokensVisible && Boolean(provider.localUsage) ? (
           <LocalUsageView
             providerId={provider.providerId}
             usage={provider.localUsage}

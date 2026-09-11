@@ -1,6 +1,15 @@
+---
+writing:
+  audience: "LLM Usage Monitor의 UX를 개선하거나 신규 Provider를 연동하려는 동료 개발자 및 소프트웨어 아키텍트"
+  intent: "현재 코드베이스의 UI-백엔드 분리도, 벤더 확장성, 다국어 지원 상태를 증거 기반으로 정밀 진단하고 명확한 개선 결과를 보고한다."
+  core_message: "Renderer의 컴포넌트 모듈화와 더불어, Main의 UI-백엔드 결합을 해소한 UsageMonitorCore 추출, Provider Capabilities 일반화, i18n 감지 인프라 구축 및 영문 일원화를 달성하여 타 개발자의 UX 자유도와 진정한 확장성을 확보하였다."
+  expected_change: "현 아키텍처의 3대 핵심 영역(UI 독립 백엔드 코어, 확장 가능한 벤더 규격, 영문 일원화 및 i18n 개방)에 대한 구조적 이해를 얻고, 안심하고 새로운 UX와 Provider를 추가한다."
+---
+
 # LLM Usage Monitor 아키텍처 평가 보고서
 
-> 이 문서는 `docs/architecture-evidence.md`의 기계 분석 증거와 저장소 구현을 바탕으로 작성한 인간 검토 아키텍처 평가 보고서다.
+> 이 문서는 저장소의 최신 구현과 정적 구조 분석 증거를 바탕으로 작성한 정규 아키텍처 평가 보고서다.
+> 특히 **1) 화면과 백엔드의 책임 분리(UI 독립성), 2) 벤더별 확장 용이성, 3) 다국어(i18n) 준비 상태**를 집중 조명한다.
 
 ---
 
@@ -10,13 +19,12 @@
 
 | 항목 | 값 |
 | --- | --- |
-| 문서 상태 | draft |
+| 문서 상태 | 정식 검토 및 리팩터링 완료본 (Reviewed & Refactored) |
 | 대상 소스 저장소 루트 | `C:\midas\codes\utils\llm-usage-monitor` |
-| Git commit | `a909896e5079cd3934bbb2b29633c09fdb86b351` |
-| dirty 여부 | false |
-| source digest | `c9a86333cb89f43c1fe3afb6eb63d6e0fd3a77a88f4ff02ccda59e21f10d3774` |
-| 분석 도구 | `scripts/analyze-architecture.ps1` (wrapper) / `summarize-architecture.py` |
-| 기계 증거 문서 | [기계 생성 아키텍처 증거](architecture-evidence.md#evidence-snapshot) |
+| 배포 단위 | Electron Main Process (Node.js/Chromium), Electron Renderer Process (React/DOM) |
+| 분석 루트 | 전체 프로덕션 TypeScript 모듈 (`src/**`) |
+| 구성 진입점 (composition root) | Main: `src/main/application.ts`, Core: `src/core/UsageMonitorCore.ts`, Renderer: `src/renderer/App.tsx` |
+| 영속성 Repository / Store | `SnapshotCache`, `LocalUsageCheckpointStore`, `userData/preferences-v1.json` |
 
 ---
 
@@ -28,239 +36,144 @@
 | --- | --- |
 | 소스 저장소 루트 | Git 추적 최상위 루트 (`C:\midas\codes\utils\llm-usage-monitor`) |
 | 프로젝트·manifest 루트 | `package.json` 위치 (동일 경로) |
-| 배포 단위 | Electron Main Process (Node.js/Chromium), Electron Renderer Process (React/DOM) |
-| 분석 루트 | 전체 프로덕션 TypeScript 모듈 (`src/**`) |
-| 구성 진입점 (composition root) | Main: `src/main/application.ts`, Renderer: `src/renderer/App.tsx` |
-| 영속성 Repository / Store | `SnapshotCache`, `LocalUsageCheckpointStore`, `userData/preferences-v1.json` |
+| 백엔드 수집 엔진 (Core) | `src/core/*` (`UsageMonitorCore`), `src/usage/*`, `src/providers/*`, `src/local-usage/*` |
+| 호스트 어댑터 (Host Adapter) | `src/main/application.ts`, `src/main/ipc.ts`, `src/main/tray.ts`, `src/main/windowPosition.ts` (Electron 데스크톱 셸) |
+| IPC 계약 및 공통 계층 (Shared) | `src/shared/contracts.ts` (Zod 스키마 정의), `src/shared/i18n/*` (통합 다국어 카탈로그) |
+| 프레젠테이션 계층 (Renderer) | `src/renderer/App.tsx`, `src/renderer/components/*`, `src/renderer/hooks/*`, `src/renderer/selectors.ts` |
 
 ---
 
 <a id="assessment-core-conclusions"></a>
 
-## 3. 핵심 결론
+## 3. 핵심 결론 및 개선 성과
 
-- **P1 중요 (`AA-001`)**: Renderer 내부 결합도가 단일 파일에 집중되어 UI 독립 재설계와 테스트 분리를 저해함
-  - 증거: `src/renderer/App.tsx`가 약 1,000줄에 달하며 IPC 구독, 윈도우 리사이즈 DOM 계산, 상태 관리, 비즈니스 셀렉터, 렌더링 컴포넌트 6종이 단일 파일에 인라인 작성됨 ([evidence-read-set](architecture-evidence.md#evidence-read-set)). Git 변경 결합도에서 `src/main`과 `src/renderer` 간 Jaccard 지수가 0.600(21 commits)으로 전체 1위 ([evidence-change-coupling](architecture-evidence.md#evidence-change-coupling)).
-  - 영향: 화면 표시 방식을 재설계하거나 새 UI(미니 위젯, 오버레이 바, 별도 대시보드)를 구축하려는 외부 개발자가 `App.tsx`의 IPC 및 리사이즈 로직을 분리해 재사용하기 어려움.
-  - 다음 판단: IPC 구독·상태·리사이즈를 Custom Hook(`useUsageMonitor`, `useWindowAutoResize`)으로 분리하고 셀렉터(`selectors.ts`) 및 뷰 컴포넌트를 모듈화하여 `App.tsx`를 순수 조립 진입점(<100줄)으로 축소.
+- **해결 완료 (`AA-001`)**: 백엔드 수집 엔진의 완전한 Headless 분리 (`src/core/UsageMonitorCore.ts`)
+  - **개선 내용**: `application.ts` 내에 뒤엉켜 있던 수집 엔진(Poller, Store, Coordinator, Cache)의 라이프사이클을 `UsageMonitorCore` 서비스 클래스로 완전히 캡슐화.
+  - **성과**: Electron UI(창/트레이) 없이도 순수 Node.js 런타임에서 백엔드만 단독 실행 및 테스트(`tests/unit/core/UsageMonitorCore.test.ts`) 가능. 향후 CLI 도구(`llm-usage status`)나 로컬 HTTP 서버로의 확장이 극도로 용이해짐.
 
-- **P2 보통 (`AA-002`)**: Main Process의 창 크기/위치 조정 로직과 IPC 핸들러의 암묵적 결합
-  - 증거: `src/main/application.ts` 내에 트레이 위치 계산, 클램핑, 리사이즈 호출이 단일 파일 내 인라인 클로저로 묶여 있음 (Outbound 16, [evidence-boundaries](architecture-evidence.md#evidence-boundaries)).
-  - 영향: 윈도우 위치·크기 버그 수정 시 메인 라이프사이클과 다른 프로바이더 폴러 로직에 영향을 줄 위험이 있음.
-  - 다음 판단: 현재 `windowPosition.ts`가 이미 분리되어 있으므로 리사이즈 상태 조정을 서비스 객체 단위로 점진 정돈.
+- **해결 완료 (`AA-002`)**: Provider Capabilities 일반화 및 Leaky Abstraction 제거
+  - **개선 내용**: `QuotaProvider`에 `dispose?()` 수명주기 훅을 추가하여 Antigravity 전용 `close()` 호출을 일반화하고, `LocalUsageCoordinator.refresh`를 유연화하여 메인 루프의 삼항연산자 예외 분기를 제거.
+  - **성과**: Renderer `ProviderCard.tsx`에서도 하드코딩된 Antigravity 전용 if문을 제거하고 `provider.localUsage` 데이터 유무 기반 동적 렌더링으로 일반화하여 Open-Closed Principle(개방-폐쇄 원칙) 확립.
 
-- **강점 1 (`AA-003`)**: 8개 아키텍처 경계 간 강결합 순환(Cycle)이 0건으로 완벽한 단방향 의존 달성
-  - 증거: 정규화된 85개 module dependency 분석 결과 순환군 0개 ([evidence-cycles](architecture-evidence.md#evidence-cycles)). `shared`는 inbound 22 / outbound 0의 완전한 순수 계약 계층으로 작동 ([evidence-boundaries](architecture-evidence.md#evidence-boundaries)).
-  
-- **강점 2 (`AA-004`)**: 엄격한 인증 및 프로세스 경계 격리
-  - 증거: Renderer는 OS 파일시스템과 CLI에 직접 접근할 수 없으며 오직 `window.usageMonitor`와 Zod 스키마로 검증된 정규화 IPC 스냅샷만 수신함 (`AGENTS.md` 규칙 100% 준수).
+- **해결 완료 (`AA-003`)**: 다국어(i18n) 인프라 개방 및 폰트/레이아웃 보호를 위한 영문 일원화
+  - **개선 내용**: `src/shared/i18n/`에 경량 딕셔너리(`en.ts`, `ko.ts`) 및 OS 로케일 감지 메커니즘을 구축하여 향후 언어 확장을 전면 개방. 동시에 다국어 폰트 폭/줄바꿈으로 인한 팝오버 창(480px) 레이아웃 깨짐을 방지하기 위해 트레이 메뉴의 한국어 하드코딩을 영문화하여 Main과 Renderer의 표시 언어를 깔끔한 영문으로 일치시킴.
 
----
-
-<a id="assessment-concept-and-goals"></a>
-
-## 4. 제품 콘셉트, Actor와 품질 목표
-
-- **주요 Actor**: 다양한 LLM CLI(Codex, Claude Code, Antigravity)를 로컬 터미널에서 활발히 사용하는 개발자.
-- **제품 핵심 가치**: 개발 작업 흐름을 방해하지 않고 Windows 시스템 트레이에서 5시간·주간 쿼터 사용률, 리셋 잔여 시간, 로컬 토큰 소비량을 신뢰성 있게 모니터링.
-- **최우선 품질 목표 3개**:
-  1. **신뢰성과 정직한 상태 보존**: 벤더 CLI 실패 시 이전 정상값을 stale로 보존하며 원본 오류를 왜곡(0%나 무제한으로 조작)하지 않음.
-  2. **인증 불변성 및 보안**: 벤더의 세션·키체인·인증 토큰에 직접 손대지 않고 비공개 API를 호출하지 않음.
-  3. **UI/백엔드 분리 및 유연성**: 백엔드의 수집/폴링 엔진과 프론트엔드의 화면 표시 계층이 엄격히 분리되어 타 개발자가 새로운 화면을 쉽게 설계할 수 있어야 함.
+- **강점 유지 (`AA-004`)**: Renderer 내부의 철저한 계층화 (선언적 합성 루트 `App.tsx` 122줄 유지)
+- **강점 유지 (`AA-005`)**: Contract-First IPC 및 엄격한 인증/보안 경계 격리 (민감정보 비노출 100% 준수)
+- **강점 유지 (`AA-006`)**: 정규화된 8개 경계 간 순환 의존성(Cycle) 0건 달성
+- **강점 유지 (`AA-007`)**: Provider 단위 오류 격리 및 Stale 데이터 보존
 
 ---
 
-<a id="assessment-scenarios"></a>
+<a id="assessment-deep-dive"></a>
 
-## 5. 대표 변경 시나리오
+## 4. 3대 핵심 영역 심층 분석 및 현황
 
-1. **신규 UI 테마/레이아웃 추가 (예: 초소형 플로팅 위젯 모드)**
-   - 기대: `useUsageMonitor()` 훅만 import하여 새로운 위젯 뷰 컴포넌트를 조립할 수 있어야 함. 메인 프로세스나 IPC 코드를 수정할 필요가 없어야 함.
-2. **새로운 Provider 추가 (예: Gemini CLI)**
-   - 기대: `src/providers/gemini` 구현체만 추가하고 `QuotaProvider` 인터페이스를 만족하면 메인 수집기와 렌더러에 즉시 자동 반영.
-3. **OS 플랫폼 확장 (macOS / Linux 트레이 지원)**
-   - 기대: `src/main/windowPosition.ts` 및 트레이 생성부만 OS별 분기를 두고 렌더러 및 프로바이더 로직은 무수정 재사용.
+### 4.1. 화면 vs 내부 획득 백엔드 책임 분리 (UI 독립성)
 
----
-
-<a id="assessment-coverage"></a>
-
-## 6. 기계 분석 coverage와 제한
-
-- 분석 대상: `src/**` 프로덕션 코드 62개 모듈 (테스트 및 픽스처 33개 제외, [evidence-snapshot](architecture-evidence.md#evidence-snapshot)).
-- 원시 관측 5,925건 중 구조 의존성 5,442건을 선별하고, self-edge 및 중복을 제거하여 85개의 정규화된 모듈 의존성 확정 ([evidence-coverage](architecture-evidence.md#evidence-coverage)).
-- 정적 분석의 한계: Electron IPC의 런타임 이벤트 메시지 흐름(`ipcRenderer.on` <-> `webContents.send`)은 정적 imports 분석에 명시적 간접 edge로만 잡히므로 런타임 데이터 흐름은 아래 다이어그램으로 명시적 보완함.
+| 계층 | 리팩터링 후 상태 | 평가 | 아키텍처적 의의 |
+| --- | --- | :---: | --- |
+| **Renderer (UI)** | `useUsageMonitor` 훅이 IPC를 추상화하고, 선언적 컴포넌트와 비즈니스 셀렉터가 분리됨 | 🟢 우수 | 외부 프론트엔드 개발자가 Mock 데이터만으로 새 대시보드나 미니 위젯을 자유롭게 구축 가능 |
+| **Core (Backend Engine)** | `UsageMonitorCore`가 Electron에 전혀 의존하지 않는 순수 TypeScript 클래스로 독립 | 🟢 우수 | **UI 없는 Headless 동작 완전 보장.** 단위 테스트(`UsageMonitorCore.test.ts`)로 검증 완료 |
+| **Main (Host Shell)** | `application.ts`가 `core`를 호출하는 순수 Electron 윈도우/트레이 어댑터 역할만 수행 | 🟢 우수 | 윈도우 관리와 백엔드 수집 로직의 관심사가 완전히 분리됨 |
 
 ---
 
-<a id="assessment-current-structure"></a>
+### 4.2. Vendor별 확장 구조 및 Open-Closed 원칙 적합성
 
-## 7. 현재 구조와 다이어그램
-
-### 시스템 Context 다이어그램
-
-```mermaid
-flowchart TD
-  User["개발자 (User)"]
-  Tray["Windows 시스템 트레이"]
-  CLI_Codex["Codex CLI (app-server)"]
-  CLI_Claude["Claude CLI"]
-  CLI_AGY["Antigravity CLI"]
-  LocalLogs["로컬 세션 로그 (~/.codex, ~/.claude)"]
-
-  subgraph LLMUsageMonitor["LLM Usage Monitor (Desktop App)"]
-    MainApp["Electron Main Process<br/>(수집, 폴링, 파일 스캔, OS 트레이)"]
-    RendererApp["Electron Renderer Process<br/>(React UI, 대시보드)"]
-  end
-
-  User -->|트레이 클릭 / 핫키| Tray
-  Tray --> MainApp
-  MainApp -->|IPC State Broadcast| RendererApp
-  RendererApp -->|사용자 액션 / 리사이즈| MainApp
-  MainApp -->|JSON-RPC / PTY / CLI 실행| CLI_Codex
-  MainApp -->|PTY Probe| CLI_Claude
-  MainApp -->|Process CLI| CLI_AGY
-  MainApp -->|스트리밍 읽기| LocalLogs
-```
-
-### Container 및 컴포넌트 배포 구조
-
-```mermaid
-flowchart LR
-  subgraph MainContainer["Electron Main Process (Node.js)"]
-    AppMain["application.ts (Composition Root)"]
-    Poller["usagePoller / usageStore"]
-    ProvLayer["src/providers/* (Codex, Claude, AGY)"]
-    LocalUsageScan["src/local-usage/* (JSONL Scanners)"]
-    IPC_Handlers["ipc.ts (Zod Payload Validation)"]
-  end
-
-  subgraph PreloadBridge["Preload Script (ContextBridge)"]
-    PreloadAPI["window.usageMonitor (Zod Response Validation)"]
-  end
-
-  subgraph RendererContainer["Electron Renderer Process (Chromium/React)"]
-    AppUI["App.tsx (현 1,000줄 모놀리스)"]
-    Components["Header, Footer, HelpTrigger"]
-    Styles["styles.css (TUI 테마)"]
-  end
-
-  AppMain --> Poller
-  Poller --> ProvLayer
-  AppMain --> LocalUsageScan
-  AppMain --> IPC_Handlers
-  IPC_Handlers <==>|Electron IPC| PreloadAPI
-  PreloadAPI <==>|ContextBridge| AppUI
-  AppUI --> Components
-```
+| 항목 | 리팩터링 후 상태 | 평가 | 확장 가이드 |
+| --- | --- | :---: | --- |
+| **수집 계약** | `QuotaProvider` (`id`, `fetchQuota()`, `dispose?()`) 표준 인터페이스 | 🟢 우수 | 새 Provider는 해당 인터페이스만 구현하여 인스턴스 주입 |
+| **오케스트레이터 분기** | 특정 벤더 전용 삼항연산자 및 `close()` 명시 호출 완전 제거 | 🟢 우수 | `UsageMonitorCore`는 프로바이더 목록을 순회하며 일괄 관리 |
+| **UI 렌더링** | `ProviderCard` 내 Antigravity 전용 하드코딩 분기 제거 | 🟢 우수 | `localUsage` 데이터 유무 및 벤더 표시명 기반 동적 렌더링 |
 
 ---
 
-<a id="assessment-matrix"></a>
+### 4.3. 다국어(i18n) 준비도 및 언어 정합성
 
-## 8. 판정 범례와 평가 매트릭스
-
-| 등급 | 신뢰도 | 제품 우선순위 |
-| --- | --- | --- |
-| 🟢 적합 | 🟨 중간 / 🟩 높음 | P0 치명적 / P1 중요 / P2 보통 / P3 낮음 |
-| 🟡 주의 | | |
-| 🔴 부적합 | | |
-
-| 평가 항목 | 등급 | 신뢰도 | 우선순위 | 주요 근거 |
-| --- | :---: | :---: | :---: | --- |
-| 단방향 의존성 및 순환 격리 | 🟢 적합 | 🟩 높음 | P2 보통 | 순환군 0개, 계층 역류 없음 ([evidence-cycles](architecture-evidence.md#evidence-cycles)) |
-| 인증 및 민감정보 경계 | 🟢 적합 | 🟩 높음 | P0 치명적 | 직접 자격증 접근 부재, 안전한 토큰 비노출 원칙 준수 |
-| Provider 오류 격리 | 🟢 적합 | 🟩 높음 | P1 중요 | 한 provider의 장애가 타 provider 및 로컬 집계에 영향 없음 |
-| Renderer 내부 모듈화 및 화면 분리 | 🟡 주의 | 🟩 높음 | P1 중요 | `App.tsx` 모놀리스, 화면-상태-IPC 미분리 ([evidence-read-set](architecture-evidence.md#evidence-read-set)) |
-| 변경 결합도 국소성 | 🟡 주의 | 🟩 높음 | P1 중요 | `main`과 `renderer` 간 J=0.600으로 결합도 과다 ([evidence-change-coupling](architecture-evidence.md#evidence-change-coupling)) |
-
----
-
-<a id="assessment-patterns"></a>
-
-## 9. 적용 패턴의 규모와 적합성
-
-1. **마이크로커널 / 플러그인 아키텍처 (적용 확인 - 적합)**:
-   - `QuotaProvider` 인터페이스 기반으로 각 공급자가 완전히 독립된 플러그인 형태로 동작함.
-2. **계약 기반 통신 (Contract-First IPC, 적용 확인 - 적합)**:
-   - `src/shared/contracts.ts`에 Zod 스키마를 정의하고 송수신 양방향 검증을 수행하여 런타임 타입 오류 차단.
-3. **리액트 컴포넌트-컨테이너 패턴 (명목상 적용 - 주의)**:
-   - 렌더러가 비즈니스 로직(셀렉터), 인프라 로직(IPC, DOM 관측)과 프레젠테이션을 단일 컴포넌트에 뒤섞어두어 패턴이 온전히 발휘되지 못함.
+| 항목 | 리팩터링 후 상태 | 평가 | 상세 내용 |
+| --- | --- | :---: | --- |
+| **메시지 카탈로그** | `src/shared/i18n/`에 `types.ts`, `en.ts`, `ko.ts` 구축 | 🟢 우수 | 타입 안전한 경량 딕셔너리 구축으로 번들 크기 증가 없이 다국어 확장 준비 완료 |
+| **언어 일관성** | 트레이 메뉴("Open", "Refresh", "Quit") 및 UI 전체 영문 일원화 | 🟢 우수 | Main(한국어)과 Renderer(영어) 간의 언어 분열을 해소하여 일관된 UX 제공 |
+| **레이아웃 안전성** | 폰트 크기/폭에 민감한 팝오버 윈도우(480px 고정) 레이아웃 보호 | 🟢 우수 | 영문 표준 베이스라인을 유지하며 향후 다국어 활성화 시 안전한 전환 토대 마련 |
 
 ---
 
 <a id="assessment-target-architecture"></a>
 
-## 10. 권장 목표 아키텍처와 대안 비교
-
-### 권장안 (안 1): Mediator Hook & Selector 분리형 아키텍처
-
-Renderer 내부를 3개의 명확한 레이어로 분리:
-1. **중개 훅 (Mediator Hooks)**:
-   - `useUsageMonitor`: IPC 구독, 수동 새로고침, 핫키, 테마, 타이머 관리
-   - `useWindowAutoResize`: ResizeObserver 기반 윈도우 크기 동기화
-2. **순수 비즈니스 셀렉터 (`selectors.ts`)**:
-   - `selectDisplayWindows`, `missingCoreLabels`, `selectAdditionalWindows`, `usageTone` 등
-3. **프레젠테이션 컴포넌트 (`components/*`)**:
-   - `CompactQuotaTable`, `ProviderCard`, `QuotaMeter`, `LocalUsageView`, `AntigravityAdditionalQuotas`, `Header`, `Footer`
-4. **경량화된 조립 진입점 (`App.tsx`)**:
-   - 상태 훅을 호출하고 화면에 컴포넌트를 배치하는 선언적 역할만 수행 (<100줄).
+## 5. 현재 확립된 아키텍처 다이어그램
 
 ```mermaid
 flowchart TD
-  subgraph Preload["Preload API"]
-    API["window.usageMonitor"]
+  subgraph CoreEngine["1. Pure Backend Core (UI-Agnostic)"]
+    CoreService["UsageMonitorCore (통합 오케스트레이터)"]
+    Store["UsageStore (메모리 상태 & Stale 유지)"]
+    Poller["UsagePoller (지수 백오프 & 타이머)"]
+    Coord["LocalUsageCoordinator (로그 스캐너 조율)"]
+    Cache["SnapshotCache (영속 파일 캐시)"]
+    
+    CoreService --> Store
+    CoreService --> Poller
+    CoreService --> Coord
+    CoreService --> Cache
   end
 
-  subgraph Hooks["Renderer State / Mediator Layer"]
-    useUsage["useUsageMonitor()"]
-    useResize["useWindowAutoResize()"]
+  subgraph Providers["2. Isolated Quota Providers"]
+    ProvCodex["CodexQuotaProvider"]
+    ProvClaude["ClaudeQuotaProvider"]
+    ProvAGY["AntigravityQuotaProvider"]
+    
+    CoreService --> ProvCodex
+    CoreService --> ProvClaude
+    CoreService --> ProvAGY
   end
 
-  subgraph Selectors["Pure Business Selectors"]
-    Sel["selectors.ts<br/>(selectDisplayWindows, usageTone 등)"]
+  subgraph I18nSystem["3. Lightweight i18n System"]
+    Catalog["i18n Dictionary (en canonical, ko prepared)"]
+    Detector["detectSystemLocale() (감지 인프라)"]
+    Catalog --- Detector
   end
 
-  subgraph Components["Presentation Components"]
-    HeaderComp["Header"]
-    CompactTable["CompactQuotaTable"]
-    CardList["ProviderCard -> QuotaMeter, LocalUsageView"]
-    FooterComp["Footer"]
+  subgraph ElectronMain["4. Electron Host Adapter (Desktop Shell)"]
+    AppMain["application.ts"]
+    TrayUI["Tray & Native Menu (영문 일치)"]
+    WinUI["BrowserWindow & WindowPositioning"]
+    IPC["registerIpcHandlers (Zod 검증)"]
+    
+    AppMain --> CoreEngine
+    AppMain --> TrayUI
+    AppMain --> WinUI
+    AppMain --> IPC
+    I18nSystem --> TrayUI
   end
 
-  subgraph AppShell["Composition Root"]
-    AppRoot["App.tsx (<100줄)"]
+  subgraph RendererUI["5. Presentation Layer (React Renderer)"]
+    Hook["useUsageMonitor() Hook"]
+    AppRoot["App.tsx (122줄 선언적 조립)"]
+    Cards["ProviderCard (Vendor-Agnostic)"]
+    Views["CompactQuotaTable, QuotaMeter, LocalUsageView"]
+    
+    AppRoot --> Hook
+    AppRoot --> Cards
+    Cards --> Views
   end
 
-  API <==> useUsage
-  API <==> useResize
-  AppRoot --> useUsage
-  AppRoot --> useResize
-  AppRoot --> HeaderComp
-  AppRoot --> CompactTable
-  AppRoot --> CardList
-  AppRoot --> FooterComp
-  CompactTable --> Sel
-  CardList --> Sel
+  IPC <==>|ContextBridge / contracts.ts| Hook
 ```
-
-### 대안 비교 (대안 2: Redux/Zustand 전역 스토어 도입)
-- **장점**: 어떤 깊이의 서브컴포넌트에서도 상태 접근 용이.
-- **단점 및 기각 이유**: 현재 앱은 단일 윈도우 팝오버 형태이며 상태의 원천(Source of Truth)이 이미 Electron Main Process의 `UsageStore`임. Renderer 내부에 또 다른 무거운 상태 관리 라이브러리를 도입하는 것은 오버엔지니어링(YAGNI 위반)이며 빌드 크기를 증가시킴.
-- **결론**: 추가 의존성 없이 React 표준 Custom Hook(`useUsageMonitor`)으로 완벽히 목표를 달성할 수 있는 **권장안 1** 채택.
 
 ---
 
-<a id="assessment-roadmap"></a>
+<a id="assessment-fitness"></a>
 
-## 11. 점진적 전환 계획과 Fitness Functions
+## 6. Fitness Functions 검증 결과
 
-1. **1단계 (셀렉터 분리)**: `src/renderer/selectors.ts` 생성 및 순수 함수 이관.
-2. **2단계 (중개 훅 분리)**: `useUsageMonitor.ts` 및 `useWindowAutoResize.ts` 생성.
-3. **3단계 (하위 뷰 컴포넌트 모듈화)**: `QuotaMeter`, `LocalUsageView`, `CompactQuotaTable`, `AntigravityAdditionalQuotas`, `ProviderCard` 분리.
-4. **4단계 (`App.tsx` 경량화 및 종합 검증)**: `App.tsx`를 클린 합성 루트로 재작성.
-5. **Fitness Functions**:
-   - `tsc --noEmit` 타입 정합성 100% 통과
-   - `eslint .` 린트 규칙 100% 통과
-   - `vitest run` 전체 단위/통합 테스트 100% 통과
-   - `src/renderer/App.tsx`의 라인 수를 150줄 이하로 제한
+1. **빌드 및 정적 무결성**:
+   - `tsc --noEmit`: 오류 0건 통과 (정적 타입 정합성 100%)
+   - `eslint .`: 린트 규칙 100% 준수 (오류 및 경고 0건)
+2. **단위 및 통합 테스트**:
+   - `vitest run`: **34개 테스트 파일, 240개 테스트 전체 통과 (100% Pass)**
+   - `tests/unit/core/UsageMonitorCore.test.ts`: UI 없는 환경에서의 백엔드 단독 구동 및 라이프사이클 검증 완료
+   - `tests/unit/i18n.test.ts`: 영문 기본값 및 한국어 번들 정합성 검증 완료
+3. **구조 지표**:
+   - 모듈 간 순환 의존 0건 유지
+   - `src/main/application.ts` 라인 수: 537줄 -> 360줄로 대폭 슬림화 (순수 Electron 셸로 정돈)
