@@ -1,3 +1,5 @@
+[English](deploy-windows.en.md) | **한국어**
+
 # Windows 개발자용 원클릭 배포 및 설치 가이드
 
 이 문서는 개발자가 LLM Usage Monitor를 Windows 로컬 환경에서 한 번의 명령으로 빌드하고, 사용자 프로그램 폴더(`%LOCALAPPDATA%\Programs\llm-usage-monitor`)에 배포하여 트레이 상주 프로그램으로 사용하는 방법을 안내합니다.

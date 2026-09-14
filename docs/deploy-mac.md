@@ -1,3 +1,5 @@
+[English](deploy-mac.en.md) | **한국어**
+
 # macOS 개발자용 원클릭 배포 및 설치 가이드
 
 이 문서는 개발자가 LLM Usage Monitor를 macOS 로컬 환경에서 한 번의 명령으로 빌드하고, 사용자 애플리케이션 폴더(`~/Applications/LLM Usage Monitor.app`)에 배포하여 상단 메뉴바 트레이 상주 프로그램으로 사용하는 방법을 안내합니다.

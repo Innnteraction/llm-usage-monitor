@@ -1,7 +1,7 @@
 {
   "name": "llm-usage-monitor",
   "productName": "LLM Usage Monitor",
-  "version": "0.9.8",
+  "version": "0.9.9",
   "description": "Tray monitor for Codex, Claude Code and Antigravity usage quotas (macOS, Windows)",
   "author": {
     "name": "Innnteraction",
