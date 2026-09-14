@@ -141,14 +141,14 @@ claude --safe-mode --ax-screen-reader --restricted --strict-mcp-config --tools "
 
 ## 단축키 및 조작
 
-단축키는 앱 창에 포커스가 있을 때 동작합니다. 하단 왼쪽의 <kbd>?</kbd> 버튼을 누르면 같은 내용을 앱 안에서 볼 수 있습니다.
+단축키는 앱 창에 포커스가 있을 때 동작합니다. 상단 우측의 <kbd>?</kbd> 버튼을 누르면 같은 내용을 앱 안에서 볼 수 있습니다.
 
-| 기능 | Windows | macOS | 하단 버튼 |
+| 기능 | Windows | macOS | 상단 버튼 |
 | --- | --- | --- | --- |
-| 간이 모드 전환 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> | 위/아래 꺾쇠 (접기 ⌃ / 펼치기 ⌄) |
-| 로컬 토큰 표시 전환 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> | 코인 아이콘 (켜지면 채워짐) |
+| 간이 모드 전환 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> | 사각형 (접기 − / 펼치기 +) |
 | 다크 / 라이트 테마 전환 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> | 달(다크) / 해(라이트) 아이콘 |
 | 항상 위(핀) 고정 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> | <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> | 핀 아이콘 (고정되면 채워짐) |
+| 단축키 및 정보 보기 | - | - | <kbd>?</kbd> 아이콘 (팝오버 열림) |
 | 팝오버 닫기 | <kbd>Esc</kbd> | <kbd>Esc</kbd> | 핀 해제 상태에서 창 외부 클릭 |
 
 마우스 조작과 트레이 메뉴:

@@ -23,8 +23,22 @@ if (!existsSync(path.join(repoRoot, ".vite", "build", "main.js"))) {
 mkdirSync(outputDir, { recursive: true });
 const userData = mkdtempSync(path.join(tmpdir(), "llm-usage-monitor-readme-"));
 
+const packagedExecutable = path.resolve(
+  repoRoot,
+  "out",
+  `LLM Usage Monitor-${process.platform}-${process.arch}`,
+  ...(process.platform === "darwin"
+    ? ["LLM Usage Monitor.app", "Contents", "MacOS", "LLM Usage Monitor"]
+    : ["LLM Usage Monitor.exe"]),
+);
+const usePackaged = existsSync(packagedExecutable);
+
 const app = await electron.launch({
-  args: [repoRoot, `--force-device-scale-factor=${scale}`],
+  chromiumSandbox: true,
+  executablePath: usePackaged ? packagedExecutable : undefined,
+  args: usePackaged
+    ? [`--force-device-scale-factor=${scale}`]
+    : [repoRoot, `--force-device-scale-factor=${scale}`],
   env: {
     ...process.env,
     LLM_USAGE_MONITOR_E2E: "1",
@@ -36,6 +50,7 @@ const app = await electron.launch({
 
 try {
   const page = await app.firstWindow();
+  await page.waitForLoadState("domcontentloaded");
   await page.emulateMedia({ colorScheme: "dark" });
   await page.getByRole("heading", { name: "Antigravity" }).waitFor();
 
@@ -68,9 +83,6 @@ try {
     console.log(`saved ${path.relative(repoRoot, file)}`);
   };
 
-  const tokenToggle = page.getByRole("button", { name: "Tokens" });
-  await tokenToggle.click();
-  await page.getByRole("button", { name: "refresh" }).focus();
   await page.mouse.move(0, 0);
   await capture("overview-dark.png");
 
