@@ -210,3 +210,9 @@ GPU 종료와 흰 화면의 진단 절차 및 확인된 범위는 [트러블슈�
 - [아키텍처 증거 및 모듈 경계 분석](docs/architecture-evidence.md)
 - [아키텍처 평가 및 분리 계획 보고서](docs/architecture-assessment.md)
 - [v1 개발 로드맵](docs/plan/v1-roadmap.md)
+
+---
+
+## 라이선스
+
+이 프로젝트는 [MIT 라이선스](LICENSE)를 따릅니다.

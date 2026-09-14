@@ -7,6 +7,7 @@
     "name": "Innnteraction",
     "email": "innnteractive@gmail.com"
   },
+  "license": "MIT",
   "private": true,
   "main": ".vite/build/main.js",
   "packageManager": "pnpm@9.15.9",
