@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   isMacOS,
   isShortcutMatch,
+  type AntigravitySetupAction,
   type AppSnapshot,
   type ClaudeSetupAction,
 } from "../../shared/index";
@@ -205,6 +206,18 @@ export const useUsageMonitor = () => {
       .catch(() => setError(true));
   }, []);
 
+  const openAntigravitySetup = useCallback((action: AntigravitySetupAction): void => {
+    setError(false);
+    void window.usageMonitor
+      .openAntigravitySetup(action)
+      .then(({ opened }) => {
+        if (!opened) {
+          setError(true);
+        }
+      })
+      .catch(() => setError(true));
+  }, []);
+
   const finishTokenVisibilityAdjust = useCallback((): void => {
     tokenVisibilityInFlight.current = false;
     setTokenVisibilityPending(false);
@@ -231,5 +244,6 @@ export const useUsageMonitor = () => {
     toggleAlwaysOnTop,
     refresh,
     openClaudeSetup,
+    openAntigravitySetup,
   };
 };

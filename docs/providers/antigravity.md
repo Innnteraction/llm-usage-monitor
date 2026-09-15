@@ -2,7 +2,7 @@
 
 ## 요약
 
-이 문서는 Antigravity provider를 유지보수할 때 사용하는 수집·보안·검증 참조다. 기존 Codex·Claude와 별개인 Google `agy` CLI의 계정 quota만 다룬다. Antigravity 로컬 토큰, 계정 전환과 직접 OAuth/API 호출은 범위 밖이다. 진행 상태는 [Phase 5.5 계획](../plan/phase5-5-antigravity.md)에 기록한다.
+이 문서는 Antigravity provider를 유지보수할 때 사용하는 수집·보안·검증 참조다. 기존 Codex·Claude와 별개인 Google `agy` CLI의 계정 quota를 다루며, 동일 계정 하에 CLI와 IDE의 사용량이 통합 반영된다(UI 출처 표기: `Antigravity CLI, IDE`). Antigravity 로컬 토큰 집계와 직접 OAuth/API 호출은 범위 밖이며, 계정 전환은 UI에서 대화형 터미널 세션을 열어 안내한다. 진행 상태는 [Phase 5.5 계획](../plan/phase5-5-antigravity.md)에 기록한다.
 
 ## 공식 경로와 확인 범위
 

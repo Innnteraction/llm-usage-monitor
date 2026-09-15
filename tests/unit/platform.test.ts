@@ -6,6 +6,7 @@ import {
   setupPlatformDock,
   ensurePlatformPath,
   buildTerminalLaunch,
+  buildAntigravityTerminalLaunch,
   killProcessTree,
   getExecutableCandidates,
   getPlatformFallbackDirectories,
@@ -208,6 +209,32 @@ describe("main process platform adapter", () => {
       expect(probe.args[1]).toContain(
         "cd '/Users/test/it'\\\\''s \\\"probe\\\"' &&",
       );
+    });
+  });
+
+  describe("buildAntigravityTerminalLaunch", () => {
+    it("builds Windows Terminal launch for Antigravity login and switch_account", () => {
+      const login = buildAntigravityTerminalLaunch("login", "win32");
+      expect(login.command).toBe("wt.exe");
+      expect(login.args).toContain("agy.exe");
+      expect(login.args).toContain("Antigravity CLI Sign In");
+
+      const switchAccount = buildAntigravityTerminalLaunch("switch_account", "win32");
+      expect(switchAccount.command).toBe("wt.exe");
+      expect(switchAccount.args).toContain("powershell.exe");
+      expect(switchAccount.args.join(" ")).toContain("/logout");
+      expect(switchAccount.args.join(" ")).toContain("agy.exe");
+    });
+
+    it("builds macOS Terminal launch for Antigravity login and switch_account", () => {
+      const login = buildAntigravityTerminalLaunch("login", "darwin");
+      expect(login.command).toBe("osascript");
+      expect(login.args[1]).toContain("agy");
+
+      const switchAccount = buildAntigravityTerminalLaunch("switch_account", "darwin");
+      expect(switchAccount.command).toBe("osascript");
+      expect(switchAccount.args[1]).toContain("/logout");
+      expect(switchAccount.args[1]).toContain("agy");
     });
   });
 

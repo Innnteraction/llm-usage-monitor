@@ -10,6 +10,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { UsageMonitorCore } from "../core/index";
 import type { ProviderId } from "../shared/index";
+import { openAntigravitySetup } from "./antigravitySetup";
 import { openClaudeSetup } from "./claudeSetup";
 import { registerIpcHandlers } from "./ipc";
 import { configureRuntime, registerRendererDiagnostics, registerRuntimeDiagnostics } from "./runtime";
@@ -288,6 +289,7 @@ export const startApplication = (): void => {
         resizeWindow(mainWindow, tray?.getBounds(), visible, contentHeight, customPosition);
       },
       openClaudeSetup,
+      openAntigravitySetup,
       getAlwaysOnTop: async () => isAlwaysOnTop,
       setAlwaysOnTop: async (enabled) => {
         isAlwaysOnTop = enabled;

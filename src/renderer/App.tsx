@@ -26,6 +26,7 @@ export const App = () => {
     toggleAlwaysOnTop,
     refresh,
     openClaudeSetup,
+    openAntigravitySetup,
   } = useUsageMonitor();
 
   const appShellRef = useRef<HTMLElement>(null);
@@ -102,6 +103,7 @@ export const App = () => {
                   provider={provider}
                   index={index}
                   onOpenClaudeSetup={openClaudeSetup}
+                  onOpenAntigravitySetup={openAntigravitySetup}
                   now={now}
                   activeHelp={activeHelp}
                   onActiveHelpChange={setActiveHelp}

@@ -2,7 +2,11 @@ import { existsSync, statSync } from "node:fs";
 import { spawn as nodeSpawn } from "node:child_process";
 import path from "node:path";
 import { CLAUDE_SAFE_SESSION_ARGS } from "../../providers/claude/ptyProbe";
-import { resolveCliBinary, type ClaudeSetupAction } from "../../shared/index";
+import {
+  resolveCliBinary,
+  type AntigravitySetupAction,
+  type ClaudeSetupAction,
+} from "../../shared/index";
 
 export { resolveCliBinary };
 
@@ -254,6 +258,51 @@ export function buildTerminalLaunch(
       `cd ${shellQuote(probeDirectory)} && ${probeCommand}`,
     ),
     workingDirectory: probeDirectory,
+  };
+}
+
+export function buildAntigravityTerminalLaunch(
+  action: AntigravitySetupAction,
+  platform: NodeJS.Platform = process.platform,
+): TerminalLaunch {
+  const agy = resolveCliBinary("antigravity", platform);
+  if (platform === "win32") {
+    if (action === "login") {
+      return {
+        command: "wt.exe",
+        args: [
+          "new-tab",
+          "--title",
+          "Antigravity CLI Sign In",
+          agy,
+        ],
+      };
+    }
+    return {
+      command: "wt.exe",
+      args: [
+        "new-tab",
+        "--title",
+        "Antigravity Account Switch",
+        "powershell.exe",
+        "-NoExit",
+        "-Command",
+        `Write-Host '=== Antigravity Account Switch ===' -ForegroundColor Cyan; Write-Host 'To switch accounts, run /logout and then sign in with your desired Google Account.' -ForegroundColor Yellow; & '${agy}'`,
+      ],
+    };
+  }
+
+  if (action === "login") {
+    return {
+      command: "osascript",
+      args: buildTerminalAppArgs(shellQuote(agy)),
+    };
+  }
+
+  const switchScript = `echo '=== Antigravity Account Switch ===' && echo 'To switch accounts, run /logout and then sign in with your desired Google Account.' && ${shellQuote(agy)}`;
+  return {
+    command: "osascript",
+    args: buildTerminalAppArgs(switchScript),
   };
 }
 

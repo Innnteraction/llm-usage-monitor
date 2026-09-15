@@ -11,6 +11,9 @@ import {
 export const claudeSetupActionSchema = z.enum(["login", "trust_probe"]);
 export type ClaudeSetupAction = z.infer<typeof claudeSetupActionSchema>;
 
+export const antigravitySetupActionSchema = z.enum(["login", "switch_account"]);
+export type AntigravitySetupAction = z.infer<typeof antigravitySetupActionSchema>;
+
 export const IPC_CHANNELS = {
   getState: "usage-monitor:get-state",
   refresh: "usage-monitor:refresh",
@@ -19,6 +22,7 @@ export const IPC_CHANNELS = {
   setLaunchAtLogin: "usage-monitor:set-launch-at-login",
   setTokensVisible: "usage-monitor:set-tokens-visible",
   openClaudeSetup: "usage-monitor:open-claude-setup",
+  openAntigravitySetup: "usage-monitor:open-antigravity-setup",
   getAlwaysOnTop: "usage-monitor:get-always-on-top",
   setAlwaysOnTop: "usage-monitor:set-always-on-top",
 } as const;
@@ -56,6 +60,12 @@ export const openClaudeSetupPayloadSchema = z
 export const openClaudeSetupResultSchema = z
   .object({ opened: z.boolean() })
   .strict();
+export const openAntigravitySetupPayloadSchema = z
+  .object({ action: antigravitySetupActionSchema })
+  .strict();
+export const openAntigravitySetupResultSchema = z
+  .object({ opened: z.boolean() })
+  .strict();
 
 export const refreshResultSchema = z.void();
 export { appSnapshotSchema, userPreferencesSchema };
@@ -68,6 +78,7 @@ export interface UsageMonitorAPI {
   setLaunchAtLogin(enabled: boolean): Promise<UserPreferences>;
   setTokensVisible(visible: boolean, contentHeight?: number): Promise<void>;
   openClaudeSetup(action: ClaudeSetupAction): Promise<{ opened: boolean }>;
+  openAntigravitySetup(action: AntigravitySetupAction): Promise<{ opened: boolean }>;
   getAlwaysOnTop(): Promise<boolean>;
   setAlwaysOnTop(enabled: boolean): Promise<boolean>;
 }

@@ -1,6 +1,6 @@
 **English** | [한국어](README.ko.md)
 
-# LLM Usage Monitor (v0.9.9)
+# LLM Usage Monitor (v0.10.0)
 
 A system tray application for macOS and Windows that monitors 5-hour and weekly quota usage alongside local token consumption for Codex, Claude Code, and Antigravity (`agy`) at a glance.
 
@@ -113,6 +113,10 @@ If signed in to either the `codex` CLI or the **Codex Desktop app**, it works ou
 ### Antigravity (Optional)
 
 If `agy` 1.1.11 or higher is in your `PATH` and signed in, a third card appears automatically. If the CLI is not found, the card indicates `CLI is not installed.` without affecting the other providers.
+
+- **Unified IDE & CLI Tracking**: When your Antigravity standalone IDE or VS Code extension shares the same Google Account with the `agy` CLI, model usage is seamlessly aggregated into the account quota, indicated by `source Antigravity CLI, IDE` in the footer.
+- **Account Switch Support (`switch`)**: Click the `switch` button next to the account email label to launch an interactive terminal guiding you through `/logout` and logging in with a different Google Account.
+- **Easy Sign-In (`sign in`)**: If the CLI is unauthenticated, a `sign in` button appears in the error section to trigger the browser OAuth login directly from the terminal.
 
 ---
 

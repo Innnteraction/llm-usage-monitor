@@ -49,6 +49,7 @@ const createHarness = () => {
     })),
     setTokensVisible: vi.fn(async () => undefined),
     openClaudeSetup: vi.fn(async () => ({ opened: true })),
+    openAntigravitySetup: vi.fn(async () => ({ opened: true })),
     getAlwaysOnTop: vi.fn(async () => false),
     setAlwaysOnTop: vi.fn(async (enabled: boolean) => enabled),
   };
@@ -87,17 +88,39 @@ describe("restricted IPC handlers", () => {
     expect(dependencies.refresh).not.toHaveBeenCalled();
   });
 
-  it("allows only fixed Claude setup actions", async () => {
+  it("routes validated setup actions to dependencies", async () => {
     const { dependencies, handlers, trustedEvent } = createHarness();
     const handler = handlers.get(IPC_CHANNELS.openClaudeSetup);
 
+    await expect(handler?.(trustedEvent, { action: "login" })).resolves.toEqual({
+      opened: true,
+    });
+    expect(dependencies.openClaudeSetup).toHaveBeenCalledWith("login");
+
     await expect(
-      handler?.(trustedEvent, { action: "login" }),
-    ).resolves.toEqual({ opened: true });
-    await expect(
-      handler?.(trustedEvent, { action: "arbitrary-command" }),
+      handler?.(trustedEvent, { action: "invalid" }),
     ).rejects.toThrow();
     expect(dependencies.openClaudeSetup).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes validated Antigravity setup actions to dependencies", async () => {
+    const { dependencies, handlers, trustedEvent } = createHarness();
+    const handler = handlers.get(IPC_CHANNELS.openAntigravitySetup);
+
+    await expect(handler?.(trustedEvent, { action: "login" })).resolves.toEqual({
+      opened: true,
+    });
+    expect(dependencies.openAntigravitySetup).toHaveBeenCalledWith("login");
+
+    await expect(handler?.(trustedEvent, { action: "switch_account" })).resolves.toEqual({
+      opened: true,
+    });
+    expect(dependencies.openAntigravitySetup).toHaveBeenCalledWith("switch_account");
+
+    await expect(
+      handler?.(trustedEvent, { action: "invalid" }),
+    ).rejects.toThrow();
+    expect(dependencies.openAntigravitySetup).toHaveBeenCalledTimes(2);
   });
 
   it("accepts a strict token visibility payload with an optional bounded height", async () => {

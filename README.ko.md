@@ -1,6 +1,6 @@
 [English](README.md) | **한국어**
 
-# LLM Usage Monitor (v0.9.9)
+# LLM Usage Monitor (v0.10.0)
 
 Codex, Claude Code, Antigravity(`agy`)의 5시간·주간 사용량 쿼터(Quota)와 이 PC의 로컬 토큰 사용량을 한눈에 보여주는 macOS·Windows 트레이 앱입니다.
 
@@ -114,6 +114,10 @@ claude --safe-mode --ax-screen-reader --restricted --strict-mcp-config --tools "
 ### Antigravity (선택)
 
 `agy` 1.1.11 이상이 PATH에 있고 로그인되어 있으면 세 번째 카드가 나타납니다. CLI가 없으면 카드에 `CLI is not installed.`가 표시되며, 다른 프로바이더에는 영향을 주지 않습니다.
+
+- **IDE & CLI 통합 트래킹**: Antigravity 자체 IDE 또는 VS Code 확장에 로그인된 Google 계정과 시스템 `agy` CLI의 계정이 동일하면 사용량이 원격 쿼터에 통합 반영되며, 하단 출처가 `source Antigravity CLI, IDE`로 표기됩니다.
+- **계정 전환 지원 (`switch`)**: 카드 상단 이메일 라벨 옆의 `switch` 버튼을 클릭하면 대화형 터미널이 열려 `/logout` 및 원하는 Google 계정으로의 재로그인을 편리하게 진행할 수 있습니다.
+- **간편 로그인 (`sign in`)**: CLI가 미인증 상태인 경우 카드 에러 영역에 `sign in` 버튼이 표시되어 클릭 시 터미널에서 브라우저 OAuth 로그인을 바로 시작할 수 있습니다.
 
 ---
 

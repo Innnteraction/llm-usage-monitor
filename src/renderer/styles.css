@@ -362,9 +362,17 @@ h2 {
   white-space: nowrap;
 }
 
+.account-container {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+
 .account-label {
   display: inline-flex;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   color: var(--muted);
@@ -387,6 +395,25 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.account-switch-button {
+  flex: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-family: inherit;
+  font-size: 0.54rem;
+  line-height: 1.2;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.account-switch-button:hover {
+  color: var(--text);
+  border-color: var(--text);
 }
 
 .account-client {

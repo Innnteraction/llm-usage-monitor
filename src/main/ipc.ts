@@ -8,6 +8,8 @@ import {
   alwaysOnTopResultSchema,
   appSnapshotSchema,
   noPayloadSchema,
+  openAntigravitySetupPayloadSchema,
+  openAntigravitySetupResultSchema,
   openClaudeSetupPayloadSchema,
   openClaudeSetupResultSchema,
   refreshPayloadSchema,
@@ -16,6 +18,7 @@ import {
   setLaunchAtLoginPayloadSchema,
   setTokensVisiblePayloadSchema,
   userPreferencesSchema,
+  type AntigravitySetupAction,
   type AppSnapshot,
   type ClaudeSetupAction,
   type ProviderId,
@@ -29,6 +32,7 @@ export interface IpcDependencies {
   setLaunchAtLogin(enabled: boolean): Promise<UserPreferences>;
   setTokensVisible(visible: boolean, contentHeight?: number): Promise<void>;
   openClaudeSetup(action: ClaudeSetupAction): Promise<{ opened: boolean }>;
+  openAntigravitySetup(action: AntigravitySetupAction): Promise<{ opened: boolean }>;
   getAlwaysOnTop(): Promise<boolean>;
   setAlwaysOnTop(enabled: boolean): Promise<boolean>;
 }
@@ -102,6 +106,14 @@ export const registerIpcHandlers = (
     );
   });
 
+  ipcMain.handle(IPC_CHANNELS.openAntigravitySetup, async (event, ...args) => {
+    assertTrustedSender(event, window);
+    const { action } = singlePayload(openAntigravitySetupPayloadSchema, args);
+    return openAntigravitySetupResultSchema.parse(
+      await dependencies.openAntigravitySetup(action),
+    );
+  });
+
   ipcMain.handle(IPC_CHANNELS.getAlwaysOnTop, async (event, ...args) => {
     assertTrustedSender(event, window);
     noPayloadSchema.parse(args);
@@ -139,6 +151,7 @@ export const registerIpcHandlers = (
       ipcMain.removeHandler(IPC_CHANNELS.setLaunchAtLogin);
       ipcMain.removeHandler(IPC_CHANNELS.setTokensVisible);
       ipcMain.removeHandler(IPC_CHANNELS.openClaudeSetup);
+      ipcMain.removeHandler(IPC_CHANNELS.openAntigravitySetup);
       ipcMain.removeHandler(IPC_CHANNELS.getAlwaysOnTop);
       ipcMain.removeHandler(IPC_CHANNELS.setAlwaysOnTop);
     },

@@ -7,6 +7,8 @@ import {
   IPC_CHANNELS,
   alwaysOnTopResultSchema,
   appSnapshotSchema,
+  openAntigravitySetupPayloadSchema,
+  openAntigravitySetupResultSchema,
   openClaudeSetupPayloadSchema,
   openClaudeSetupResultSchema,
   refreshPayloadSchema,
@@ -63,6 +65,12 @@ const api: UsageMonitorAPI = {
     const payload = openClaudeSetupPayloadSchema.parse({ action });
     return openClaudeSetupResultSchema.parse(
       await ipcRenderer.invoke(IPC_CHANNELS.openClaudeSetup, payload),
+    );
+  },
+  async openAntigravitySetup(action) {
+    const payload = openAntigravitySetupPayloadSchema.parse({ action });
+    return openAntigravitySetupResultSchema.parse(
+      await ipcRenderer.invoke(IPC_CHANNELS.openAntigravitySetup, payload),
     );
   },
   async getAlwaysOnTop() {

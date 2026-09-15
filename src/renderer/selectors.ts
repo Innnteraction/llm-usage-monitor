@@ -26,7 +26,7 @@ export const compactProviderNames: Record<ProviderSnapshot["providerId"], string
 export const sourceNames: Record<QuotaWindow["source"], string> = {
   codex_app_server: "Codex App Server",
   claude_cli: "Claude CLI",
-  antigravity_cli: "Antigravity CLI",
+  antigravity_cli: "Antigravity CLI, IDE",
   local_fixture: "Local fixture",
 };
 

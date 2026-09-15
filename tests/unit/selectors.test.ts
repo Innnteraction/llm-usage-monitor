@@ -7,10 +7,17 @@ import {
   providerStatusTone,
   selectAdditionalWindows,
   selectDisplayWindows,
+  sourceNames,
   usageTone,
 } from "../../src/renderer/selectors";
 
 describe("renderer selectors", () => {
+  it("provides user-friendly source names including Antigravity CLI, IDE", () => {
+    expect(sourceNames.antigravity_cli).toBe("Antigravity CLI, IDE");
+    expect(sourceNames.claude_cli).toBe("Claude CLI");
+    expect(sourceNames.codex_app_server).toBe("Codex App Server");
+  });
+
   it("determines usage tone correctly", () => {
     expect(usageTone(undefined)).toBe("low");
     expect(usageTone(50)).toBe("low");

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type {
+  AntigravitySetupAction,
   ClaudeSetupAction,
   ProviderSnapshot,
 } from "../../shared/index";
@@ -23,6 +24,7 @@ export interface ProviderCardProps {
   provider: ProviderSnapshot;
   index: number;
   onOpenClaudeSetup(action: ClaudeSetupAction): void;
+  onOpenAntigravitySetup?(action: AntigravitySetupAction): void;
   now: number;
   activeHelp?: string;
   onActiveHelpChange(id?: string): void;
@@ -33,6 +35,7 @@ export const ProviderCard = ({
   provider,
   index,
   onOpenClaudeSetup,
+  onOpenAntigravitySetup,
   now,
   activeHelp,
   onActiveHelpChange,
@@ -42,7 +45,11 @@ export const ProviderCard = ({
     ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
   ];
   if (sources.length === 0 && providerNames[provider.providerId]) {
-    sources.push(`${providerNames[provider.providerId]} CLI`);
+    sources.push(
+      provider.providerId === "antigravity"
+        ? "Antigravity CLI, IDE"
+        : `${providerNames[provider.providerId]} CLI`,
+    );
   }
   const primaryWindows = selectDisplayWindows(provider);
   const missingCores = missingCoreLabels(provider);
@@ -51,13 +58,17 @@ export const ProviderCard = ({
   const [additionalExpanded, setAdditionalExpanded] = useState(false);
   const additionalId = `${provider.providerId}-additional-limits`;
   const setupAction =
-    provider.providerId !== "claude"
-      ? undefined
-      : provider.error?.code === "not_authenticated"
+    provider.providerId === "claude"
+      ? provider.error?.code === "not_authenticated"
         ? "login"
         : provider.error?.code === "workspace_trust_required"
           ? "trust_probe"
-          : undefined;
+          : undefined
+      : provider.providerId === "antigravity"
+        ? provider.error?.code === "not_authenticated"
+          ? "login"
+          : undefined
+        : undefined;
 
   const statusTone = providerStatusTone(provider, now);
 
@@ -68,14 +79,31 @@ export const ProviderCard = ({
         <div className="provider-title">
           <h2>{providerNames[provider.providerId]}</h2>
           {provider.accountLabel ? (
-            <HelpTrigger
-              id={`${provider.providerId}-account`}
-              label={provider.accountLabel}
-              className="account-label"
-              description={`Account identifier provided by ${providerNames[provider.providerId]} CLI: ${provider.accountLabel}. Kept in memory only.`}
-              activeHelp={activeHelp}
-              onActiveHelpChange={onActiveHelpChange}
-            />
+            <div className="account-container">
+              <HelpTrigger
+                id={`${provider.providerId}-account`}
+                label={provider.accountLabel}
+                className="account-label"
+                description={
+                  provider.providerId === "antigravity"
+                    ? `Account shared across Antigravity CLI and IDE: ${provider.accountLabel}. Kept in memory only.`
+                    : `Account identifier provided by ${providerNames[provider.providerId]} CLI: ${provider.accountLabel}. Kept in memory only.`
+                }
+                activeHelp={activeHelp}
+                onActiveHelpChange={onActiveHelpChange}
+              />
+              {provider.providerId === "antigravity" && onOpenAntigravitySetup ? (
+                <button
+                  type="button"
+                  className="account-switch-button"
+                  title="Switch Antigravity account in terminal"
+                  aria-label="Switch Antigravity account in terminal"
+                  onClick={() => onOpenAntigravitySetup("switch_account")}
+                >
+                  switch
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
         <span className={`status status-${statusTone}`}>
@@ -94,7 +122,13 @@ export const ProviderCard = ({
             <button
               type="button"
               className="setup-action"
-              onClick={() => onOpenClaudeSetup(setupAction)}
+              onClick={() => {
+                if (provider.providerId === "claude") {
+                  onOpenClaudeSetup(setupAction as ClaudeSetupAction);
+                } else if (provider.providerId === "antigravity" && onOpenAntigravitySetup) {
+                  onOpenAntigravitySetup(setupAction as AntigravitySetupAction);
+                }
+              }}
             >
               {setupAction === "login" ? "sign in" : "prepare folder"}
             </button>
