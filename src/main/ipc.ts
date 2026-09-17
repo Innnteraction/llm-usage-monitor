@@ -1,7 +1,8 @@
-import type {
-  BrowserWindow,
-  IpcMain,
-  IpcMainInvokeEvent,
+import {
+  shell,
+  type BrowserWindow,
+  type IpcMain,
+  type IpcMainInvokeEvent,
 } from "electron";
 import {
   IPC_CHANNELS,
@@ -12,6 +13,8 @@ import {
   openAntigravitySetupResultSchema,
   openClaudeSetupPayloadSchema,
   openClaudeSetupResultSchema,
+  openExternalUrlPayloadSchema,
+  openExternalUrlResultSchema,
   refreshPayloadSchema,
   refreshResultSchema,
   setAlwaysOnTopPayloadSchema,
@@ -35,6 +38,7 @@ export interface IpcDependencies {
   openAntigravitySetup(action: AntigravitySetupAction): Promise<{ opened: boolean }>;
   getAlwaysOnTop(): Promise<boolean>;
   setAlwaysOnTop(enabled: boolean): Promise<boolean>;
+  openExternalUrl?(url: string): Promise<{ opened: boolean }>;
 }
 
 const assertTrustedSender = (
@@ -128,6 +132,16 @@ export const registerIpcHandlers = (
     return alwaysOnTopResultSchema.parse({ alwaysOnTop });
   });
 
+  ipcMain.handle(IPC_CHANNELS.openExternalUrl, async (event, ...args) => {
+    assertTrustedSender(event, window);
+    const { url } = singlePayload(openExternalUrlPayloadSchema, args);
+    if (dependencies.openExternalUrl) {
+      return openExternalUrlResultSchema.parse(await dependencies.openExternalUrl(url));
+    }
+    await shell.openExternal(url);
+    return openExternalUrlResultSchema.parse({ opened: true });
+  });
+
   return {
     publishState(snapshot: AppSnapshot): void {
       const safeSnapshot = appSnapshotSchema.parse(snapshot);
@@ -154,6 +168,7 @@ export const registerIpcHandlers = (
       ipcMain.removeHandler(IPC_CHANNELS.openAntigravitySetup);
       ipcMain.removeHandler(IPC_CHANNELS.getAlwaysOnTop);
       ipcMain.removeHandler(IPC_CHANNELS.setAlwaysOnTop);
+      ipcMain.removeHandler(IPC_CHANNELS.openExternalUrl);
     },
   };
 };

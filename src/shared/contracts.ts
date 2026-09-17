@@ -94,6 +94,26 @@ export interface LocalUsageScanner {
   watch(onDirty: () => void): () => void;
 }
 
+export const serviceHealthIndicatorSchema = z.enum([
+  "operational",
+  "minor",
+  "major",
+  "critical",
+  "unknown",
+]);
+export type ServiceHealthIndicator = z.infer<typeof serviceHealthIndicatorSchema>;
+
+export const vendorServiceStatusSchema = z
+  .object({
+    indicator: serviceHealthIndicatorSchema,
+    description: z.string().max(240),
+    statusPageUrl: z.string().url(),
+    incidentTitle: z.string().max(240).optional(),
+    checkedAt: timestampSchema,
+  })
+  .strict();
+export type VendorServiceStatus = z.infer<typeof vendorServiceStatusSchema>;
+
 export const providerSnapshotSchema = z
   .object({
     providerId: providerIdSchema,
@@ -105,6 +125,7 @@ export const providerSnapshotSchema = z
     quotaWindows: z.array(quotaWindowSchema),
     localUsage: localTokenUsageSchema.optional(),
     error: providerErrorSchema.optional(),
+    serviceStatus: vendorServiceStatusSchema.optional(),
   })
   .strict()
   .superRefine((snapshot, context) => {

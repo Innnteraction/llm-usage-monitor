@@ -5,6 +5,7 @@ import { CompactQuotaTable } from "./components/CompactQuotaTable";
 import { ProviderCard } from "./components/ProviderCard";
 import { useUsageMonitor } from "./hooks/useUsageMonitor";
 import { useWindowAutoResize } from "./hooks/useWindowAutoResize";
+import { selectActiveIncidents } from "./selectors";
 
 export const App = () => {
   const {
@@ -28,6 +29,8 @@ export const App = () => {
     openClaudeSetup,
     openAntigravitySetup,
   } = useUsageMonitor();
+
+  const activeIncidents = snapshot ? selectActiveIncidents(snapshot.providers) : [];
 
   const appShellRef = useRef<HTMLElement>(null);
   const providerListRef = useRef<HTMLElement>(null);
@@ -68,6 +71,32 @@ export const App = () => {
         alwaysOnTop={alwaysOnTop}
         onToggleAlwaysOnTop={toggleAlwaysOnTop}
       />
+
+      {activeIncidents.length > 0 && !compactMode ? (
+        <aside className="service-incident-banner" role="status" aria-label="Service status notice">
+          {activeIncidents.map((incident) => (
+            <div key={incident.providerId} className="service-incident-row">
+              <span className="incident-banner-icon" aria-hidden="true">
+                ⚠️
+              </span>
+              <span className="incident-banner-text">
+                <strong>{incident.providerName}</strong> {incident.title}
+              </span>
+              <button
+                type="button"
+                className="incident-banner-btn"
+                onClick={() => {
+                  void (window as unknown as { usageMonitor?: { openExternalUrl?(url: string): Promise<unknown> } })
+                    .usageMonitor?.openExternalUrl?.(incident.url);
+                }}
+                title={incident.url}
+              >
+                [Status ↗]
+              </button>
+            </div>
+          ))}
+        </aside>
+      ) : null}
 
       {error ? (
         <p className="error-banner" role="alert">

@@ -175,7 +175,7 @@ export const HelpTrigger: FC<HelpTriggerProps> = ({
       ) {
         onActiveHelpChange(undefined);
       }
-    }, 150);
+    }, 300);
   };
 
   return (

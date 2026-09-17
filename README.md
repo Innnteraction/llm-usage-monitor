@@ -1,6 +1,6 @@
 **English** | [한국어](README.ko.md)
 
-# LLM Usage Monitor (v0.10.0)
+# LLM Usage Monitor (v0.11.0)
 
 A system tray application for macOS and Windows that monitors 5-hour and weekly quota usage alongside local token consumption for Codex, Claude Code, and Antigravity (`agy`) at a glance.
 

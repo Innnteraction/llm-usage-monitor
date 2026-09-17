@@ -8,6 +8,7 @@ import {
 } from "../presentation";
 import {
   formatUpdatedAt,
+  hasServiceIncident,
   providerErrorHelp,
   providerNames,
   providerStatusTone,
@@ -273,6 +274,9 @@ export const CompactQuotaTable = ({
               )
             : undefined;
 
+        const isIncident = hasServiceIncident(provider);
+        const incident = provider.serviceStatus;
+
         return (
           <div
             key={provider.providerId}
@@ -296,9 +300,14 @@ export const CompactQuotaTable = ({
                   placementPreference="right"
                   label={
                     <span
-                      className={`compact-brand-icon-wrapper${hasError ? " error-tint" : ""}`}
+                      className={`compact-brand-icon-wrapper${hasError ? " error-tint" : ""}${isIncident ? " incident-alternate" : ""}`}
                     >
                       <ProviderIcon providerId={provider.providerId} />
+                      {isIncident ? (
+                        <span className="compact-incident-overlay" aria-hidden="true">
+                          ⚠️
+                        </span>
+                      ) : null}
                     </span>
                   }
                   className="compact-brand-trigger"
@@ -308,6 +317,30 @@ export const CompactQuotaTable = ({
                       <div className="compact-popup-title">
                         {providerNames[provider.providerId]}
                       </div>
+                      {isIncident && incident ? (
+                        <div className="compact-popup-incident">
+                          <div className="compact-incident-badge">
+                            ⚠️ {incident.indicator === "critical" ? "Service Outage" : "Service Degraded"}
+                          </div>
+                          {incident.incidentTitle ? (
+                            <div className="compact-incident-desc" title={incident.incidentTitle}>
+                              {incident.incidentTitle}
+                            </div>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="compact-incident-link-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void (window as unknown as { usageMonitor?: { openExternalUrl?(url: string): Promise<unknown> } })
+                                .usageMonitor?.openExternalUrl?.(incident.statusPageUrl);
+                            }}
+                            title={incident.statusPageUrl}
+                          >
+                            상태 확인 [Status ↗]
+                          </button>
+                        </div>
+                      ) : null}
                       {provider.accountLabel ? (
                         <div className="compact-popup-account">
                           {provider.accountLabel}

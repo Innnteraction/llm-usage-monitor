@@ -9,7 +9,7 @@ import {
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { UsageMonitorCore } from "../core/index";
-import type { ProviderId } from "../shared/index";
+import type { AppSnapshot, ProviderId } from "../shared/index";
 import { openAntigravitySetup } from "./antigravitySetup";
 import { openClaudeSetup } from "./claudeSetup";
 import { registerIpcHandlers } from "./ipc";
@@ -301,7 +301,29 @@ export const startApplication = (): void => {
       },
     });
 
-    const unsubscribe = core.subscribe(ipcController.publishState);
+    const updateTrayTooltip = (snapshot: AppSnapshot): void => {
+      if (!tray) return;
+      const incidents = snapshot.providers
+        .filter(
+          (p) =>
+            p.serviceStatus &&
+            (p.serviceStatus.indicator === "minor" ||
+              p.serviceStatus.indicator === "major" ||
+              p.serviceStatus.indicator === "critical"),
+        )
+        .map((p) => (p.providerId === "claude" ? "Claude" : p.providerId === "codex" ? "Codex" : "Antigravity"));
+
+      if (incidents.length > 0) {
+        tray.setToolTip(`LLM Usage Monitor (⚠️ ${incidents.join(", ")} incident)`);
+      } else {
+        tray.setToolTip("LLM Usage Monitor");
+      }
+    };
+
+    const unsubscribe = core.subscribe((snapshot) => {
+      ipcController.publishState(snapshot);
+      updateTrayTooltip(snapshot);
+    });
 
     let shutdownPromise: Promise<void> | undefined;
     shutdown = (): Promise<void> => {

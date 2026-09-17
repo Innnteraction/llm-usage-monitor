@@ -42,6 +42,27 @@ describe("packaged development launcher", () => {
     } finally { await rm(projectRoot, { recursive: true, force: true }); }
   });
 
+  it("passes mock incident flag to child process environment", async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), "llm dev incident "));
+    try {
+      const executable = packagedExecutable(projectRoot);
+      await mkdir(path.dirname(executable), { recursive: true });
+      await writeFile(executable, "fake executable");
+      let count = 0;
+      const spawnProcess = vi.fn(() => {
+        const child = new EventEmitter();
+        const code = count++ === 0 ? 0 : 0;
+        queueMicrotask(() => child.emit("close", code));
+        return child;
+      });
+      expect(await runDev({ incident: "claude", projectRoot, spawnProcess })).toBe(0);
+      const calls = spawnProcess.mock.calls as unknown as [string, string[], { cwd: string; env: NodeJS.ProcessEnv }][];
+      expect(calls[1]?.[2].env.LLM_USAGE_MONITOR_MOCK_INCIDENT).toBe("claude");
+    } finally {
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
+
   it("reports spawn failure and unregisters signal handlers", async () => {
     const before = process.listenerCount("SIGINT");
     const spawnProcess = () => {

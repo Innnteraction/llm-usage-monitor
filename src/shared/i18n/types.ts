@@ -33,6 +33,10 @@ export interface UiMessages {
   localSessionTokens: string;
   additionalLimits: (count: number) => string;
   lastSuccessful: (time: string) => string;
+  serviceDegraded: string;
+  serviceOutage: string;
+  serviceIncidentReported: (provider: string) => string;
+  statusPageLink: string;
 }
 
 export interface I18nMessages {

@@ -309,6 +309,20 @@ export const createFakeUsageStore = (clock: () => Date = () => new Date()) => {
       };
       publish();
     },
+    updateVendorServiceStatus(
+      providerId: ProviderId,
+      serviceStatus: import("../shared/index").VendorServiceStatus,
+    ): void {
+      snapshot = {
+        ...snapshot,
+        providers: snapshot.providers.map((provider) =>
+          provider.providerId === providerId
+            ? { ...provider, serviceStatus }
+            : provider,
+        ),
+      };
+      publish();
+    },
     subscribe(listener: SnapshotListener): () => void {
       listeners.add(listener);
       return () => listeners.delete(listener);

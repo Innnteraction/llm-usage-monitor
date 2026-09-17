@@ -11,6 +11,8 @@ import {
   openAntigravitySetupResultSchema,
   openClaudeSetupPayloadSchema,
   openClaudeSetupResultSchema,
+  openExternalUrlPayloadSchema,
+  openExternalUrlResultSchema,
   refreshPayloadSchema,
   refreshResultSchema,
   setAlwaysOnTopPayloadSchema,
@@ -85,6 +87,12 @@ const api: UsageMonitorAPI = {
       await ipcRenderer.invoke(IPC_CHANNELS.setAlwaysOnTop, payload),
     );
     return result.alwaysOnTop;
+  },
+  async openExternalUrl(url) {
+    const payload = openExternalUrlPayloadSchema.parse({ url });
+    return openExternalUrlResultSchema.parse(
+      await ipcRenderer.invoke(IPC_CHANNELS.openExternalUrl, payload),
+    );
   },
 };
 

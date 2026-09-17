@@ -13,7 +13,9 @@ import {
   createLocalUsageCoordinator,
   createUsagePoller,
   createUsageStore,
+  createVendorHealthPoller,
   type QuotaProvider,
+  type VendorHealthPoller,
 } from "../usage/index";
 import {
   ClaudeLocalUsageScanner,
@@ -45,6 +47,7 @@ export class UsageMonitorCore {
   private readonly store: ReturnType<typeof createUsageStore>;
   private readonly poller?: ReturnType<typeof createUsagePoller>;
   private readonly localUsageCoordinator?: ReturnType<typeof createLocalUsageCoordinator>;
+  private readonly vendorHealthPoller?: VendorHealthPoller;
   private readonly snapshotCache?: SnapshotCache;
   private readonly pendingBackground = new Set<Promise<unknown>>();
   private readonly markerPath: string;
@@ -61,6 +64,7 @@ export class UsageMonitorCore {
     providers: QuotaProvider[],
     poller?: ReturnType<typeof createUsagePoller>,
     localUsageCoordinator?: ReturnType<typeof createLocalUsageCoordinator>,
+    vendorHealthPoller?: VendorHealthPoller,
     snapshotCache?: SnapshotCache,
     setupWasReady = false,
   ) {
@@ -71,6 +75,7 @@ export class UsageMonitorCore {
     this.store = store;
     this.poller = poller;
     this.localUsageCoordinator = localUsageCoordinator;
+    this.vendorHealthPoller = vendorHealthPoller;
     this.snapshotCache = snapshotCache;
     this.markerPath = path.join(this.userDataDir, CLAUDE_SETUP_READY_MARKER);
     this.setupReadyWritten = setupWasReady;
@@ -138,6 +143,16 @@ export class UsageMonitorCore {
           ],
         });
 
+    const vendorHealthPoller = useFake
+      ? undefined
+      : createVendorHealthPoller({
+          providerIds: providers.map(({ id }) => id),
+          onUpdate: (providerId, status) => {
+            store.updateVendorServiceStatus(providerId, status);
+          },
+          clock: options.clock,
+        });
+
     const markerPath = path.join(options.userDataDir, CLAUDE_SETUP_READY_MARKER);
     const setupWasReady = await UsageMonitorCore.checkPathExists(markerPath);
 
@@ -147,6 +162,7 @@ export class UsageMonitorCore {
       providers,
       poller,
       localUsageCoordinator,
+      vendorHealthPoller,
       snapshotCache,
       setupWasReady,
     );
@@ -206,6 +222,7 @@ export class UsageMonitorCore {
     await Promise.all([
       this.poller?.start(),
       this.localUsageCoordinator?.start(),
+      this.vendorHealthPoller?.start(),
     ]).catch(() => undefined);
   }
 
@@ -215,6 +232,7 @@ export class UsageMonitorCore {
       Promise.all([
         this.poller?.refresh(providerId) ?? this.store.refresh(providerId),
         this.localUsageCoordinator?.refresh(providerId),
+        this.vendorHealthPoller?.refresh(providerId),
       ]).then(() => undefined),
     );
   }
@@ -246,6 +264,9 @@ export class UsageMonitorCore {
     }
     if (this.localUsageCoordinator) {
       closePromises.push(this.localUsageCoordinator.stop());
+    }
+    if (this.vendorHealthPoller) {
+      closePromises.push(this.vendorHealthPoller.stop());
     }
 
     for (const provider of this.providers) {

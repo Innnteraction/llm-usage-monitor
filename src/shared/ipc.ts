@@ -25,6 +25,7 @@ export const IPC_CHANNELS = {
   openAntigravitySetup: "usage-monitor:open-antigravity-setup",
   getAlwaysOnTop: "usage-monitor:get-always-on-top",
   setAlwaysOnTop: "usage-monitor:set-always-on-top",
+  openExternalUrl: "usage-monitor:open-external-url",
 } as const;
 
 export const noPayloadSchema = z.tuple([]);
@@ -66,6 +67,16 @@ export const openAntigravitySetupPayloadSchema = z
 export const openAntigravitySetupResultSchema = z
   .object({ opened: z.boolean() })
   .strict();
+export const openExternalUrlPayloadSchema = z
+  .object({
+    url: z.string().url().refine((val) => val.startsWith("https://") || val.startsWith("http://"), {
+      message: "Only http and https URLs are allowed",
+    }),
+  })
+  .strict();
+export const openExternalUrlResultSchema = z
+  .object({ opened: z.boolean() })
+  .strict();
 
 export const refreshResultSchema = z.void();
 export { appSnapshotSchema, userPreferencesSchema };
@@ -81,4 +92,5 @@ export interface UsageMonitorAPI {
   openAntigravitySetup(action: AntigravitySetupAction): Promise<{ opened: boolean }>;
   getAlwaysOnTop(): Promise<boolean>;
   setAlwaysOnTop(enabled: boolean): Promise<boolean>;
+  openExternalUrl(url: string): Promise<{ opened: boolean }>;
 }

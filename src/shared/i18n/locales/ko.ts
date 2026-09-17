@@ -32,5 +32,9 @@ export const ko: I18nMessages = {
     localSessionTokens: "로컬 세션 토큰",
     additionalLimits: (count: number) => `+${count}개 추가 한도`,
     lastSuccessful: (time: string) => ` 마지막 정상 수집: ${time}.`,
+    serviceDegraded: "서비스 지연",
+    serviceOutage: "서비스 장애",
+    serviceIncidentReported: (provider: string) => `${provider} 서비스 장애가 보고되었습니다.`,
+    statusPageLink: "상태 확인",
   },
 };

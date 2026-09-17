@@ -18,10 +18,13 @@ export function packagedExecutable(projectRoot, platform = process.platform, arc
   throw new Error("개발 실행은 Windows와 macOS를 지원합니다.");
 }
 
-export async function runDev({ hmr = false, projectRoot = root, spawnProcess = spawn } = {}) {
+export async function runDev({ hmr = false, incident = undefined, projectRoot = root, spawnProcess = spawn } = {}) {
   const executable = packagedExecutable(projectRoot);
   const forge = require.resolve("@electron-forge/cli/dist/electron-forge.js");
   const env = { ...process.env, LLM_USAGE_MONITOR_DEV: "1" };
+  if (incident) {
+    env.LLM_USAGE_MONITOR_MOCK_INCIDENT = String(incident);
+  }
   delete env.ELECTRON_RUN_AS_NODE;
   let child;
   let cancelled = false;
@@ -77,11 +80,25 @@ export async function runDev({ hmr = false, projectRoot = root, spawnProcess = s
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const args = process.argv.slice(2);
-  if (args.some((arg) => arg !== "--hmr")) {
-    console.error("사용법: pnpm dev 또는 pnpm dev:hmr");
+  const hmr = args.includes("--hmr");
+  const incidentArg = args.find(
+    (arg) => arg.startsWith("--incident") || arg.startsWith("--mock-incident"),
+  );
+  let incident = undefined;
+  if (incidentArg) {
+    incident = incidentArg.includes("=") ? incidentArg.split("=")[1] : "claude";
+  }
+
+  const isAllowed = (arg) =>
+    arg === "--hmr" ||
+    arg.startsWith("--incident") ||
+    arg.startsWith("--mock-incident");
+
+  if (args.some((arg) => !isAllowed(arg))) {
+    console.error("사용법: pnpm dev [--hmr] [--incident[=claude|codex|antigravity|all]]");
     process.exitCode = 1;
   } else {
-    runDev({ hmr: args.includes("--hmr") }).then(
+    runDev({ hmr, incident }).then(
       (code) => { process.exitCode = code; },
       () => { console.error("[dev] 실행 실패: 의존성 설치와 빌드 산출물을 확인하세요."); process.exitCode = 1; },
     );

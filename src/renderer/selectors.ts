@@ -208,3 +208,31 @@ export const selectAdditionalWindows = (
     );
   });
 };
+
+export const hasServiceIncident = (provider: ProviderSnapshot): boolean => {
+  const indicator = provider.serviceStatus?.indicator;
+  return indicator === "minor" || indicator === "major" || indicator === "critical";
+};
+
+export interface ActiveIncident {
+  providerId: ProviderSnapshot["providerId"];
+  providerName: string;
+  indicator: "minor" | "major" | "critical";
+  title: string;
+  url: string;
+}
+
+export const selectActiveIncidents = (
+  providers: ProviderSnapshot[],
+): ActiveIncident[] => {
+  return providers
+    .filter(hasServiceIncident)
+    .map((provider) => ({
+      providerId: provider.providerId,
+      providerName: providerNames[provider.providerId] ?? provider.providerId,
+      indicator: provider.serviceStatus!.indicator as "minor" | "major" | "critical",
+      title: provider.serviceStatus!.incidentTitle ?? provider.serviceStatus!.description,
+      url: provider.serviceStatus!.statusPageUrl,
+    }));
+};
+

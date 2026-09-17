@@ -32,5 +32,9 @@ export const en: I18nMessages = {
     localSessionTokens: "Local session tokens",
     additionalLimits: (count: number) => `+${count} additional limits`,
     lastSuccessful: (time: string) => ` Last successful ${time}.`,
+    serviceDegraded: "degraded",
+    serviceOutage: "outage",
+    serviceIncidentReported: (provider: string) => `${provider} service incident reported.`,
+    statusPageLink: "Status",
   },
 };

@@ -6,8 +6,10 @@ import {
   type QuotaWindow,
   type LocalTokenUsage,
   type LocalUsageProviderId,
+  type VendorServiceStatus,
   localTokenUsageSchema,
   providerSnapshotSchema,
+  vendorServiceStatusSchema,
 } from "../shared/index";
 
 export interface QuotaProvider {
@@ -71,6 +73,7 @@ const retainLastSuccessfulSnapshot = (
     return providerSnapshotSchema.parse({
       ...failure,
       ...(current.localUsage ? { localUsage: current.localUsage } : {}),
+      ...(current.serviceStatus ? { serviceStatus: current.serviceStatus } : {}),
     });
   }
 
@@ -82,6 +85,7 @@ const retainLastSuccessfulSnapshot = (
       ...window,
       status: window.status === "unavailable" ? "unavailable" : "stale",
     })),
+    ...(current.serviceStatus ? { serviceStatus: current.serviceStatus } : {}),
     ...(failure.error ? { error: failure.error } : {}),
   });
 };
@@ -155,6 +159,9 @@ export function createUsageStore({
                     ),
                     ...(currentSnapshot.localUsage
                       ? { localUsage: currentSnapshot.localUsage }
+                      : {}),
+                    ...(currentSnapshot.serviceStatus
+                      ? { serviceStatus: currentSnapshot.serviceStatus }
                       : {}),
                   }
               : currentSnapshot,
@@ -245,6 +252,29 @@ export function createUsageStore({
         providers: snapshot.providers.map((provider) => {
           if (provider.providerId !== providerId) return provider;
           return { ...provider, localUsage: parsed.data };
+        }),
+        updatedAt: clock().toISOString(),
+      });
+      publish();
+    },
+    updateVendorServiceStatus(
+      providerId: ProviderId,
+      serviceStatus: VendorServiceStatus,
+    ): void {
+      if (
+        !snapshot.providers.some(
+          (provider) => provider.providerId === providerId,
+        )
+      ) {
+        return;
+      }
+      const parsed = vendorServiceStatusSchema.safeParse(serviceStatus);
+      if (!parsed.success) return;
+      snapshot = appSnapshotSchema.parse({
+        ...snapshot,
+        providers: snapshot.providers.map((provider) => {
+          if (provider.providerId !== providerId) return provider;
+          return { ...provider, serviceStatus: parsed.data };
         }),
         updatedAt: clock().toISOString(),
       });

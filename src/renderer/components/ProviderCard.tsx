@@ -7,6 +7,7 @@ import type {
 import {
   formatUpdatedAt,
   hasFableWindow,
+  hasServiceIncident,
   missingCoreLabels,
   providerErrorHelp,
   providerNames,
@@ -106,9 +107,23 @@ export const ProviderCard = ({
             </div>
           ) : null}
         </div>
-        <span className={`status status-${statusTone}`}>
-          <span aria-hidden="true">●</span> {statusTone}
-        </span>
+        {hasServiceIncident(provider) ? (
+          <button
+            type="button"
+            className={`status status-incident status-incident-${provider.serviceStatus!.indicator === "critical" ? "outage" : "degraded"}`}
+            title={`${provider.serviceStatus!.incidentTitle ?? provider.serviceStatus!.description}\n${provider.serviceStatus!.statusPageUrl}`}
+            onClick={() => {
+              void (window as unknown as { usageMonitor?: { openExternalUrl?(url: string): Promise<unknown> } })
+                .usageMonitor?.openExternalUrl?.(provider.serviceStatus!.statusPageUrl);
+            }}
+          >
+            <span aria-hidden="true">⚠️</span> {provider.serviceStatus!.indicator === "critical" ? "outage" : "degraded"}
+          </button>
+        ) : (
+          <span className={`status status-${statusTone}`}>
+            <span aria-hidden="true">●</span> {statusTone}
+          </span>
+        )}
       </header>
       {provider.error ? (
         <div className="provider-error-row" role="status">
