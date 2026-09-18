@@ -23,6 +23,7 @@ secrets/
 # Dependencies and package-manager state
 node_modules/
 .pnpm-store/
+target/
 
 # Logs, caches, tests and temporary output
 *.log

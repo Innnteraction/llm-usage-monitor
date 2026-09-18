@@ -1,0 +1,30 @@
+[package]
+name = "llm-usage-monitor"
+version = "0.12.0"
+edition = "2021"
+authors = ["Innnteraction"]
+description = "Pure native LLM quota and token monitor"
+
+[lib]
+name = "llm_usage_monitor_core"
+path = "src-native/lib.rs"
+
+[[bin]]
+name = "test-collector"
+path = "src-native/bin/test_collector.rs"
+
+[dependencies]
+tokio = { version = "1.38", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+portable-pty = "0.8"
+strip-ansi-escapes = "0.2"
+regex = "1.10"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+sha2 = "0.10"
+notify = "6.1"
+dirs = "5.0"
+tempfile = "3.10"
+anyhow = "1.0"
+thiserror = "1.0"
