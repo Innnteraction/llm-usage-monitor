@@ -7,6 +7,8 @@
 
 ---
 
+> 2026-09-19 재검토: 아래 완료·실측·라이선스 서술은 이전 작업의 기록이며, 재검증에서 구현 차이가 확인되었습니다. 현재 판정은 [M4·M5 리스크 기록](NATIVE_M4_M5_RISKS.md)을 우선합니다. M4·M5는 아직 완료되지 않았습니다.
+
 ## 1. 프로젝트 배경 및 전환 목적
 
 ### 1.1 배경
@@ -72,8 +74,8 @@
 - **3개사 서버 장애 모니터링**: Anthropic, OpenAI, Google Cloud Statuspage API 비동기 폴링 및 모의 장애 인젝션 지원.
 - **10,000+ 세션 로컬 토큰 증분 캐시**: Codex(`~/.codex/sessions`), Claude(`~/.claude/projects`)의 10,128개 JSONL 파일에 대해 `mtimeMs` + `size` 기반 체크포인트 캐시(`local-usage-index-v1.json`)를 구축하여 초기 스캔 후 재스캔 속도를 0.1초대로 단축.
 - **실제 환경 실측 (`test-collector` 검증)**:
-  - Claude: `ki1223@midasin.com` (5h: 30.0% used, resets at 04:20 UTC / 7d: 47.0% used, resets at 12:00 UTC) [Fresh]
-  - Antigravity: `innnteractive@gmail.com` (Gemini 주간 11%, 5h 33%, Claude/GPT 0%) [Fresh]
+  - Claude: (계정 식별자 생략) (5h: 30.0% used, resets at 04:20 UTC / 7d: 47.0% used, resets at 12:00 UTC) [Fresh]
+  - Antigravity: (계정 식별자 생략) (Gemini 주간 11%, 5h 33%, Claude/GPT 0%) [Fresh]
   - Codex: 미설치 정상 감지 [Unavailable]
   - 로컬 토큰: Codex 50.3억 토큰 (721개 파일), Claude 70.4억 토큰 (10,128개 파일)
 
