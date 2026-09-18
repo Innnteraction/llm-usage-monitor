@@ -39,17 +39,33 @@ describe("runtime isolation", () => {
     const app = harness();
     configureRuntime(app, { LLM_USAGE_MONITOR_GPU_SANDBOX: "0" }, false, "win32");
     expect(app.setPath).not.toHaveBeenCalled();
-    expect(app.commandLine.appendSwitch).not.toHaveBeenCalled();
+    expect(app.commandLine.appendSwitch).not.toHaveBeenCalledWith("disable-gpu-sandbox");
   });
 
   it("keeps the GPU sandbox enabled unless a development comparison explicitly bypasses it", () => {
     const app = harness();
     configureRuntime(app, { LLM_USAGE_MONITOR_DEV: "1", LLM_USAGE_MONITOR_GPU_SANDBOX: "1" }, false, "win32");
-    expect(app.commandLine.appendSwitch).not.toHaveBeenCalled();
+    expect(app.commandLine.appendSwitch).not.toHaveBeenCalledWith("disable-gpu-sandbox");
     configureRuntime(app, {}, false, "darwin");
-    expect(app.commandLine.appendSwitch).not.toHaveBeenCalled();
+    expect(app.commandLine.appendSwitch).not.toHaveBeenCalledWith("disable-gpu-sandbox");
     configureRuntime(app, { LLM_USAGE_MONITOR_DEV: "1", LLM_USAGE_MONITOR_GPU_SANDBOX: "0" }, false, "win32");
     expect(app.commandLine.appendSwitch).toHaveBeenCalledWith("disable-gpu-sandbox");
+  });
+
+  it("applies memory switches cross-platform and isolates GPU disabling to Windows", () => {
+    const winApp = harness();
+    configureRuntime(winApp, {}, false, "win32");
+    expect(winApp.commandLine.appendSwitch).toHaveBeenCalledWith("js-flags", "--max-old-space-size=64 --expose-gc");
+    expect(winApp.commandLine.appendSwitch).toHaveBeenCalledWith("renderer-process-limit", "1");
+    expect(winApp.commandLine.appendSwitch).toHaveBeenCalledWith("disable-gpu");
+    expect(winApp.commandLine.appendSwitch).toHaveBeenCalledWith("disable-software-rasterizer");
+
+    const macApp = harness();
+    configureRuntime(macApp, {}, false, "darwin");
+    expect(macApp.commandLine.appendSwitch).toHaveBeenCalledWith("js-flags", "--max-old-space-size=64 --expose-gc");
+    expect(macApp.commandLine.appendSwitch).toHaveBeenCalledWith("renderer-process-limit", "1");
+    expect(macApp.commandLine.appendSwitch).not.toHaveBeenCalledWith("disable-gpu");
+    expect(macApp.commandLine.appendSwitch).not.toHaveBeenCalledWith("disable-software-rasterizer");
   });
 });
 

@@ -41,11 +41,19 @@ export interface IpcDependencies {
   openExternalUrl?(url: string): Promise<{ opened: boolean }>;
 }
 
+export type WindowTarget = BrowserWindow | (() => BrowserWindow | undefined);
+
+const resolveWindow = (target: WindowTarget): BrowserWindow | undefined =>
+  typeof target === "function" ? target() : target;
+
 const assertTrustedSender = (
   event: IpcMainInvokeEvent,
-  window: BrowserWindow,
+  windowTarget: WindowTarget,
 ): void => {
+  const window = resolveWindow(windowTarget);
   if (
+    !window ||
+    (typeof window.isDestroyed === "function" && window.isDestroyed()) ||
     event.sender !== window.webContents ||
     event.senderFrame !== window.webContents.mainFrame
   ) {
@@ -65,30 +73,30 @@ const singlePayload = <T>(
 
 export const registerIpcHandlers = (
   ipcMain: IpcMain,
-  window: BrowserWindow,
+  windowTarget: WindowTarget,
   dependencies: IpcDependencies,
 ) => {
   ipcMain.handle(IPC_CHANNELS.getState, async (event, ...args) => {
-    assertTrustedSender(event, window);
+    assertTrustedSender(event, windowTarget);
     noPayloadSchema.parse(args);
     return appSnapshotSchema.parse(await dependencies.getState());
   });
 
   ipcMain.handle(IPC_CHANNELS.refresh, async (event, ...args) => {
-    assertTrustedSender(event, window);
+    assertTrustedSender(event, windowTarget);
     const { providerId } = singlePayload(refreshPayloadSchema, args);
     await dependencies.refresh(providerId);
     return refreshResultSchema.parse(undefined);
   });
 
   ipcMain.handle(IPC_CHANNELS.getPreferences, async (event, ...args) => {
-    assertTrustedSender(event, window);
+    assertTrustedSender(event, windowTarget);
     noPayloadSchema.parse(args);
     return userPreferencesSchema.parse(await dependencies.getPreferences());
   });
 
   ipcMain.handle(IPC_CHANNELS.setLaunchAtLogin, async (event, ...args) => {
-    assertTrustedSender(event, window);
+    assertTrustedSender(event, windowTarget);
     const { enabled } = singlePayload(setLaunchAtLoginPayloadSchema, args);
     return userPreferencesSchema.parse(
       await dependencies.setLaunchAtLogin(enabled),
@@ -96,14 +104,14 @@ export const registerIpcHandlers = (
   });
 
   ipcMain.handle(IPC_CHANNELS.setTokensVisible, async (event, ...args) => {
-    assertTrustedSender(event, window);
+    assertTrustedSender(event, windowTarget);
     const { visible, contentHeight } = singlePayload(setTokensVisiblePayloadSchema, args);
     await dependencies.setTokensVisible(visible, contentHeight);
     return refreshResultSchema.parse(undefined);
   });
 
   ipcMain.handle(IPC_CHANNELS.openClaudeSetup, async (event, ...args) => {
-    assertTrustedSender(event, window);
+    assertTrustedSender(event, windowTarget);
     const { action } = singlePayload(openClaudeSetupPayloadSchema, args);
     return openClaudeSetupResultSchema.parse(
       await dependencies.openClaudeSetup(action),
@@ -111,7 +119,7 @@ export const registerIpcHandlers = (
   });
 
   ipcMain.handle(IPC_CHANNELS.openAntigravitySetup, async (event, ...args) => {
-    assertTrustedSender(event, window);
+    assertTrustedSender(event, windowTarget);
     const { action } = singlePayload(openAntigravitySetupPayloadSchema, args);
     return openAntigravitySetupResultSchema.parse(
       await dependencies.openAntigravitySetup(action),
@@ -119,21 +127,21 @@ export const registerIpcHandlers = (
   });
 
   ipcMain.handle(IPC_CHANNELS.getAlwaysOnTop, async (event, ...args) => {
-    assertTrustedSender(event, window);
+    assertTrustedSender(event, windowTarget);
     noPayloadSchema.parse(args);
     const alwaysOnTop = await dependencies.getAlwaysOnTop();
     return alwaysOnTopResultSchema.parse({ alwaysOnTop });
   });
 
   ipcMain.handle(IPC_CHANNELS.setAlwaysOnTop, async (event, ...args) => {
-    assertTrustedSender(event, window);
+    assertTrustedSender(event, windowTarget);
     const { enabled } = singlePayload(setAlwaysOnTopPayloadSchema, args);
     const alwaysOnTop = await dependencies.setAlwaysOnTop(enabled);
     return alwaysOnTopResultSchema.parse({ alwaysOnTop });
   });
 
   ipcMain.handle(IPC_CHANNELS.openExternalUrl, async (event, ...args) => {
-    assertTrustedSender(event, window);
+    assertTrustedSender(event, windowTarget);
     const { url } = singlePayload(openExternalUrlPayloadSchema, args);
     if (dependencies.openExternalUrl) {
       return openExternalUrlResultSchema.parse(await dependencies.openExternalUrl(url));
@@ -145,8 +153,11 @@ export const registerIpcHandlers = (
   return {
     publishState(snapshot: AppSnapshot): void {
       const safeSnapshot = appSnapshotSchema.parse(snapshot);
+      const window = resolveWindow(windowTarget);
       if (
-        !window.isDestroyed?.() &&
+        window &&
+        !(typeof window.isDestroyed === "function" && window.isDestroyed()) &&
+        (typeof window.isVisible !== "function" || window.isVisible()) &&
         !window.webContents.isDestroyed() &&
         !(typeof window.webContents.isLoading === "function" && window.webContents.isLoading()) &&
         !(typeof window.webContents.isCrashed === "function" && window.webContents.isCrashed())

@@ -136,6 +136,11 @@ export const startApplication = (): void => {
   let requestedContentHeight: number | undefined;
   let isAlwaysOnTop = false;
   let customPosition: { x: number; y: number } | undefined;
+  let idleUnloadTimer: ReturnType<typeof setTimeout> | undefined;
+  let ipcController: ReturnType<typeof registerIpcHandlers> | undefined;
+  let coreInstance: UsageMonitorCore | undefined;
+
+  const IDLE_UNLOAD_DELAY_MS = 30_000;
 
   const { isDevMode } = configureRuntime(app, process.env, Boolean(MAIN_WINDOW_VITE_DEV_SERVER_URL));
   if (isDevMode) {
@@ -148,52 +153,42 @@ export const startApplication = (): void => {
     return;
   }
 
-  const showWindow = (): void => {
-    if (isQuitting || !mainWindow) {
-      return;
+  const cancelIdleUnload = (): void => {
+    if (idleUnloadTimer) {
+      clearTimeout(idleUnloadTimer);
+      idleUnloadTimer = undefined;
     }
-    resizeWindow(
-      mainWindow,
-      tray?.getBounds(),
-      tokensVisible,
-      requestedContentHeight,
-      customPosition,
-    );
-    mainWindow.show();
-    mainWindow.focus();
   };
 
-  app.on("second-instance", showWindow);
-  app.on("activate", showWindow);
-  app.on("before-quit", (event) => {
-    isQuitting = true;
-    beforeQuit?.(event);
-  });
-  app.on("window-all-closed", () => {
-    // The tray owns the Windows application lifecycle.
-  });
+  const scheduleIdleUnload = (keepVisibleForTest = false): void => {
+    cancelIdleUnload();
+    if (isAlwaysOnTop || keepVisibleForTest || isDevMode) {
+      return;
+    }
+    idleUnloadTimer = setTimeout(() => {
+      if (
+        mainWindow &&
+        !mainWindow.isDestroyed() &&
+        !mainWindow.isVisible() &&
+        !isAlwaysOnTop &&
+        !keepVisibleForTest &&
+        !isDevMode
+      ) {
+        mainWindow.destroy();
+        mainWindow = undefined;
+        if (typeof global.gc === "function") {
+          try {
+            global.gc();
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }, IDLE_UNLOAD_DELAY_MS);
+  };
 
-  void app.whenReady().then(async () => {
-    setupPlatformDock(app);
-    const useFakeProviders = process.env.LLM_USAGE_MONITOR_E2E === "1";
-    const keepVisibleForTest =
-      useFakeProviders &&
-      process.env.LLM_USAGE_MONITOR_E2E_KEEP_VISIBLE !== "0";
-
-    const core = await UsageMonitorCore.create({
-      userDataDir: app.getPath("userData"),
-      useFakeProviders,
-    });
-    const setupWasReady = await core.isClaudeSetupReady();
-
-    const preferencesPath = path.join(
-      app.getPath("userData"),
-      "preferences-v1.json",
-    );
-    const storedPrefs = await loadStoredPreferences(preferencesPath);
-    isAlwaysOnTop = storedPrefs.alwaysOnTop ?? false;
-
-    mainWindow = new BrowserWindow({
+  const createMainWindow = async (keepVisibleForTest = false): Promise<BrowserWindow> => {
+    const window = new BrowserWindow({
       width: WINDOW_SIZE.width,
       height: COMPACT_WINDOW_HEIGHT,
       useContentSize: true,
@@ -215,51 +210,119 @@ export const startApplication = (): void => {
     });
 
     if (isAlwaysOnTop) {
-      mainWindow.setAlwaysOnTop(true, getAlwaysOnTopLevel());
+      window.setAlwaysOnTop(true, getAlwaysOnTopLevel());
     }
 
-    mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     if (isDevMode) {
-      registerRendererDiagnostics(mainWindow.webContents);
+      registerRendererDiagnostics(window.webContents);
     }
-    mainWindow.webContents.on("will-navigate", (event) => {
+    window.webContents.on("will-navigate", (event) => {
       event.preventDefault();
     });
-    mainWindow.webContents.on("before-input-event", (_event, input) => {
+    window.webContents.on("before-input-event", (_event, input) => {
       if (input.type === "keyDown" && input.key === "Escape") {
         if (!isAlwaysOnTop) {
-          mainWindow?.hide();
+          window.hide();
+          scheduleIdleUnload(keepVisibleForTest);
         }
       }
     });
-    mainWindow.webContents.session.setPermissionRequestHandler(
+    window.webContents.session.setPermissionRequestHandler(
       (_webContents, _permission, callback) => callback(false),
     );
-    mainWindow.on("close", (event) => {
+    window.on("close", (event) => {
       if (!isQuitting) {
         event.preventDefault();
-        mainWindow?.hide();
+        window.hide();
+        scheduleIdleUnload(keepVisibleForTest);
       }
     });
-    mainWindow.on("moved", () => {
-      if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return;
-      const position = mainWindow.getPosition();
+    window.on("moved", () => {
+      if (isQuitting || window.isDestroyed()) return;
+      const position = window.getPosition();
       const x = position[0];
       const y = position[1];
       if (typeof x === "number" && typeof y === "number") {
         customPosition = { x, y };
       }
     });
-    mainWindow.on("blur", () => {
+    window.on("blur", () => {
       if (!keepVisibleForTest && !isAlwaysOnTop) {
-        mainWindow?.hide();
+        window.hide();
+        scheduleIdleUnload(keepVisibleForTest);
       }
     });
+    window.on("closed", () => {
+      if (mainWindow === window) {
+        mainWindow = undefined;
+      }
+    });
+
+    await loadRenderer(window);
+    return window;
+  };
+
+  const showWindow = async (keepVisibleForTest = false): Promise<void> => {
+    if (isQuitting) {
+      return;
+    }
+    cancelIdleUnload();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      mainWindow = await createMainWindow(keepVisibleForTest);
+    }
+    resizeWindow(
+      mainWindow,
+      tray?.getBounds(),
+      tokensVisible,
+      requestedContentHeight,
+      customPosition,
+    );
+    mainWindow.show();
+    mainWindow.focus();
+    if (coreInstance && ipcController) {
+      ipcController.publishState(coreInstance.getState());
+    }
+  };
+
+  app.on("second-instance", () => { void showWindow(); });
+  app.on("activate", () => { void showWindow(); });
+  app.on("before-quit", (event) => {
+    isQuitting = true;
+    cancelIdleUnload();
+    beforeQuit?.(event);
+  });
+  app.on("window-all-closed", () => {
+    // The tray owns the Windows application lifecycle.
+  });
+
+  void app.whenReady().then(async () => {
+    setupPlatformDock(app);
+    const useFakeProviders = process.env.LLM_USAGE_MONITOR_E2E === "1";
+    const keepVisibleForTest =
+      useFakeProviders &&
+      process.env.LLM_USAGE_MONITOR_E2E_KEEP_VISIBLE !== "0";
+
+    const core = await UsageMonitorCore.create({
+      userDataDir: app.getPath("userData"),
+      useFakeProviders,
+    });
+    coreInstance = core;
+    const setupWasReady = await core.isClaudeSetupReady();
+
+    const preferencesPath = path.join(
+      app.getPath("userData"),
+      "preferences-v1.json",
+    );
+    const storedPrefs = await loadStoredPreferences(preferencesPath);
+    isAlwaysOnTop = storedPrefs.alwaysOnTop ?? false;
+
+    mainWindow = await createMainWindow(keepVisibleForTest);
 
     const refreshUsage = (providerId?: ProviderId): Promise<void> =>
       core.refresh(providerId);
 
-    const ipcController = registerIpcHandlers(ipcMain, mainWindow, {
+    ipcController = registerIpcHandlers(ipcMain, () => mainWindow, {
       getState: async () => core.getState(),
       refresh: async (providerId) => {
         if (isQuitting) return;
@@ -293,6 +356,11 @@ export const startApplication = (): void => {
       getAlwaysOnTop: async () => isAlwaysOnTop,
       setAlwaysOnTop: async (enabled) => {
         isAlwaysOnTop = enabled;
+        if (enabled) {
+          cancelIdleUnload();
+        } else if (mainWindow && !mainWindow.isVisible()) {
+          scheduleIdleUnload(keepVisibleForTest);
+        }
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.setAlwaysOnTop(enabled, getAlwaysOnTopLevel());
         }
@@ -321,16 +389,19 @@ export const startApplication = (): void => {
     };
 
     const unsubscribe = core.subscribe((snapshot) => {
-      ipcController.publishState(snapshot);
+      ipcController?.publishState(snapshot);
       updateTrayTooltip(snapshot);
     });
 
     let shutdownPromise: Promise<void> | undefined;
     shutdown = (): Promise<void> => {
       shutdownPromise ??= (async () => {
+        cancelIdleUnload();
         mainWindow?.hide();
+        mainWindow?.destroy();
+        mainWindow = undefined;
         unsubscribe();
-        ipcController.dispose();
+        ipcController?.dispose();
         try {
           await core.stop();
         } finally {
@@ -342,7 +413,10 @@ export const startApplication = (): void => {
     };
 
     beforeQuit = createBeforeQuitHandler({
-      hide: () => mainWindow?.hide(),
+      hide: () => {
+        cancelIdleUnload();
+        mainWindow?.hide();
+      },
       shutdown,
       quit: () => app.quit(),
     });
@@ -368,16 +442,12 @@ export const startApplication = (): void => {
         createTrayMenuTemplate(
           () => app.getLoginItemSettings().openAtLogin,
           {
-            open: showWindow,
+            open: () => { void showWindow(keepVisibleForTest); },
             refresh: refreshAll,
             setLaunchAtLogin: updateLaunchAtLogin,
             resetPosition: () => {
               customPosition = undefined;
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                positionNearTray(mainWindow, tray?.getBounds());
-                mainWindow.show();
-                mainWindow.focus();
-              }
+              void showWindow(keepVisibleForTest);
             },
             quit: () => {
               isQuitting = true;
@@ -396,9 +466,10 @@ export const startApplication = (): void => {
           mainWindow.focus();
         } else {
           mainWindow.hide();
+          scheduleIdleUnload(keepVisibleForTest);
         }
       } else {
-        showWindow();
+        void showWindow(keepVisibleForTest);
       }
     });
 
@@ -410,16 +481,11 @@ export const startApplication = (): void => {
       isDevMode ||
       (process.platform === "darwin" ? !isAutostart : !setupWasReady);
 
-    mainWindow.once("ready-to-show", () => {
-      if (shouldShowInitially) {
-        showWindow();
-      }
-    });
-    mainWindow.on("closed", () => {
-      void shutdown?.().catch(() => undefined);
-      mainWindow = undefined;
-    });
-    await loadRenderer(mainWindow);
+    if (shouldShowInitially) {
+      void showWindow(keepVisibleForTest);
+    } else {
+      scheduleIdleUnload(keepVisibleForTest);
+    }
   }).catch(async () => {
     // 인증 및 provider 오류 본문을 포함할 수 있는 예외는 출력하지 않는다.
     console.error('[runtime] {"event":"startup-failed"}');

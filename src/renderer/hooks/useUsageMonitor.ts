@@ -85,18 +85,29 @@ export const useUsageMonitor = () => {
     setTokensVisible(visible);
   }, [tokensVisible]);
 
-  // Clock tick & focus refresh
+  // Clock tick & focus refresh (freezes when hidden to conserve background CPU and memory)
   useEffect(() => {
     const updateClock = (): void => setNow(Date.now());
     const handleWindowFocus = (): void => {
       updateClock();
       setActiveHelp(undefined);
     };
-    const timer = window.setInterval(updateClock, 30_000);
+    const handleVisibilityChange = (): void => {
+      if (document.visibilityState === "visible") {
+        updateClock();
+      }
+    };
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "hidden") {
+        updateClock();
+      }
+    }, 30_000);
     window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 

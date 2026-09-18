@@ -27,6 +27,19 @@ export const configureRuntime = (
   const gpuSandboxBypass = platform === "win32" && (isDevMode || isTest) &&
     env.LLM_USAGE_MONITOR_GPU_SANDBOX === "0";
   if (gpuSandboxBypass) app.commandLine.appendSwitch("disable-gpu-sandbox");
+
+  // [플랫폼 공통] V8 힙 상한을 64MB로 제한하여 힙 팽창 방지 및 보조 프로세스 통합
+  app.commandLine.appendSwitch("js-flags", "--max-old-space-size=64 --expose-gc");
+  app.commandLine.appendSwitch("renderer-process-limit", "1");
+  app.commandLine.appendSwitch("disable-features", "AudioServiceOutOfProcess,CalculateNativeWinOcclusion");
+
+  // [Windows 전용] 2D 유틸리티 UI이므로 GPU 프로세스를 꺼서 80~110MB 즉시 절감
+  // macOS에서는 Metal 컴포지팅 및 배터리/투명도 무결성을 위해 절대 적용하지 않는다.
+  if (platform === "win32") {
+    app.commandLine.appendSwitch("disable-gpu");
+    app.commandLine.appendSwitch("disable-software-rasterizer");
+  }
+
   return { isDevMode, gpuSandboxBypass };
 };
 

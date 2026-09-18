@@ -211,4 +211,43 @@ describe("restricted IPC handlers", () => {
 
     expect(() => controller.publishState(snapshot)).not.toThrow();
   });
+
+  it("skips publishing state when the window is hidden (background freeze)", () => {
+    const handlers = new Map<string, InvokeHandler>();
+    const ipcMain = {
+      handle: (channel: string, handler: InvokeHandler) => handlers.set(channel, handler),
+      removeHandler: (channel: string) => handlers.delete(channel),
+    } as unknown as IpcMain;
+    const webContents = {
+      isDestroyed: () => false,
+      isLoading: () => false,
+      isCrashed: () => false,
+      send: vi.fn(),
+    };
+    let visible = false;
+    const window = {
+      isVisible: () => visible,
+      isDestroyed: () => false,
+      webContents,
+    } as unknown as BrowserWindow;
+    const dependencies = {
+      getState: vi.fn(async () => snapshot),
+      refresh: vi.fn(async () => undefined),
+      getPreferences: vi.fn(async () => ({ launchAtLogin: false })),
+      setLaunchAtLogin: vi.fn(async (enabled: boolean) => ({ launchAtLogin: enabled })),
+      setTokensVisible: vi.fn(async () => undefined),
+      openClaudeSetup: vi.fn(async () => ({ opened: true })),
+      openAntigravitySetup: vi.fn(async () => ({ opened: true })),
+      getAlwaysOnTop: vi.fn(async () => false),
+      setAlwaysOnTop: vi.fn(async (enabled: boolean) => enabled),
+    };
+
+    const controller = registerIpcHandlers(ipcMain, () => window, dependencies);
+    controller.publishState(snapshot);
+    expect(webContents.send).not.toHaveBeenCalled();
+
+    visible = true;
+    controller.publishState(snapshot);
+    expect(webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.stateChanged, snapshot);
+  });
 });
