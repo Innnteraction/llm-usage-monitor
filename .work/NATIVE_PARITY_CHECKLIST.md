@@ -148,4 +148,4 @@ node scripts/create-parity-scenarios.mjs
 - [x] AGY 추가 제한을 Claude/GPT 제목과 5h·7d 행으로 정렬.
 - [x] 일반 추가 제한의 중복 라벨 제거 및 Electron 열 폭 적용.
 - [ ] normal 데모에서 AGY additional limits를 펼쳐 Node와 그룹·간격·남은 시간 비교.
-- [ ] Codex work 기존 항목명 확인 후 수집/표시 누락 경로 확정 및 복원.
+- [x] Codex work 복원 요청 철회: 사용자가 최근 제한이 하나로 통합된 것으로 판단해 추가 대응 불필요로 정리. 현재 구현 유지.

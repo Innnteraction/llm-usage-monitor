@@ -126,3 +126,4 @@ P0 자동 검증: 아키텍처 verify와 Rust 17개 테스트 통과. `--snapsho
 - architecture verify와 Rust 테스트 27개 통과. 화면 픽셀 동일성 및 펼침 상태 실화면은 사용자 수동 검수 대상이다.
 - Codex work 누락은 기존 표시 이름 확인 대기. 이름 기반 제외는 gpt-reserve Weekly뿐이며 work를 직접 제외하지 않는다. 해당 항목의 정체를 추측해 숨김 규칙을 제거하거나 quota를 합성하지 않았다.
 - 기본 release exe 교체 성공. 공통 허구 snapshot 데모 --quit-after=3 실행: exit 0, stderr 0 bytes. 펼침 클릭/시각 비교 검증을 대신하지 않는다.
+- 후속 사용자 결정: Codex 제한이 최근 하나로 통합된 것으로 보이므로 work 복원 요청을 철회했다. 위 항목명 확인 대기를 종료하고 현재 수집·표시 구현을 유지한다. 벤더 정책 변경을 별도로 검증한 결과는 아니다.
