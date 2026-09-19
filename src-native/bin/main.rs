@@ -297,7 +297,7 @@ impl Render for PopoverView {
                         let mut children=Vec::new();
                         if !compact && snap.providers.iter().any(|p| p.service_status.as_ref().is_some_and(|s| matches!(s.indicator, ServiceHealthIndicator::Minor | ServiceHealthIndicator::Major | ServiceHealthIndicator::Critical))) { children.push(render_vendor_health_banner(&snap.providers,palette,events.clone()).into_any_element()); }
                         if compact { children.push(render_compact(&snap.providers,palette,now,&errors,events.clone(),reduced_motion).into_any_element()); }
-                        else { for (index,p) in snap.providers.iter().enumerate() {children.push(render_quota_card(p,index,palette,now,expanded.contains(&p.provider_id),events.clone(),reduced_motion).into_any_element());} }
+                        else { for (index,p) in snap.providers.iter().enumerate() {children.push(render_quota_card(p,index,palette,now,expanded.contains(&p.provider_id),events.clone(),reduced_motion,snap.refreshing.contains(&p.provider_id)).into_any_element());} }
                         children
                     } else {vec![div().text_size(px(11.968)).child("Loading quota…").into_any_element()]})))
     }
@@ -515,7 +515,16 @@ fn main() {
     let _shared_lock = if !demo {
         match llm_usage_monitor_core::core::engine::cache::acquire_lock(&llm_usage_monitor_core::core::engine::cache::directory()) {
             Ok(lock) => Some(lock),
-            Err(_) => { eprintln!("다른 버전이 실행 중이거나 공통 실행 잠금을 사용할 수 없습니다."); return; }
+            Err(_) => {
+                #[cfg(windows)]
+                unsafe {
+                    use windows::{core::w, Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK, MB_ICONINFORMATION}};
+                    MessageBoxW(None, w!("다른 버전이 실행 중이거나 공통 실행 잠금을 사용할 수 없습니다. 실행 중인 앱을 종료한 뒤 다시 시도해 주세요."), w!("LLM Usage Monitor"), MB_OK | MB_ICONINFORMATION);
+                }
+                #[cfg(not(windows))]
+                { let _ = std::process::Command::new("osascript").args(["-e", "display alert \"LLM Usage Monitor\" message \"Another version is running or the shared lock is unavailable.\""]).status(); }
+                return;
+            }
         }
     } else { None };
     let fixed_now = fixture.as_ref().map(|s| s.updated_at);

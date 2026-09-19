@@ -30,6 +30,7 @@ export interface ProviderCardProps {
   activeHelp?: string;
   onActiveHelpChange(id?: string): void;
   tokensVisible: boolean;
+  refreshing?: boolean;
 }
 
 export const ProviderCard = ({
@@ -41,6 +42,7 @@ export const ProviderCard = ({
   activeHelp,
   onActiveHelpChange,
   tokensVisible,
+  refreshing,
 }: ProviderCardProps) => {
   const sources = [
     ...new Set(provider.quotaWindows.map(({ source }) => sourceNames[source])),
@@ -230,6 +232,7 @@ export const ProviderCard = ({
           <LocalUsageView
             providerId={provider.providerId}
             usage={provider.localUsage}
+            refreshing={refreshing}
             activeHelp={activeHelp}
             onActiveHelpChange={onActiveHelpChange}
           />

@@ -19,6 +19,7 @@ export interface LocalUsageCoordinatorOptions {
   store: LocalUsageStore;
   debounceMs?: number;
   reconcileMs?: number;
+  onProgress?: (providerId: LocalUsageProviderId, active: boolean) => void;
 }
 
 interface ScanEntry {
@@ -35,6 +36,7 @@ const isAbort = (error: unknown): boolean =>
 export function createLocalUsageCoordinator({
   scanners,
   store,
+  onProgress,
   debounceMs = LOCAL_USAGE_DEBOUNCE_MS,
   reconcileMs = LOCAL_USAGE_RECONCILE_MS,
 }: LocalUsageCoordinatorOptions) {
@@ -66,6 +68,7 @@ export function createLocalUsageCoordinator({
       queued: false,
       promise: Promise.resolve(),
     };
+    onProgress?.(providerId, true);
     entry.promise = (async () => {
       do {
         entry.queued = false;
@@ -81,6 +84,7 @@ export function createLocalUsageCoordinator({
       } while (running && !entry.controller.signal.aborted && entry.queued);
     })().finally(() => {
       if (scans.get(providerId) === entry) scans.delete(providerId);
+      onProgress?.(providerId, false);
     });
     scans.set(providerId, entry);
     return entry.promise;

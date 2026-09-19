@@ -73,6 +73,7 @@ export function createUsageStore({
     updatedAt: clock().toISOString(),
   });
   const listeners = new Set<SnapshotListener>();
+  const backgroundTasks = new Set<string>();
   const generations = new Map<ProviderId, number>();
   const inFlight = new Map<
     ProviderId,
@@ -88,7 +89,7 @@ export function createUsageStore({
   const refreshingProviderIds = (): ProviderId[] =>
     providers
       .map(({ id }) => id)
-      .filter((providerId) => inFlight.has(providerId));
+      .filter((providerId) => inFlight.has(providerId) || backgroundTasks.has(`local:${providerId}`) || backgroundTasks.has(`health:${providerId}`));
 
   const startRefresh = (provider: QuotaProvider): Promise<void> => {
     const current = inFlight.get(provider.id);
@@ -166,6 +167,7 @@ export function createUsageStore({
           return;
         }
         if (entry.queued) {
+          publish();
           inFlight.delete(provider.id);
           return startRefresh(provider);
         }
@@ -182,6 +184,12 @@ export function createUsageStore({
   };
 
   return {
+    setTaskRefreshing(kind: "local" | "health", providerId: ProviderId, active: boolean): void {
+      const key = `${kind}:${providerId}`;
+      if (active) backgroundTasks.add(key); else backgroundTasks.delete(key);
+      snapshot = { ...snapshot, refreshing: refreshingProviderIds() };
+      publish();
+    },
     getState(): AppSnapshot {
       return snapshot;
     },

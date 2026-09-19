@@ -35,7 +35,7 @@ pub struct LocalUsageFileCheckpoint {
     pub offset: u64,
     pub boundary_hash: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub error_count: Option<u32>,
+    pub error_count: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub observed_from: Option<String>,
     pub contribution: TokenContribution,
@@ -91,10 +91,6 @@ impl TokenContribution {
                 .input_tokens
                 .checked_add(self.output_tokens)
                 .is_some_and(|v| v <= MAX_SAFE_INTEGER)
-            && self
-                .cache_read_tokens
-                .saturating_add(self.cache_write_tokens)
-                <= self.input_tokens
     }
     pub fn merge_message(&mut self, other: &Self) {
         let base = self

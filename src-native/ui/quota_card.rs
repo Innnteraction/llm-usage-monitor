@@ -11,6 +11,7 @@ pub fn render_quota_card(
     expanded: bool,
     events: UiEvents,
     reduced_motion: bool,
+    refreshing: bool,
 ) -> impl IntoElement {
     let status = status(p, now);
     let status_color = match status {
@@ -296,7 +297,7 @@ pub fn render_quota_card(
                 .children(
                     p.local_usage
                         .as_ref()
-                        .map(|u| super::local_tokens::render_usage(u, palette)),
+                        .map(|u| super::local_tokens::render_usage(u, palette, refreshing)),
                 )
                 .child(
                     div()

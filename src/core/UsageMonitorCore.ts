@@ -151,6 +151,7 @@ export class UsageMonitorCore {
       ? undefined
       : createLocalUsageCoordinator({
           store,
+          onProgress: (id, active) => store.setTaskRefreshing("local", id, active),
           scanners: [
             new CodexLocalUsageScanner({ checkpointStore: checkpointStore! }),
             new ClaudeLocalUsageScanner({ checkpointStore: checkpointStore! }),
@@ -160,6 +161,7 @@ export class UsageMonitorCore {
     const vendorHealthPoller = useFake
       ? undefined
       : createVendorHealthPoller({
+          onProgress: (id, active) => store.setTaskRefreshing("health", id, active),
           providerIds: providers.map(({ id }) => id),
           onUpdate: (providerId, status) => {
             store.updateVendorServiceStatus(providerId, status);
@@ -295,6 +297,7 @@ export class UsageMonitorCore {
       await Promise.allSettled(closePromises);
     } finally {
       try {
+        await this.snapshotCache?.save(this.store.getState());
         await this.snapshotCache?.flush();
       } catch {
         // flush 실패가 다른 리소스 정리를 방해하지 않음

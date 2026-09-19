@@ -1,6 +1,6 @@
 import { mkdir, readFile, realpath, open, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { localTokenUsageSchema } from "../shared/index";
 import { z } from "zod";
 import type {
@@ -20,7 +20,7 @@ const contributionSchema = z
     cacheReadTokens: safeIntegerSchema.optional(),
     cacheWriteTokens: safeIntegerSchema.optional(),
   })
-  .strict();
+  .strict().refine(v => Number.isSafeInteger(v.inputTokens + v.outputTokens));
 const fileCheckpointSchema = z
   .object({
     fileKey: z.string().regex(/^[a-f0-9]{64}$/),
@@ -37,10 +37,10 @@ const fileCheckpointSchema = z
       .record(z.string().regex(/^[a-f0-9]{64}$/), contributionSchema)
       .optional(),
   })
-  .strict();
+  .strict().refine(v => v.offset <= v.size);
 const sectionSchema = z
   .object({ files: z.record(z.string().regex(/^[a-f0-9]{64}$/), fileCheckpointSchema), rootKey: z.string().regex(/^[a-f0-9]{64}$/).optional(), summary: localTokenUsageSchema.optional() })
-  .strict();
+  .strict().refine(v => Object.entries(v.files).every(([key,file]) => key === file.fileKey));
 const checkpointStateSchema = z
   .object({
     schemaVersion: z.literal(2),
@@ -110,7 +110,7 @@ export class LocalUsageCheckpointStore {
 
   private async writeState(state: LocalUsageCheckpointState): Promise<void> {
     await mkdir(path.dirname(this.filePath), { recursive: true });
-    const temporaryPath = `${this.filePath}.${process.pid}.${Date.now()}.tmp`;
+    const temporaryPath = `${this.filePath}.${process.pid}.${randomUUID()}.tmp`;
     try {
       await writeFile(temporaryPath, JSON.stringify(state), "utf8");
       await rename(temporaryPath, this.filePath);

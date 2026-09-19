@@ -15,6 +15,7 @@ export interface VendorHealthPollerOptions {
   normalIntervalMs?: number;
   incidentIntervalMs?: number;
   clock?: () => Date;
+  onProgress?: (providerId: ProviderId, active: boolean) => void;
 }
 
 export function createVendorHealthPoller(options: VendorHealthPollerOptions) {
@@ -23,96 +24,64 @@ export function createVendorHealthPoller(options: VendorHealthPollerOptions) {
     onUpdate,
     fetcher = fetchVendorServiceStatus,
     fetchOptions = {},
+    onProgress,
     normalIntervalMs = HEALTH_POLL_NORMAL_INTERVAL_MS,
     incidentIntervalMs = HEALTH_POLL_INCIDENT_INTERVAL_MS,
   } = options;
 
-  let timer: ReturnType<typeof setTimeout> | undefined;
   let running = false;
   let stopped = false;
-  let startPromise: Promise<void> | undefined;
-  let inFlight: Promise<void> | undefined;
-
+  const timers = new Map<ProviderId, ReturnType<typeof setTimeout>>();
+  const inFlight = new Map<ProviderId, { queued: boolean; promise: Promise<void> }>();
   const latestStatuses = new Map<ProviderId, VendorServiceStatus>();
 
-  const hasAnyIncident = (): boolean => {
-    for (const status of latestStatuses.values()) {
-      if (status.indicator !== "operational") {
-        return true;
+  const request = (providerId: ProviderId): Promise<void> => {
+    if (stopped) return Promise.resolve();
+    const existing = inFlight.get(providerId);
+    if (existing) { existing.queued = true; return existing.promise; }
+    clearTimeout(timers.get(providerId));
+    timers.delete(providerId);
+    onProgress?.(providerId, true);
+    const entry = { queued: false, promise: Promise.resolve() };
+    entry.promise = Promise.resolve().then(async () => {
+      do {
+        entry.queued = false;
+        try {
+          const status = await fetcher(providerId, undefined, fetchOptions);
+          latestStatuses.set(providerId, status);
+          onUpdate(providerId, status);
+        } catch { /* isolated; retry using the incident interval */ }
+      } while (!stopped && entry.queued);
+    }).finally(() => {
+      inFlight.delete(providerId);
+      onProgress?.(providerId, false);
+      if (running && !stopped) {
+        const delay = latestStatuses.get(providerId)?.indicator === "operational"
+          ? normalIntervalMs : incidentIntervalMs;
+        timers.set(providerId, setTimeout(() => { void request(providerId); }, delay));
       }
-    }
-    return false;
+    });
+    inFlight.set(providerId, entry);
+    return entry.promise;
   };
-
-  const clearCurrentTimer = (): void => {
-    if (timer) {
-      clearTimeout(timer);
-      timer = undefined;
-    }
-  };
-
-  const scheduleNext = (): void => {
-    if (!running || stopped) return;
-    clearCurrentTimer();
-    const delay = hasAnyIncident() ? incidentIntervalMs : normalIntervalMs;
-    timer = setTimeout(() => {
-      void runPollCycle();
-    }, delay);
-  };
-
-  const pollProvider = async (providerId: ProviderId): Promise<void> => {
-    try {
-      const status = await fetcher(providerId, undefined, fetchOptions);
-      latestStatuses.set(providerId, status);
-      onUpdate(providerId, status);
-    } catch {
-      // ignore individual failure, fetcher already returns unknown on error
-    }
-  };
-
-  const runPollCycle = async (targetProviderId?: ProviderId): Promise<void> => {
-    if (stopped) return;
-    clearCurrentTimer();
-
-    const targets = targetProviderId
-      ? providerIds.filter((id) => id === targetProviderId)
-      : providerIds;
-
-    const op = Promise.allSettled(targets.map(pollProvider)).then(() => undefined);
-    inFlight = op;
-    await op;
-    inFlight = undefined;
-
-    if (running && !stopped) {
-      scheduleNext();
-    }
+  const refresh = async (target?: ProviderId): Promise<void> => {
+    await Promise.all(providerIds.filter(id => !target || id === target).map(request));
   };
 
   return {
     async start(): Promise<void> {
       if (running) return;
-      if (startPromise) return startPromise;
-
       stopped = false;
       running = true;
-      startPromise = runPollCycle().finally(() => {
-        startPromise = undefined;
-      });
-      return startPromise;
+      await refresh();
     },
-
-    async refresh(targetProviderId?: ProviderId): Promise<void> {
-      if (stopped) return;
-      await runPollCycle(targetProviderId);
-    },
-
+    refresh,
     async stop(): Promise<void> {
       running = false;
       stopped = true;
-      clearCurrentTimer();
-      if (inFlight) {
-        await inFlight;
-      }
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+      await Promise.all([...inFlight.values()].map(entry => entry.promise));
     },
 
     getStatuses(): ReadonlyMap<ProviderId, VendorServiceStatus> {

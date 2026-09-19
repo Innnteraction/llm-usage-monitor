@@ -27,7 +27,7 @@ fn detail(
         .tooltip(move |_, cx| super::tooltip::tooltip(description.clone(), p, cx))
         .child(label)
 }
-pub fn render_usage(u: &LocalTokenUsage, p: Palette) -> impl IntoElement {
+pub fn render_usage(u: &LocalTokenUsage, p: Palette, refreshing: bool) -> impl IntoElement {
     let count = |v: Option<u64>| v.map(format_token_count).unwrap_or_else(|| "--".into());
     div()
         .flex()
@@ -53,6 +53,7 @@ pub fn render_usage(u: &LocalTokenUsage, p: Palette) -> impl IntoElement {
                                 .to_string())
                             .unwrap_or_else(|| "unavailable".into())
                     ),format!("{}. Calculated at: {}.",u.observed_from.map(|t|format!("Earliest event observed in local logs: {}. Not a quota reset or subscription start date",t.with_timezone(&chrono::Local).format("%m/%d/%Y"))).unwrap_or_else(||"Earliest observed event date not provided".into()),u.calculated_at.with_timezone(&chrono::Local).format("%m/%d/%Y %-I:%M %p")),p.muted,p))
+                    .children(refreshing.then(|| div().child("rechecking")))
                     .children(u.partial.then(|| {
                         detail("partial",format!("partial {}",u.failed_file_count),format!("Verified partial total. {} file(s) had read or record processing issues. Will retry on next scan.",exact(u.failed_file_count)),p.medium,p)
                     })),

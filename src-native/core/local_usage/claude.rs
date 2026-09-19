@@ -43,12 +43,12 @@ impl ClaudeLocalScanner {
 
 fn parse(value: Value, cp: &mut LocalUsageFileCheckpoint) -> Result<(), ()> {
     if value["type"] != "assistant" {
-        return Ok(());
+        return Err(());
     }
     let message = &value["message"];
     let usage = &message["usage"];
     if usage.is_null() {
-        return Ok(());
+        return Err(());
     }
     let id = message["id"]
         .as_str()
@@ -56,8 +56,16 @@ fn parse(value: Value, cp: &mut LocalUsageFileCheckpoint) -> Result<(), ()> {
         .ok_or(())?;
     let input = usage["input_tokens"].as_u64().ok_or(())?;
     let output = usage["output_tokens"].as_u64().ok_or(())?;
-    let read = usage["cache_read_input_tokens"].as_u64().unwrap_or(0);
-    let write = usage["cache_creation_input_tokens"].as_u64().unwrap_or(0);
+    let read = usage
+        .get("cache_read_input_tokens")
+        .map(|v| v.as_u64().ok_or(()))
+        .transpose()?
+        .unwrap_or(0);
+    let write = usage
+        .get("cache_creation_input_tokens")
+        .map(|v| v.as_u64().ok_or(()))
+        .transpose()?
+        .unwrap_or(0);
     let current = TokenContribution {
         input_tokens: input.saturating_add(read).saturating_add(write),
         output_tokens: output,

@@ -72,7 +72,7 @@ describe("VendorHealthPoller", () => {
     await poller.stop();
   });
 
-  it("schedules next poll with incident interval (5m) when any provider has degraded status", async () => {
+  it("polls degraded providers after 5m without accelerating healthy providers", async () => {
     const mockFetcher = vi.fn().mockImplementation(async (providerId: ProviderId) => {
       return {
         indicator: providerId === "claude" ? ("minor" as const) : ("operational" as const),
@@ -93,9 +93,9 @@ describe("VendorHealthPoller", () => {
     await poller.start();
     expect(mockFetcher).toHaveBeenCalledTimes(2);
 
-    // 이상 징후 발생 시 5분 간격이어야 하므로, 5분 경과 시 다시 실행되어야 함
+    // 장애 provider만 5분 후 다시 조회한다.
     await vi.advanceTimersByTimeAsync(HEALTH_POLL_INCIDENT_INTERVAL_MS);
-    expect(mockFetcher).toHaveBeenCalledTimes(4);
+    expect(mockFetcher).toHaveBeenCalledTimes(3);
 
     await poller.stop();
   });
@@ -122,4 +122,25 @@ describe("VendorHealthPoller", () => {
 
     await poller.stop();
   });
+});
+
+it("coalesces repeated health refreshes and drains active work on stop", async () => {
+  vi.useRealTimers();
+  let finish!: (status: VendorServiceStatus) => void;
+  const fetcher = vi.fn(() => new Promise<VendorServiceStatus>(resolve => { finish = resolve; }));
+  const onUpdate = vi.fn();
+  const poller = createVendorHealthPoller({providerIds:["codex"],fetcher,onUpdate});
+  const first = poller.start();
+  await Promise.resolve();
+  const repeated = Array.from({length:10}, () => poller.refresh());
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  const status:VendorServiceStatus = {indicator:"operational",description:"Synthetic",statusPageUrl:"https://example.com",checkedAt:new Date().toISOString()};
+  finish(status);
+  await Promise.resolve(); await Promise.resolve();
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  const stopping = poller.stop();
+  finish(status);
+  await Promise.all([first,...repeated,stopping]);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(onUpdate).toHaveBeenCalledTimes(2);
 });

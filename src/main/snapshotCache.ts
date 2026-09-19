@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { homedir } from "node:os";
 import { createHash, randomUUID } from "node:crypto";
@@ -112,12 +112,14 @@ export class SnapshotCache {
           .map(sanitizeForCache);
         const temporaryPath = `${this.filePath}.${process.pid}.${randomUUID()}.tmp`;
         await mkdir(path.dirname(this.filePath), { recursive: true });
+        try {
         await writeFile(
           temporaryPath,
           JSON.stringify({ schemaVersion: 2, providers }),
           "utf8",
         );
         await rename(temporaryPath, this.filePath);
+        } finally { await unlink(temporaryPath).catch(() => undefined); }
       })
       .catch(() => undefined);
     return this.writeQueue;

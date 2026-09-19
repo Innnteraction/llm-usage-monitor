@@ -37,6 +37,7 @@ fn scan_file(
     file_key: &str,
     previous: Option<&LocalUsageFileCheckpoint>,
     parse: ParseLine,
+    provider: &str,
 ) -> std::io::Result<LocalUsageFileCheckpoint> {
     let metadata = path.metadata()?;
     let size = metadata.len();
@@ -100,7 +101,7 @@ fn scan_file(
         if n == 0 {
             break;
         }
-        if line.len() as u64 > MAX_LINE_BYTES {
+        if line.len() as u64 > MAX_LINE_BYTES && !line.ends_with(b"\n") {
             // 크기 제한을 넘은 행을 청크로 버린다. 내용은 보존하지 않는다.
             while !line.ends_with(b"\n") {
                 line.clear();
@@ -125,6 +126,15 @@ fn scan_file(
         }
         cp.offset = reader.stream_position()?;
         if line.iter().all(u8::is_ascii_whitespace) {
+            continue;
+        }
+        let contains = |needle: &[u8]| line.windows(needle.len()).any(|w| w == needle);
+        let candidate = if provider == "codex" {
+            contains(b"token_count") && contains(b"total_token_usage")
+        } else {
+            contains(b"\"assistant\"") && contains(b"\"message\"") && contains(b"\"usage\"")
+        };
+        if !candidate {
             continue;
         }
         let valid = serde_json::from_slice(&line)
@@ -196,26 +206,18 @@ fn scan(
         .map(|p| file_hash(&root_key, root, p))
         .collect();
     let discovery_failed = failed > 0;
-    let mut changed = false;
     if failed == 0 {
-        let count = section.files.len();
         section.files.retain(|key, _| discovered.contains(key));
-        changed = count != section.files.len();
     }
     let mut agg = TokenContribution::default();
     for path in &files {
         let key = file_hash(&root_key, root, path);
-        match scan_file(path, &key, section.files.get(&key), parse) {
+        match scan_file(path, &key, section.files.get(&key), parse, provider) {
             Ok(cp) => {
-                if cp.error_count.unwrap_or(0) > 0 || cp.offset < cp.size {
+                if cp.error_count.unwrap_or(0) > 0 {
                     failed += 1;
                 }
                 agg.add(&cp.contribution);
-                changed |= section.files.get(&key).is_none_or(|old| {
-                    old.size != cp.size
-                        || old.mtime_ms != cp.mtime_ms
-                        || old.boundary_hash != cp.boundary_hash
-                });
                 section.files.insert(key, cp);
             }
             Err(_) => {
@@ -233,7 +235,6 @@ fn scan(
             }
         }
     }
-    let _ = changed;
     if provider == "claude" {
         let mut messages = std::collections::HashMap::<String, TokenContribution>::new();
         for file in section.files.values() {
@@ -253,7 +254,7 @@ fn scan(
     }
     let summary = LocalTokenUsage {
         scope: "local_device".into(),
-        scanned_file_count: files.len() as u64,
+        scanned_file_count: section.files.len() as u64,
         failed_file_count: failed,
         input_tokens: agg.input_tokens,
         output_tokens: agg.output_tokens,
@@ -327,7 +328,7 @@ mod tests {
         file.write_all(&line.as_bytes()[..cut]).unwrap();
         file.flush().unwrap();
         let partial = scanner.scan().await;
-        assert!(partial.partial);
+        assert!(!partial.partial);
         assert_eq!(partial.total_tokens, 12);
         assert_eq!(
             store
@@ -365,7 +366,8 @@ mod tests {
         assert_eq!(scanner.scan().await.total_tokens, 17);
         let mut file = std::fs::OpenOptions::new().append(true).open(path).unwrap();
         file.write_all(row(7).as_bytes()).unwrap();
-        file.write_all(b"invalid\n").unwrap();
+        file.write_all(b"{\"assistant\" \"message\" \"usage\":invalid}\n")
+            .unwrap();
         file.flush().unwrap();
         let usage = scanner.scan().await;
         assert_eq!(usage.total_tokens, 22);

@@ -4,7 +4,7 @@
 - [x] M1: guard·Node 캐시 8개·Rust engine 2개·TS 타입 검사 통과. 공유 quota 실제 표시 연결은 M3에서 수행.
 - [x] M2: v2 토큰 인덱스·해시 식별·4KiB 경계 검증·Claude 파일 간 중복 제거·Node→Rust→Node 이어읽기 검증.
 - [x] M3: 캐시 우선 표시와 독립 결과 반영. 느린 fake Claude 완료 전 캐시·Codex·AGY 실패 반영, Rust 30개·Node store 12개·타입 검사 통과.
-- [ ] M4: 갱신 병합·주기·종료 처리.
+- [x] M4: 갱신 병합·주기·종료 처리. Node 장애 조회 중복 제거, 마지막 quota 저장, 작업별 진행 상태·재검증 표시, 토큰 파서/검증 차이 보완.
 - [ ] M5: 교차 검증·배포 산출물·수동 화면 검수.
 
 ## 위험과 한계
@@ -15,3 +15,5 @@
 - src/core/UsageMonitorCore.ts는 현재 guard include 밖이므로 의존성을 수동 검토한다. 정책과 baseline은 변경하지 않는다.
 
 - M2 검증: Node 토큰 관련 20개, 교차 실행 1개, Rust 로컬 사용량 4개. 기존 인덱스는 재사용하지 않고 공통 v2로 처음 한 번 재집계한다.
+
+- M4 검사: Node 관련 34개·타입 검사 통과. 전체 lint는 기존 capture-native-reference.mjs 6건과 create-parity-scenarios.mjs 1건의 no-undef로 실패한다(이번 변경 밖).

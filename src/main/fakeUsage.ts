@@ -270,6 +270,7 @@ export const createFakeUsageStore = (clock: () => Date = () => new Date()) => {
   };
 
   return {
+    setTaskRefreshing(): void { /* Synthetic refresh owns its own progress. */ },
     getState(): AppSnapshot {
       return snapshot;
     },

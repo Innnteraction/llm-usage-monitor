@@ -93,20 +93,42 @@ pub fn atomic_write(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()>
 fn valid_state(state: &LocalUsageCheckpointState) -> bool {
     use super::types::MAX_SAFE_INTEGER;
     fn hash(s: &str) -> bool {
-        s.len() == 64 && s.bytes().all(|c| c.is_ascii_hexdigit())
+        s.len() == 64
+            && s.bytes()
+                .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
     }
     state.schema_version == 2
+        && state.providers.len() == 2
         && state
             .providers
             .keys()
             .all(|k| k == "codex" || k == "claude")
         && state.providers.values().all(|s| {
             s.root_key.as_ref().is_none_or(|k| hash(k))
+                && s.summary.as_ref().is_none_or(|u| {
+                    u.scope == "local_device"
+                        && [
+                            u.scanned_file_count,
+                            u.failed_file_count,
+                            u.input_tokens,
+                            u.output_tokens,
+                            u.cache_read_tokens.unwrap_or(0),
+                            u.cache_write_tokens.unwrap_or(0),
+                            u.total_tokens,
+                        ]
+                        .into_iter()
+                        .all(|n| n <= MAX_SAFE_INTEGER)
+                        && u.input_tokens.checked_add(u.output_tokens) == Some(u.total_tokens)
+                })
                 && s.files.iter().all(|(k, f)| {
                     hash(k)
                         && *k == f.file_key
                         && hash(&f.identity)
                         && hash(&f.boundary_hash)
+                        && f.error_count.is_none_or(|n| n <= MAX_SAFE_INTEGER)
+                        && f.observed_from
+                            .as_ref()
+                            .is_none_or(|s| chrono::DateTime::parse_from_rfc3339(s).is_ok())
                         && f.offset <= f.size
                         && f.size <= MAX_SAFE_INTEGER
                         && f.mtime_ms.is_finite()

@@ -43,11 +43,11 @@ impl CodexLocalScanner {
 
 fn parse(value: Value, cp: &mut LocalUsageFileCheckpoint) -> Result<(), ()> {
     if value["type"] != "event_msg" || value["payload"]["type"] != "token_count" {
-        return Ok(());
+        return Err(());
     }
     let usage = &value["payload"]["info"]["total_token_usage"];
     if usage.is_null() {
-        return Ok(());
+        return Err(());
     }
     let current = TokenContribution {
         input_tokens: usage["input_tokens"].as_u64().ok_or(())?,
@@ -56,6 +56,7 @@ fn parse(value: Value, cp: &mut LocalUsageFileCheckpoint) -> Result<(), ()> {
         cache_write_tokens: 0,
     };
     if !current.valid()
+        || current.cache_read_tokens > current.input_tokens
         || usage["total_tokens"].as_u64() != Some(current.input_tokens + current.output_tokens)
     {
         return Err(());

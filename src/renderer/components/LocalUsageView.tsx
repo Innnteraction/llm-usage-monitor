@@ -12,12 +12,14 @@ export interface LocalUsageViewProps {
   providerId: ProviderSnapshot["providerId"];
   usage: LocalTokenUsage | undefined;
   activeHelp?: string;
+  refreshing?: boolean;
   onActiveHelpChange(id?: string): void;
 }
 
 export const LocalUsageView = ({
   providerId,
   usage,
+  refreshing,
   activeHelp,
   onActiveHelpChange,
 }: LocalUsageViewProps) => {
@@ -69,6 +71,7 @@ export const LocalUsageView = ({
             ? `Earliest event observed in local logs: ${formatLocalDate(usage.observedFrom)}. Not a quota reset or subscription start date. Calculated at: ${formatLocalCalculatedAt(usage.calculatedAt)}.`
             : `Earliest observed event date not provided. Calculated at: ${formatLocalCalculatedAt(usage.calculatedAt)}.`,
         )}
+        {refreshing ? <span>rechecking</span> : null}
         {usage.partial
           ? help(
               "partial",

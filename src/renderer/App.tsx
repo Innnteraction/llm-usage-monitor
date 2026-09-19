@@ -130,6 +130,7 @@ export const App = () => {
                 <ProviderCard
                   key={provider.providerId}
                   provider={provider}
+                  refreshing={snapshot.refreshing.includes(provider.providerId)}
                   index={index}
                   onOpenClaudeSetup={openClaudeSetup}
                   onOpenAntigravitySetup={openAntigravitySetup}
