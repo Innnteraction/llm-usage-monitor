@@ -67,6 +67,24 @@ pub fn format_reset_countdown(resets_at: Option<DateTime<Utc>>, now_utc: DateTim
     }
 }
 
+pub fn format_compact_countdown(resets_at: Option<DateTime<Utc>>, now: DateTime<Utc>) -> String {
+    let Some(target) = resets_at else {
+        return "--".into();
+    };
+    if target <= now {
+        return "pending".into();
+    }
+    let remaining = (target - now).num_minutes();
+    let (days, hours, minutes) = (remaining / 1440, remaining % 1440 / 60, remaining % 60);
+    if days > 0 {
+        format!("{days}d {hours:02}h")
+    } else if hours > 0 {
+        format!("{hours}h {minutes:02}m")
+    } else {
+        format!("{minutes}m")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,6 +113,12 @@ mod tests {
         // 과거 시각
         let past = Utc.with_ymd_and_hms(2026, 9, 19, 11, 0, 0).unwrap();
         assert_eq!(format_reset_countdown(Some(past), now), "reset pending");
+        assert_eq!(format_compact_countdown(Some(future_1d), now), "1d 05h");
+        assert_eq!(
+            format_compact_countdown(Some(now + chrono::Duration::minutes(62)), now),
+            "1h 02m"
+        );
+        assert_eq!(format_compact_countdown(Some(past), now), "pending");
     }
 
     #[test]

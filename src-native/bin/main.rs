@@ -36,6 +36,7 @@ struct AppState {
     theme: ThemeMode,
     snapshot: Option<AppSnapshot>,
     refreshing: bool,
+    refresh_started: Option<Instant>,
     refresh_requested: bool,
     preferences_path: PathBuf,
     tray_bounds: Option<WindowRect>,
@@ -131,6 +132,18 @@ impl Render for PopoverView {
             });
         });
         let measured_state = self.state.clone();
+        let title = if refreshing {
+            let dots = self
+                .state
+                .lock()
+                .unwrap()
+                .refresh_started
+                .map(|t| (t.elapsed().as_millis() / 400 % 3 + 1) as usize)
+                .unwrap_or(1);
+            format!("LLM Usage Monitor{}", ".".repeat(dots))
+        } else {
+            "LLM Usage Monitor".into()
+        };
         let font = if cfg!(target_os = "macos") {
             "SFMono-Regular"
         } else {
@@ -165,7 +178,7 @@ impl Render for PopoverView {
                 .on_mouse_down(gpui::MouseButton::Left, cx.listener(|this,_,window,_| {this.state.lock().unwrap().dragging=true; window.start_window_move();}))
                 .on_mouse_up(gpui::MouseButton::Left, cx.listener(|this,_,_,_| this.state.lock().unwrap().dragging=false))
                 .child(div().id("refresh").cursor_pointer().text_size(px(14.432)).font_weight(gpui::FontWeight::BOLD).text_color(palette.muted)
-                    .child(if refreshing { "LLM Usage Monitor…" } else { "LLM Usage Monitor" })
+                    .child(title)
                     .on_mouse_down(gpui::MouseButton::Left, |_,_,cx|cx.stop_propagation())
                     .on_click(cx.listener(|this,_,_,cx| { let mut s=this.state.lock().unwrap(); if !s.refreshing && s.snapshot.is_some() {s.refresh_requested=true;} cx.notify(); })))
                 .child(div().flex().items_center().gap(px(10.))
@@ -429,6 +442,7 @@ fn main() {
             theme: ThemeMode::System,
             snapshot: fixture.clone().or_else(|| demo.then(demo_snapshot)),
             refreshing: false,
+            refresh_started: None,
             refresh_requested: !demo,
             preferences_path,
             tray_bounds: None,
@@ -594,6 +608,7 @@ fn main() {
                         let mut s = state.lock().unwrap();
                         s.snapshot = Some(snapshot);
                         s.refreshing = false;
+                        s.refresh_started = None;
                         drop(s);
                         last_poll = Instant::now();
                         let _ = async_cx.refresh();
@@ -606,6 +621,7 @@ fn main() {
                         {
                             s.refresh_requested = false;
                             s.refreshing = true;
+                            s.refresh_started = Some(Instant::now());
                             true
                         } else {
                             false
@@ -625,7 +641,8 @@ fn main() {
                             let _ = tx.send(snapshot);
                         });
                     }
-                    if last_render.elapsed() >= Duration::from_secs(30) {
+                    let render_interval=if state.lock().unwrap().refreshing {Duration::from_millis(400)} else {Duration::from_secs(30)};
+                    if last_render.elapsed() >= render_interval {
                         if state.lock().unwrap().window_handle.is_some() {
                             let _ = async_cx.refresh();
                         }

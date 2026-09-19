@@ -22,18 +22,27 @@ pub fn render_compact(
             let id = provider.provider_id;
             let five = provider.quota_windows.iter().find(|w| {
                 if id == ProviderId::Antigravity {
-                    w.id == "agy-gemini-5h"
+                    w.id == "agy-gemini-5h" || w.kind == QuotaKind::FiveHour
                 } else {
                     w.kind == QuotaKind::FiveHour
                 }
             });
-            let weekly = provider.quota_windows.iter().find(|w| {
-                if id == ProviderId::Antigravity {
-                    w.id == "agy-gemini-weekly"
-                } else {
-                    w.kind == QuotaKind::Weekly
-                }
-            });
+            let weekly = provider
+                .quota_windows
+                .iter()
+                .find(|w| {
+                    if id == ProviderId::Antigravity {
+                        w.id == "agy-gemini-weekly"
+                    } else {
+                        w.kind == QuotaKind::Weekly
+                    }
+                })
+                .or_else(|| {
+                    provider
+                        .quota_windows
+                        .iter()
+                        .find(|w| w.kind == QuotaKind::Weekly)
+                });
             let fable = provider
                 .quota_windows
                 .iter()
@@ -129,20 +138,72 @@ fn slot(
     let used = w
         .filter(|w| w.status != SnapshotStatus::Unavailable)
         .and_then(|w| w.used_percent);
-    let color = match get_usage_tone(used, w.is_some_and(|w| w.status == SnapshotStatus::Stale)) {
+    let tone = get_usage_tone(used, w.is_some_and(|w| w.status == SnapshotStatus::Stale));
+    let light = p.background == gpui::rgb(0xf5f5f7);
+    let fable = label == "fable" && used.is_some() && tone != UsageTone::Stale;
+    let color = match tone {
         UsageTone::Low => p.low,
         UsageTone::Medium => p.medium,
         UsageTone::High => p.high,
         UsageTone::Stale => p.muted,
     };
-    let text = w
-        .map(|w| format_reset_countdown(w.resets_at, now))
-        .unwrap_or_else(|| "--".into());
-    let text = if text == "reset pending" {
-        "pending".into()
+    let (color, fill) = if fable {
+        let (text, start, end) = match (light, used.unwrap_or(0.)) {
+            (true, v) if v >= 80. => (0xb91c1c, 0xb91c1c, 0xdc2626),
+            (true, v) if v >= 50. => (0x9a3412, 0x9a3412, 0xc25430),
+            (true, _) => (0xc25e3e, 0xc25e3e, 0xd97757),
+            (false, v) if v >= 80. => (0xef4444, 0xdc2626, 0xef4444),
+            (false, v) if v >= 50. => (0xd9653b, 0xbf4f2a, 0xdc6942),
+            (false, _) => (0xe8a690, 0xb86043, 0xe29074),
+        };
+        (
+            gpui::rgb(text),
+            gpui::linear_gradient(
+                90.,
+                gpui::linear_color_stop(gpui::rgb(start), 0.),
+                gpui::linear_color_stop(gpui::rgb(end), 1.),
+            ),
+        )
     } else {
-        text
+        let fill = if light {
+            match tone {
+                UsageTone::Low => gpui::rgb(0x16a34a),
+                UsageTone::Medium => gpui::rgb(0xd97706),
+                UsageTone::High => p.high,
+                UsageTone::Stale => gpui::rgb(0x94a3b8),
+            }
+        } else {
+            color
+        };
+        (
+            if used.is_none() { p.muted } else { color },
+            gpui::solid_background(fill),
+        )
     };
+    let inverted = if light || fable || matches!(tone, UsageTone::High | UsageTone::Stale) {
+        gpui::rgb(0xffffff)
+    } else {
+        gpui::rgb(0x0f1412)
+    };
+    let label = label.to_uppercase();
+    let capsule_label = move |color| {
+        div()
+            .absolute()
+            .top_0()
+            .left_0()
+            .w(px(48.))
+            .h(px(18.))
+            .flex()
+            .items_center()
+            .justify_center()
+            .text_size(px(10.208))
+            .font_weight(gpui::FontWeight::BOLD)
+            .text_color(color)
+            .child(label.clone())
+    };
+    let text = w
+        .map(|w| format_compact_countdown(w.resets_at, now))
+        .unwrap_or_else(|| "--".into());
     div()
         .flex_1()
         .min_w_0()
@@ -158,7 +219,16 @@ fn slot(
                     .flex_shrink_0()
                     .rounded(px(4.))
                     .overflow_hidden()
-                    .bg(p.track)
+                    .bg(if light {
+                        gpui::rgba(0x0000000f)
+                    } else {
+                        gpui::rgba(0xffffff14)
+                    })
+                    .child(capsule_label(if light {
+                        gpui::rgb(0x64748b)
+                    } else {
+                        p.muted
+                    }))
                     .child(
                         div()
                             .absolute()
@@ -166,24 +236,23 @@ fn slot(
                             .top_0()
                             .h_full()
                             .w(relative((used.unwrap_or(0.) / 100.).clamp(0., 1.) as f32))
-                            .bg(color),
-                    )
-                    .child(
-                        div()
-                            .relative()
-                            .size_full()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .text_size(px(9.856))
-                            .child(label.to_owned()),
+                            .overflow_hidden()
+                            .bg(fill)
+                            .child(capsule_label(inverted)),
                     ),
             )
             .child(
-                div().text_color(color).child(
-                    used.map(|v| format_percent(Some(v)))
-                        .unwrap_or_else(|| "--%".into()),
-                ),
+                div()
+                    .w(px(28.))
+                    .flex_shrink_0()
+                    .text_right()
+                    .text_size(px(13.024))
+                    .font_weight(gpui::FontWeight::BOLD)
+                    .text_color(color)
+                    .child(
+                        used.map(|v| format_percent(Some(v)))
+                            .unwrap_or_else(|| "--%".into()),
+                    ),
             )
             .child(
                 div()
@@ -191,7 +260,7 @@ fn slot(
                     .overflow_hidden()
                     .text_ellipsis()
                     .text_color(p.muted)
-                    .text_size(px(9.856))
+                    .text_size(px(13.024))
                     .child(text),
             )
         })

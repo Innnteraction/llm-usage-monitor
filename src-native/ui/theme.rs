@@ -51,6 +51,9 @@ impl ThemeMode {
                 medium: rgb(0xd2a95f),
                 high: rgb(0xdf6269),
                 track: rgb(0x3b3b3b),
+                input: rgb(0x72b7c9),
+                output: rgb(0xb28cdb),
+                cache: rgb(0x769bb0),
             }
         } else {
             Palette {
@@ -63,6 +66,9 @@ impl ThemeMode {
                 medium: rgb(0xb45309),
                 high: rgb(0xdc2626),
                 track: rgb(0xd8d8de),
+                input: rgb(0x0e6b82),
+                output: rgb(0x683694),
+                cache: rgb(0x2f5f78),
             }
         }
     }
@@ -78,4 +84,7 @@ pub struct Palette {
     pub medium: Rgba,
     pub high: Rgba,
     pub track: Rgba,
+    pub input: Rgba,
+    pub output: Rgba,
+    pub cache: Rgba,
 }
