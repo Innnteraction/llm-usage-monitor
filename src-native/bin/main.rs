@@ -146,8 +146,7 @@ impl Render for PopoverView {
                         return;
                     }
                     UiAction::OpenUrl(url) => {
-                        if !s.demo && llm_usage_monitor_core::shell::desktop::open_url(url).is_err()
-                        {
+                        if llm_usage_monitor_core::shell::desktop::open_url(url).is_err() {
                             s.ui_error = Some("Failed to open status page.".into());
                         }
                         cx.notify();

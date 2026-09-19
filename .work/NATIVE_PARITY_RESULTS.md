@@ -99,3 +99,11 @@ P0 자동 검증: 아키텍처 verify와 Rust 17개 테스트 통과. `--snapsho
 
 - 사용자 추가 확인: cmd 창은 자동 갱신 또는 수동 갱신 때 나타남. 따라서 로그인·설정용 wt.exe보다 provider 수집/하위 프로세스 경로를 우선 추적한다. 원인 프로세스는 아직 미확정이다.
 - 새 preview 바이너리로 15개 장애/대조 fixture를 각각 `--quit-after=1`로 실행하여 모두 exit 0, stderr 0 bytes 확인. 실화면 자동 캡처/동작 검증을 대신하지 않는다.
+
+
+## 장애 링크와 시각 차이 수정 — 2026-09-20
+
+- 원인: 데모 OpenUrl action을 무시했고 fixture URL도 example.invalid였다. compact 장애 안내에는 실제 링크 버튼이 없었다. 데모에서도 사용자 클릭에 따른 기존 검증된 http/https 브라우저 열기를 허용하고, 허구 장애 입력의 URL만 기존 provider 공식 상태 페이지로 변경했다. quota 수집·인증·상태 API는 계속 데모에서 실행하지 않는다.
+- compact 일반 텍스트 안내를 hoverable tooltip view로 교체해 팝업 안의 `상태 확인 [Status ↗]`을 누를 수 있게 했다. 브라우저 실패는 기존 UI 오류 경로에 표시한다.
+- Electron App.tsx/CompactQuotaTable.tsx/ProviderCard.tsx 및 styles.css에 맞춰 장애 배너 배경·1px 테두리·4px 라운드·가로 행·제목 말줄임·링크 우측 배치, degraded/outage 배지, compact 제목/장애 박스/버튼을 적용했다. 아이콘 교대의 CSS ease-in-out과 0.7~1 크기도 반영했다.
+- architecture verify, Rust 27개 테스트, Windows release 빌드 통과. 이번에는 기본 exe 교체도 성공했다. 브라우저 클릭과 실화면 비교는 사용자 수동 재검수 대상이다. hover 팝업 위치/지연, 클릭·키보드로 여는 HelpTrigger 전체 동작 및 전체 화면 픽셀 동일성은 여전히 별도 수용 항목이다.

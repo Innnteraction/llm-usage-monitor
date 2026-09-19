@@ -60,22 +60,6 @@ pub fn render_compact(
                         | ServiceHealthIndicator::Critical
                 )
             });
-            let mut help = format!(
-                "{}\n{}\nstatus: {}",
-                provider_name(id),
-                provider.account_label.as_deref().unwrap_or(""),
-                status(provider, now)
-            );
-            if let Some(incident) = incident {
-                help.push_str(&format!(
-                    "\n⚠ {}\n{}",
-                    incident
-                        .incident_title
-                        .as_deref()
-                        .unwrap_or(&incident.description),
-                    incident.status_page_url
-                ));
-            }
             div()
                 .flex()
                 .flex_col()
@@ -101,7 +85,19 @@ pub fn render_compact(
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .tooltip(move |_, cx| super::tooltip::tooltip(help.clone(), p, cx))
+                                .hoverable_tooltip({
+                                    let provider = provider.clone();
+                                    let events = events.clone();
+                                    move |_, cx| {
+                                        super::tooltip::provider_tooltip(
+                                            provider.clone(),
+                                            p,
+                                            now,
+                                            events.clone(),
+                                            cx,
+                                        )
+                                    }
+                                })
                                 .child(brand_icon(id, p, incident.is_some(), reduced_motion)),
                         )
                         .child(if id == ProviderId::Codex {
@@ -188,26 +184,40 @@ fn brand_icon(
         .child(icon.with_animation(
             "incident-brand",
             Animation::new(std::time::Duration::from_secs(3)).repeat(),
-            |el, phase| el.opacity(1. - incident_opacity(phase)),
+            |el, phase| {
+                let opacity = 1. - incident_opacity(phase);
+                let scale = 0.7 + 0.3 * opacity;
+                el.opacity(opacity)
+                    .with_transformation(gpui::Transformation::scale(gpui::size(scale, scale)))
+            },
         ))
         .child(
             div()
                 .absolute()
                 .top_0()
                 .left_0()
+                .w(px(14.))
+                .h(px(18.))
+                .flex()
+                .items_center()
+                .justify_center()
                 .text_size(px(13.))
                 .text_color(p.high)
                 .child("⚠️")
                 .with_animation(
                     "incident-warning",
                     Animation::new(std::time::Duration::from_secs(3)).repeat(),
-                    |el, phase| el.opacity(incident_opacity(phase)),
+                    |el, phase| {
+                        let opacity = incident_opacity(phase);
+                        el.opacity(opacity)
+                            .text_size(px(13. * (0.7 + 0.3 * opacity)))
+                    },
                 ),
         )
         .into_any_element()
 }
 fn incident_opacity(phase: f32) -> f32 {
-    if phase < 0.45 {
+    let progress = if phase < 0.45 {
         0.
     } else if phase < 0.5 {
         (phase - 0.45) / 0.05
@@ -215,7 +225,20 @@ fn incident_opacity(phase: f32) -> f32 {
         1.
     } else {
         (1. - phase) / 0.05
+    };
+    // CSS ease-in-out: cubic-bezier(.42, 0, .58, 1), 구간별 적용.
+    let (mut low, mut high) = (0., 1.);
+    for _ in 0..16 {
+        let t = (low + high) / 2.;
+        let x = 3. * 0.42 * (1. - t) * (1. - t) * t + 3. * 0.58 * (1. - t) * t * t + t * t * t;
+        if x < progress {
+            low = t;
+        } else {
+            high = t;
+        }
     }
+    let t = (low + high) / 2.;
+    3. * (1. - t) * t * t + t * t * t
 }
 
 // 사용자 확정 제품 규칙. snapshot의 미제공 값을 변조하지 않는다.

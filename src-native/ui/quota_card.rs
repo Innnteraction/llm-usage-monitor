@@ -144,10 +144,30 @@ pub fn render_quota_card(
                         .flex_shrink_0()
                         .text_size(px(11.968))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(if incident.is_some() {
-                            palette.high
-                        } else {
-                            status_color
+                        .text_color(status_color)
+                        .when_some(incident, |el, s| {
+                            let outage = s.indicator == ServiceHealthIndicator::Critical;
+                            let help = format!(
+                                "{}\n{}",
+                                s.incident_title.as_deref().unwrap_or(&s.description),
+                                s.status_page_url
+                            );
+                            el.cursor_pointer()
+                                .px(px(6.))
+                                .py(px(1.))
+                                .rounded(px(4.))
+                                .border_1()
+                                .border_color(if outage { palette.high } else { palette.medium })
+                                .bg(if outage {
+                                    gpui::rgba(0xdf626926)
+                                } else {
+                                    gpui::rgba(0xd2a95f26)
+                                })
+                                .text_color(if outage { palette.high } else { palette.medium })
+                                .hover(|s| s.opacity(0.9))
+                                .tooltip(move |_, cx| {
+                                    super::tooltip::tooltip(help.clone(), palette, cx)
+                                })
                         })
                         .child(if let Some(s) = incident {
                             format!(

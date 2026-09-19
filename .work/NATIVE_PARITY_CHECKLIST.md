@@ -121,4 +121,17 @@ node scripts/create-parity-scenarios.mjs
 ./target/release/llm-usage-monitor-preview.exe --demo-snapshot=.work/parity-captures/fixtures/incident_codex_major.json
 ```
 
-파일명에서 codex를 claude 또는 antigravity로, major를 minor/critical/operational/unknown으로 바꾸면 15개 조합을 시험할 수 있다. 기존 앱은 트레이 Quit으로 닫고 데모를 실행한다. 데모에서는 실제 provider·인증·상태 API·외부 링크를 호출하지 않는다. Ctrl+Shift+C로 접기/펼치기를 비교한다. fixture와 캡처는 Git 제외다.
+파일명에서 codex를 claude 또는 antigravity로, major를 minor/critical/operational/unknown으로 바꾸면 15개 조합을 시험할 수 있다. 기존 앱은 트레이 Quit으로 닫고 데모를 실행한다. 데모에서는 실제 provider·인증·상태 API를 호출하지 않는다. 상태 링크를 사용자가 클릭하면 공식 페이지를 브라우저로 연다. Ctrl+Shift+C로 접기/펼치기를 비교한다. fixture와 캡처는 Git 제외다.
+
+
+### 장애 링크·스타일 재검수 — 2026-09-20
+
+- [ ] fixture를 재생성하고 최신 기본 바이너리로 실행한다. 기존 preview 바이너리는 이 변경 이전 버전일 수 있다.
+- [ ] 상세 배너 우측 `[Status ↗]`와 provider 장애 배지를 클릭하면 해당 공식 상태 페이지가 브라우저에 열리는지 확인.
+- [ ] 접힌 모드 브랜드에 hover → 장애 팝업으로 이동 → `상태 확인 [Status ↗]` 클릭. 마우스를 팝업으로 옮겨도 링크를 누를 수 있어야 한다.
+- [ ] 상세 배너 배경/테두리/가로 배치/긴 제목 ellipsis, degraded 황금색/outage 붉은 배지, compact 팝업 제목/장애 박스/버튼과 교대 애니메이션을 Electron과 비교.
+
+```powershell
+node scripts/create-parity-scenarios.mjs
+./target/release/llm-usage-monitor.exe --demo-snapshot=.work/parity-captures/fixtures/incident_claude_critical.json
+```

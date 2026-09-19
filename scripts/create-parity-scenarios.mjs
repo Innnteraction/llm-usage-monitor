@@ -5,6 +5,7 @@ const root = path.resolve(import.meta.dirname, "..");
 const base = JSON.parse(readFileSync(path.join(root, ".work/parity-reference/snapshot.json"), "utf8"));
 const output = path.join(root, ".work/parity-captures/fixtures");
 mkdirSync(output, { recursive: true });
+const statusPages = { codex: "https://status.openai.com", claude: "https://status.claude.com", antigravity: "https://status.cloud.google.com" };
 const scenarios = {
   normal() {},
   animation_stages(snapshot) {
@@ -56,7 +57,7 @@ const scenarios = {
   incident_long(snapshot) {
     for (const provider of snapshot.providers) {
       provider.accountLabel = "synthetic-long-account-for-layout@example.invalid";
-      provider.serviceStatus = { indicator: "major", description: "Synthetic service incident", incidentTitle: "Synthetic incident with a long title for wrapping verification", statusPageUrl: "https://example.invalid/status", checkedAt: snapshot.updatedAt };
+      provider.serviceStatus = { indicator: "major", description: "Synthetic service incident", incidentTitle: "Synthetic incident with a long title for wrapping verification", statusPageUrl: statusPages[provider.providerId], checkedAt: snapshot.updatedAt };
     }
   },
 };
@@ -70,7 +71,7 @@ for (const providerId of ["codex", "claude", "antigravity"]) {
           description: `Synthetic ${indicator} status`,
           ...(provider.providerId === providerId && ["minor", "major", "critical"].includes(indicator)
             ? { incidentTitle: `Synthetic ${providerId} ${indicator} incident` } : {}),
-          statusPageUrl: "https://example.invalid/status",
+          statusPageUrl: statusPages[provider.providerId],
           checkedAt: snapshot.updatedAt,
         };
       }
