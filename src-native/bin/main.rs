@@ -234,24 +234,26 @@ impl Render for PopoverView {
             .font_family(font).text_size(px(17.6)).line_height(gpui::relative(1.2))
             .pt(px(if compact {10.} else {12.})).px(px(if compact {10.} else {18.})).pb(px(6.))
             .child(div().flex().items_center().justify_between().gap(px(12.)).flex_shrink_0()
+                .window_control_area(gpui::WindowControlArea::Drag)
+                .on_mouse_move(cx.listener(|this,_,_,_| this.state.lock().unwrap().dragging=true))
                 .on_mouse_down(gpui::MouseButton::Left, cx.listener(|this,_,window,_| {this.state.lock().unwrap().dragging=true; window.start_window_move();}))
                 .on_mouse_up(gpui::MouseButton::Left, cx.listener(|this,_,_,_| this.state.lock().unwrap().dragging=false))
                 .child(action_button("refresh",UiAction::Refresh,events.clone()).text_size(px(14.432)).font_weight(gpui::FontWeight::BOLD).text_color(palette.muted)
-                    .child(title)
+                    .occlude().child(llm_usage_monitor_core::ui::animated_text::refresh(title,palette,refreshing,reduced_motion))
                     .on_mouse_down(gpui::MouseButton::Left, |_,_,cx|cx.stop_propagation())
                     )
-                .child(div().flex().items_center().gap(px(10.))
-                    .child(action_button("compact",UiAction::Compact,events.clone()).size(px(16.)).child(gpui::svg().path(if compact {"AddSquare"} else {"MinusSquare"}).size_full().text_color(palette.muted))
+                .child(div().occlude().flex().items_center().gap(px(10.))
+                    .child(action_button("compact",UiAction::Compact,events.clone()).size(px(16.)).child(llm_usage_monitor_core::ui::icons::header_icon(if compact {"AddSquare"} else {"MinusSquare"},compact,palette))
                         .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
                         .tooltip(move |_,cx|llm_usage_monitor_core::ui::tooltip::tooltip(if compact {"Expand to detailed mode"} else {"Collapse to compact mode"}.into(),palette,cx))
                     )
-                    .child(action_button("theme",UiAction::Theme,events.clone()).size(px(16.)).child(gpui::svg().path(if palette.background == gpui::rgb(0x101010) {"Moon-filled"} else {"Sun-filled"}).size_full().text_color(palette.muted))
+                    .child(action_button("theme",UiAction::Theme,events.clone()).size(px(16.)).child(llm_usage_monitor_core::ui::icons::header_icon(if palette.background == gpui::rgb(0x101010) {"Moon-filled"} else {"Sun-filled"},false,palette))
                         .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
                     )
-                    .child(action_button("pin",UiAction::Pin,events.clone()).size(px(16.)).child(gpui::svg().path(if pinned {"Pin-filled"} else {"Pin"}).size_full().text_color(palette.muted))
+                    .child(action_button("pin",UiAction::Pin,events.clone()).size(px(16.)).child(llm_usage_monitor_core::ui::icons::header_icon(if pinned {"Pin-filled"} else {"Pin"},pinned,palette))
                         .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
                     )
-                    .child(div().id("help").cursor_pointer().size(px(16.)).child(gpui::svg().path("Help").size_full().text_color(palette.muted))
+                    .child(div().id("help").cursor_pointer().size(px(16.)).child(llm_usage_monitor_core::ui::icons::header_icon("Help",false,palette))
                         .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
                         .tooltip(move |_,cx|llm_usage_monitor_core::ui::tooltip::tooltip("LLM Usage Monitor v0.12.0\nquota: account · tokens: this PC\nCtrl/⌘+Shift+C  Toggle compact mode\nCtrl/⌘+Shift+L  Toggle theme (dark/light)\nCtrl/⌘+Shift+P  Toggle pin (always on top)\nEsc  Close popover (stay in tray)".into(),palette,cx)))))
             .children(self.state.lock().unwrap().ui_error.clone().map(|message|div().text_size(px(11.968)).text_color(palette.high).child(message)))
@@ -266,7 +268,7 @@ impl Render for PopoverView {
                         let mut children=Vec::new();
                         if !compact && snap.providers.iter().any(|p| p.service_status.as_ref().is_some_and(|s| matches!(s.indicator, ServiceHealthIndicator::Minor | ServiceHealthIndicator::Major | ServiceHealthIndicator::Critical))) { children.push(render_vendor_health_banner(&snap.providers,palette,events.clone()).into_any_element()); }
                         if compact { children.push(render_compact(&snap.providers,palette,now,&errors,events.clone(),reduced_motion).into_any_element()); }
-                        else { for (index,p) in snap.providers.iter().enumerate() {children.push(render_quota_card(p,index,palette,now,expanded.contains(&p.provider_id),events.clone()).into_any_element());} }
+                        else { for (index,p) in snap.providers.iter().enumerate() {children.push(render_quota_card(p,index,palette,now,expanded.contains(&p.provider_id),events.clone(),reduced_motion).into_any_element());} }
                         children
                     } else {vec![div().text_size(px(11.968)).child("Loading quota…").into_any_element()]})))
     }
@@ -709,6 +711,8 @@ fn main() {
                         let demo_input = fixture.clone();
                         runtime_handle.spawn(async move {
                             let snapshot = if demo {
+                                // Keep synthetic refresh visible long enough to inspect shimmer.
+                                tokio::time::sleep(Duration::from_millis(1800)).await;
                                 demo_input.unwrap_or_else(demo_snapshot)
                             } else {
                                 engine.fetch_all_snapshots().await

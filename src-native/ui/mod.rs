@@ -9,3 +9,5 @@ pub mod tooltip;
 
 pub mod presentation;
 pub mod icons;
+
+pub mod animated_text;

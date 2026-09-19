@@ -7,6 +7,17 @@ const output = path.join(root, ".work/parity-captures/fixtures");
 mkdirSync(output, { recursive: true });
 const scenarios = {
   normal() {},
+  animation_stages(snapshot) {
+    const stages = [50, 80, 92, 99];
+    let index = 0;
+    for (const provider of snapshot.providers) {
+      for (const quota of provider.quotaWindows) {
+        const duration = ["weekly", "model_weekly"].includes(quota.kind) ? 604800_000 : 18000_000;
+        const elapsed = stages[index++ % stages.length];
+        quota.resetsAt = new Date(Date.parse(snapshot.updatedAt) + duration * (100 - elapsed) / 100).toISOString();
+      }
+    }
+  },
   stale(snapshot) {
     for (const provider of snapshot.providers) {
       provider.status = "stale";

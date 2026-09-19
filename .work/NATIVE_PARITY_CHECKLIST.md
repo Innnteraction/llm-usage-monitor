@@ -73,3 +73,27 @@ node scripts/create-parity-scenarios.mjs
 | CLI 설정·계정 전환 | claudeSetup.ts, antigravitySetup.ts | 기존 사용자 클릭 경로, 인증 직접 접근 금지 / P3 |
 | 외부 상태 링크 | App.tsx, ipc.ts | http/https 허용·오류 표시 / P3 |
 | 설정 수명 | useUsageMonitor.ts, application.ts | compact/theme 세션 상태, pin 저장, 재생성 / P3 |
+
+
+## 사용자 실화면 보고 후 재검수 — 2026-09-19
+
+아래 항목은 수정 빌드에 반영했으며, 실화면 수용 판정은 사용자 재검수 후 기록한다.
+
+| ID | 보고된 문제 | 수정 및 재검수 기준 | 자동 검증 / 실기 |
+| --- | --- | --- | --- |
+| R-01 | agy 갱신마다 터미널 표시 | 백그라운드 CLI에 CREATE_NO_WINDOW. 실제 갱신을 반복해 창 미출현 확인 | 빌드 / 대기 |
+| R-02 | Codex 데이터 누락 | nullable/누락 기간 파싱, codex 계정 주간 quota 선택, RPC별 10초 제한. 실제 계정 fresh·주간 값 확인 | 합성 응답·실패 테스트 통과 / 대기 |
+| R-03 | 창 드래그 불가 | GPUI Windows hit-test의 Drag 영역 사용. 헤더 빈 공간으로 이동, 버튼 클릭·모드 전환·재열기·Reset Position 확인 | 빌드 / 대기 |
+| R-04 | 20% 게이지 구간 간격 불균일 | 전체 폭에서 동일 구간과 2px 간격 계산. 100/125/150/200% 배율 비교 | 분수 폭·사용률 경계 테스트 통과 / 대기 |
+| R-05 | Fable의 e 줄바꿈 | 고정 라벨 한 줄 유지. 상세 모드에서 확인 | 빌드 / 대기 |
+| R-06 | 갱신·남은 시간 애니메이션 없음 | shimmer와 남은 시간별 회색/황금/파스텔/강한 무지개 색 흐름. stale·미제공·만료·모션 감소에서는 정지 | 단계 경계 테스트·데모 실행 통과 / 대기 |
+| R-07 | 아이콘 글로우 약함 | 활성·hover 색상과 SVG 윤곽 글로우. Pin·compact 켜기/끄기와 hover를 dark/light에서 비교 | 빌드 / 대기 |
+| R-08 | 간략 캡슐 채움 모서리 각짐 | 채움 왼쪽 4px, 100%에서는 오른쪽도 4px. 낮은 사용률·100%에서 비교 | 빌드 / 대기 |
+
+애니메이션 검수는 `node scripts/create-parity-scenarios.mjs` 실행 후 `animation_stages.json` 입력을 사용한다. 갱신 제목을 누르면 합성 갱신을 1.8초 유지하여 shimmer를 확인할 수 있다. 실제 CLI는 호출하지 않는다.
+
+```powershell
+./target/release/llm-usage-monitor.exe --demo-snapshot=.work/parity-captures/fixtures/animation_stages.json
+```
+
+캡처·영상은 기존과 같이 `.work/parity-captures/`에만 보관하고 Git에 추가하지 않는다. Codex 5h의 의도된 무한대 표시는 유지한다.

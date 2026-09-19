@@ -1,7 +1,7 @@
 use super::{format::*, presentation::*, theme::Palette};
 use crate::core::types::*;
 use chrono::{DateTime, Utc};
-use gpui::{div, prelude::*, px, relative, FontWeight, IntoElement, SharedString};
+use gpui::{div, prelude::*, px, FontWeight, IntoElement, SharedString};
 
 pub fn render_quota_card(
     p: &ProviderSnapshot,
@@ -10,6 +10,7 @@ pub fn render_quota_card(
     now: DateTime<Utc>,
     expanded: bool,
     events: UiEvents,
+    reduced_motion: bool,
 ) -> impl IntoElement {
     let status = status(p, now);
     let status_color = match status {
@@ -21,7 +22,7 @@ pub fn render_quota_card(
     let additional = additional_windows(p);
     let mut rows = Vec::new();
     for w in &primary {
-        rows.push(render_quota_window(w, palette, now).into_any_element());
+        rows.push(render_quota_window(w, palette, now, reduced_motion).into_any_element());
     }
     for (kind, label) in if p.provider_id == ProviderId::Codex {
         vec![(QuotaKind::Weekly, "7d")]
@@ -238,7 +239,7 @@ pub fn render_quota_card(
                         .children(additional.iter().map(|w| {
                             div()
                                 .child(div().text_size(px(11.968)).child(w.label.clone()))
-                                .child(render_quota_window(w, palette, now))
+                                .child(render_quota_window(w, palette, now, reduced_motion))
                         }))
                 }))
         }))
@@ -290,7 +291,12 @@ fn missing(label: &str, message: &str, p: Palette) -> impl IntoElement {
         .child(div().text_size(px(13.024)).child(label.to_owned()))
         .child(div().text_size(px(10.912)).child(message.to_owned()))
 }
-fn render_quota_window(w: &QuotaWindow, p: Palette, now: DateTime<Utc>) -> impl IntoElement {
+fn render_quota_window(
+    w: &QuotaWindow,
+    p: Palette,
+    now: DateTime<Utc>,
+    reduced_motion: bool,
+) -> impl IntoElement {
     let unavailable = w.status == SnapshotStatus::Unavailable || w.used_percent.is_none();
     let tone = match get_usage_tone(w.used_percent, w.status == SnapshotStatus::Stale) {
         UsageTone::Low => p.low,
@@ -317,6 +323,7 @@ fn render_quota_window(w: &QuotaWindow, p: Palette, now: DateTime<Utc>) -> impl 
         .child(
             div()
                 .w(px(38.))
+                .whitespace_nowrap()
                 .flex_shrink_0()
                 .text_color(p.muted)
                 .child(label),
@@ -330,23 +337,11 @@ fn render_quota_window(w: &QuotaWindow, p: Palette, now: DateTime<Utc>) -> impl 
             )
         })
         .when(!unavailable, |el| {
-            el.child(
-                div()
-                    .flex_1()
-                    .min_w(px(80.))
-                    .h(px(4.))
-                    .flex()
-                    .gap(px(2.))
-                    .children((0..5).map(|i| {
-                        let fraction = ((w.used_percent.unwrap_or(0.) - i as f64 * 20.) / 20.)
-                            .clamp(0., 1.) as f32;
-                        div()
-                            .flex_1()
-                            .h_full()
-                            .bg(p.track)
-                            .child(div().h_full().w(relative(fraction)).bg(tone))
-                    })),
-            )
+            el.child(segmented_gauge(
+                w.used_percent.unwrap_or(0.) as f32,
+                p.track,
+                tone,
+            ))
             .child(
                 div()
                     .id(SharedString::from(format!("usage-{}", w.id)))
@@ -380,7 +375,67 @@ fn render_quota_window(w: &QuotaWindow, p: Palette, now: DateTime<Utc>) -> impl 
                             .unwrap_or_else(|| "Reset time not provided.".into());
                         move |_, cx| super::tooltip::tooltip(text.clone(), p, cx)
                     })
-                    .child(format_reset_countdown(w.resets_at, now)),
+                    .child(super::animated_text::countdown(
+                        format_reset_countdown(w.resets_at, now),
+                        w,
+                        p,
+                        now,
+                        reduced_motion,
+                    )),
             )
         })
+}
+
+// Measure once, then divide the same physical extent. Child intrinsic widths must
+// not participate in the five equal segments (Electron uses a CSS mask).
+fn segments(width: f32, percent: f32) -> [(f32, f32, f32); 5] {
+    let segment = ((width - 8.) / 5.).max(0.);
+    let fill = width * percent.clamp(0., 100.) / 100.;
+    std::array::from_fn(|i| {
+        let x = i as f32 * (segment + 2.);
+        (x, segment, (fill - x).clamp(0., segment))
+    })
+}
+fn segmented_gauge(percent: f32, track: gpui::Rgba, tone: gpui::Rgba) -> impl IntoElement {
+    gpui::canvas(
+        |_, _, _| (),
+        move |bounds, _, window, _| {
+            for (x, width, fill) in segments(bounds.size.width.into(), percent) {
+                let rect = gpui::Bounds::new(
+                    bounds.origin + gpui::point(px(x), px(0.)),
+                    gpui::size(px(width), bounds.size.height),
+                );
+                window.paint_quad(gpui::fill(rect, track));
+                if fill > 0. {
+                    window.paint_quad(gpui::fill(
+                        gpui::Bounds::new(rect.origin, gpui::size(px(fill), rect.size.height)),
+                        tone,
+                    ));
+                }
+            }
+        },
+    )
+    .flex_1()
+    .min_w(px(80.))
+    .h(px(4.))
+}
+#[cfg(test)]
+mod gauge_tests {
+    use super::*;
+    #[test]
+    fn equal_segments_and_continuous_fill_at_fractional_widths() {
+        for width in [80., 147.2, 201.5, 243.] {
+            for percent in [0., 20., 42., 80., 100.] {
+                let parts = segments(width, percent);
+                for pair in parts.windows(2) {
+                    assert_eq!(pair[0].1, pair[1].1);
+                    assert!((pair[1].0 - pair[0].0 - pair[0].1 - 2.).abs() < 0.0001);
+                }
+                assert!((parts[4].0 + parts[4].1 - width).abs() < 0.0001);
+                assert!(parts.iter().all(|(x, size, fill)| *fill >= 0.
+                    && fill <= size
+                    && (*fill == 0. || x + fill <= width * percent / 100. + 0.0001)));
+            }
+        }
+    }
 }

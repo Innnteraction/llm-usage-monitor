@@ -98,10 +98,17 @@ pub fn render_compact(
                         .child(if id == ProviderId::Codex {
                             unlimited_slot(p, reduced_motion).into_any_element()
                         } else {
-                            slot(five, "5h", true, p, now).into_any_element()
+                            slot(five, "5h", true, p, now, reduced_motion).into_any_element()
                         })
-                        .child(slot(weekly, "7d", true, p, now))
-                        .child(slot(fable, "fable", id == ProviderId::Claude, p, now)),
+                        .child(slot(weekly, "7d", true, p, now, reduced_motion))
+                        .child(slot(
+                            fable,
+                            "fable",
+                            id == ProviderId::Claude,
+                            p,
+                            now,
+                            reduced_motion,
+                        )),
                 )
                 .children(
                     provider
@@ -223,6 +230,7 @@ fn slot(
     show: bool,
     p: Palette,
     now: DateTime<Utc>,
+    reduced_motion: bool,
 ) -> impl IntoElement {
     let used = w
         .filter(|w| w.status != SnapshotStatus::Unavailable)
@@ -325,6 +333,8 @@ fn slot(
                             .top_0()
                             .h_full()
                             .w(relative((used.unwrap_or(0.) / 100.).clamp(0., 1.) as f32))
+                            .rounded_l(px(4.))
+                            .when(used.is_some_and(|v| v >= 100.), |el| el.rounded_r(px(4.)))
                             .overflow_hidden()
                             .bg(fill)
                             .child(capsule_label(inverted)),
@@ -350,7 +360,11 @@ fn slot(
                     .text_ellipsis()
                     .text_color(p.muted)
                     .text_size(px(13.024))
-                    .child(text),
+                    .child(if let Some(w) = w {
+                        super::animated_text::countdown(text, w, p, now, reduced_motion)
+                    } else {
+                        div().child(text).into_any_element()
+                    }),
             )
         })
 }

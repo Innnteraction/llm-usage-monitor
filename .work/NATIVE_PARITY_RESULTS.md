@@ -60,3 +60,18 @@ P0 자동 검증: 아키텍처 verify와 Rust 17개 테스트 통과. `--snapsho
 - Electron 개발 캡처: GPU process exit -2147483645와 startup-failed. packaged 캡처: Process failed to launch. native Computer Use: native pipe os error 2. 비교 이미지 미확보이며 P0/P1 수용은 미완료다.
 - 캡처 스크립트는 기준 JSON을 읽어 기존 snapshot 이벤트로 전달하고 고정 시각을 적용한다. 실행별 출력은 Git 제외 디렉터리에 저장한다. GUI 캡처 성공 경로는 아직 검증하지 못했다.
 - 다음 작업: 사용자 수동 비교를 반영한 P1 치수 보정, P2 도움말·전체 키보드·포커스·애니메이션 완성, P3 OS 실기, P4 macOS, P5 성능·최종 수용. 전체 계획 완료가 아니다.
+
+
+## 사용자 보고 8건 수정 — 2026-09-19
+
+- 수집 커밋 `bc14b61`: agy 버전/usage 및 Codex/Claude 백그라운드 명령에 Windows CREATE_NO_WINDOW 적용. 사용자 설정용 터미널 경로는 유지했다.
+- Codex: Electron protocol은 기간 null/누락을 허용하지만 Rust는 정수 필수였다. 이를 정렬하고 계정 codex 맵에만 제공되는 주간 quota를 기본 주간 창으로 선택한다. 전체 세션 10초 제한을 요청별 10초로 변경하고 미인증 시 quota RPC로 오류가 덮이지 않게 했다. 미제공 5h 값은 그대로이며 compact 무한대는 표시 규칙이다.
+- 창 이동: `start_window_move`는 GPUI Windows에서 기본 no-op이므로 header에 native Drag hit-test 영역을 등록했다. 제목 갱신 버튼과 아이콘 영역은 occlude 처리해 클릭 동작을 유지했다.
+- UI: 게이지 폭을 다섯 동일 구간과 2px 간격으로 직접 계산하고, Fable nowrap·캡슐 채움 왼쪽 라운드/100% 오른쪽 라운드를 적용했다.
+- 텍스트: 기존 CSS 색상 stop·단계·주기로 글자 내부를 가로 방향으로 칠한다. 분수 배율에서는 물리 픽셀 단위 mask를 사용한다. 오른쪽 countdown 정렬과 요소별 animation ID를 유지한다. stale·미제공·만료·Windows 모션 감소에서는 움직임을 멈춘다.
+- 아이콘: 활성 색/불투명도와 hover 글로우 복원. GPUI에 CSS drop-shadow가 없어 SVG 윤곽을 작은 오프셋으로 겹치는 근사이며, blur의 픽셀 동일성은 미확인이다. countdown의 고단계 CSS text-shadow와 자간 등 기존 P1/P2 잔여 항목도 수용 완료로 처리하지 않는다.
+- 검증: architecture verify 통과(기존 baseline 유지), Rust 26개 테스트 통과, Windows release 빌드 통과. 가상 RPC 오류·단절·필드 누락, 주간 선택, 게이지 분수 폭, 애니메이션 단계 경계를 확인했다. 실제 계정/인증 응답은 수집하지 않았으며 Codex 실환경 복구는 사용자 재검수 대상이다.
+- 7개 합성 데모 `--quit-after=3`: normal 3760ms, stale 4051ms, unavailable 3778ms, setup 4092ms, pending_partial 4050ms, incident_long 3777ms, animation_stages 3806ms. 모두 exit 0, stderr 0 bytes. 화면 비교/드래그/CLI 콘솔 미출현의 실기 증거를 대신하지 않는다.
+- 위험: 텍스트 gradient를 물리 픽셀 mask로 그리므로 정적 텍스트보다 그리기 비용이 커진다. P5 성능 재측정 필요. macOS 빌드·모션 설정 및 Windows 다중 모니터/DPI 드래그는 미검증이다. 실화면 비교는 사용자 합의대로 수동 진행하며 캡처는 Git 제외다.
+
+- 성능 참고: 자동 실행 중 foreground/노출 상태를 보장하지 못해 CPU 표본은 P5 근거에서 제외했다. 정적 화면보다 비용이 낮다는 결론을 내리지 않는다.

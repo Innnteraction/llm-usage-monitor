@@ -50,3 +50,44 @@ impl AssetSource for Icons {
         Ok(vec![])
     }
 }
+
+/// SVG silhouettes approximate the reference's subpixel drop-shadow; unlike a
+/// box shadow they follow the icon strokes. Active/hover states use full text ink.
+pub fn header_icon(
+    path: &'static str,
+    active: bool,
+    p: super::theme::Palette,
+) -> impl gpui::IntoElement {
+    use gpui::{prelude::*, *};
+    div()
+        .group("header-icon")
+        .relative()
+        .size(px(16.))
+        .text_color(if active { p.text } else { p.muted })
+        .opacity(if active { 1. } else { 0.55 })
+        .hover(move |s| s.text_color(p.text).opacity(1.))
+        .children(
+            [
+                (-0.6, 0.),
+                (0.6, 0.),
+                (0., -0.6),
+                (0., 0.6),
+                (-0.4, -0.4),
+                (0.4, 0.4),
+                (-0.4, 0.4),
+                (0.4, -0.4),
+            ]
+            .into_iter()
+            .map(move |(x, y)| {
+                svg()
+                    .path(path)
+                    .absolute()
+                    .left(px(x))
+                    .top(px(y))
+                    .size_full()
+                    .opacity(if active { 0.16 } else { 0. })
+                    .group_hover("header-icon", |s| s.opacity(0.16))
+            }),
+        )
+        .child(svg().path(path).relative().size_full())
+}
