@@ -112,6 +112,9 @@ fn scan_file(
                     break;
                 }
             }
+            if !line.ends_with(b"\n") {
+                break;
+            }
             cp.error_count = Some(cp.error_count.unwrap_or(0).saturating_add(1));
             cp.offset = reader.stream_position()?;
             continue;
@@ -186,6 +189,7 @@ fn scan(
         .iter()
         .map(|p| p.to_string_lossy().into_owned())
         .collect();
+    let discovery_failed = failed > 0;
     let mut changed = false;
     if failed == 0 {
         let count = section.files.len();
@@ -213,6 +217,13 @@ fn scan(
                 if let Some(cp) = section.files.get(&key) {
                     agg.add(&cp.contribution);
                 }
+            }
+        }
+    }
+    if discovery_failed {
+        for (key, checkpoint) in &section.files {
+            if !discovered.contains(key) {
+                agg.add(&checkpoint.contribution);
             }
         }
     }

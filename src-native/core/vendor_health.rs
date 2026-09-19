@@ -149,7 +149,7 @@ pub async fn fetch_claude_status(client: &reqwest::Client) -> VendorServiceStatu
                     let name = c.name.as_deref().unwrap_or("").to_lowercase();
                     name.contains("claude code") || name.contains("claude api")
                 });
-                let mut worst = ServiceHealthIndicator::Operational;
+                let mut worst = ServiceHealthIndicator::Unknown;
                 for comp in relevant {
                     let comp_ind = map_indicator(comp.status.as_deref());
                     worst = combine_signals(worst, comp_ind);
@@ -227,7 +227,7 @@ pub async fn fetch_codex_status(client: &reqwest::Client) -> VendorServiceStatus
                 let name = c.name.as_deref().unwrap_or("").to_lowercase();
                 name.contains("codex") || name.contains("api") || name.contains("login")
             });
-            let mut worst = ServiceHealthIndicator::Operational;
+            let mut worst = ServiceHealthIndicator::Unknown;
             for comp in relevant {
                 let comp_ind = map_indicator(comp.status.as_deref());
                 worst = combine_signals(worst, comp_ind);
@@ -343,5 +343,28 @@ pub async fn fetch_vendor_status(
         ProviderId::Claude => fetch_claude_status(client).await,
         ProviderId::Codex => fetch_codex_status(client).await,
         ProviderId::Antigravity => fetch_antigravity_status(client).await,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn unknown_signals_do_not_imply_operational() {
+        assert_eq!(
+            combine_signals(
+                ServiceHealthIndicator::Unknown,
+                ServiceHealthIndicator::Unknown
+            ),
+            ServiceHealthIndicator::Unknown
+        );
+        assert_eq!(
+            combine_signals(
+                ServiceHealthIndicator::Operational,
+                ServiceHealthIndicator::Major
+            ),
+            ServiceHealthIndicator::Major
+        );
+        assert_eq!(map_indicator(None), ServiceHealthIndicator::Unknown);
     }
 }

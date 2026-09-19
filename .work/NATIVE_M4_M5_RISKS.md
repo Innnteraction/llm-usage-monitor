@@ -2,7 +2,7 @@
 
 2026-09-19, 기준 커밋 `cea4e5d`, 브랜치 `feat/native-gpui`.
 
-기존 계획의 M1~M3 완료 표시는 이전 작업자의 보고다. 아래 재검토에서 실행·기능 차이가 확인되어, M4 구현과 M5 전환 판정 전에 보완해야 한다. 현재 M4·M5는 완료되지 않았다. Electron 대체와 main 병합은 수행하지 않았다.
+기존 계획의 M1~M3 완료 표시는 이전 작업자의 보고다. 아래 재검토에서 실행·기능 차이가 확인되어, M4 구현과 M5 전환 판정 전에 보완해야 한다. 최신 결과는 [M5 검증 보고서](NATIVE_M5_REPORT.md)를 참조한다. M4 구현과 Windows 측정을 수행했지만 최종 대체는 미완료다. Electron 대체와 main 병합은 수행하지 않았다.
 
 ## 확인된 구현 차이
 
@@ -35,7 +35,7 @@
 
 `.architecture-guard/policy-native.draft.json`에 기존 Electron 정책을 유지하고 Rust 타입·provider·로컬 스캐너·코어·UI·shell·app 경계를 추가한 초안을 작성했다. UI는 정규화 타입만 참조한다. provider 파일은 현재 하나의 경계에 속하므로 provider 간 격리는 별도 코드 검토가 필요하다.
 
-사용자가 초안 적용을 승인했다. 활성화 시 baseline 11건 외에 다음 기존 위반 4건이 발견되어, 활성화는 아직 완료되지 않았다. 정책 자동 완화 대신 이 4건의 baseline 수용 승인을 요청했다.
+사용자가 초안 적용을 승인했다. 활성화 시 baseline 11건 외에 다음 기존 위반 4건이 발견되어, 당시 활성화를 보류하고 이 4건의 baseline 수용 승인을 요청했다. 이후 사용자가 승인하여 기존 15건으로 고정했고 신규 위반 없이 검증했다.
 
 - `tests/unit/vendorHealthPoller.test.ts` → `src/usage/vendorHealthPoller.ts`: private-api-bypass
 - `tests/unit/i18n.test.ts` → `src/shared/i18n/index.ts`: private-api-bypass
@@ -67,3 +67,7 @@
 - Google 상태 요청 실패는 Unknown, 전체 상태 미확인은 정상과 구분한다. 로컬 partial과 stale 마지막 성공 시간을 UI에 노출한다.
 
 검증: `cargo test --locked --all-targets` 16개 통과, 아키텍처 verify 통과. 테스트는 허구 데이터와 존재하지 않는 CLI만 사용했다. 기존 unused field warning과 dependency `proc-macro-error2` future-incompatibility warning이 남는다.
+
+## M5 최종 갱신
+
+Windows 테스트 17개와 release 빌드, 세 가지 창 상태의 생존·종료 측정을 통과했다. 팝업 종료 시 GPUI가 앱까지 끝내던 문제는 숨겨진 유지 창으로 수정했다. 표시 56.61 MiB, 트레이 47.33 MiB, 표시 후 닫힘 52.32 MiB의 최대 Working Set으로 목표는 미달했다. 실제 UI와 macOS는 검증하지 못했다. 직접 dirs 의존성을 변경한 최종 Windows graph는 508개이며 위 511개/MPL 기록은 변경 전 결과다. 상세 조건과 잔여 기능 차이는 [최종 보고서](NATIVE_M5_REPORT.md)에 기록했다.

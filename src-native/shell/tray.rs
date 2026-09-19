@@ -21,6 +21,17 @@ pub fn load_tray_icon() -> Result<Icon> {
 }
 
 impl SystemTrayManager {
+    pub fn bounds(&self) -> Option<super::position::WindowRect> {
+        self._tray_icon.rect().map(|rect| {
+            super::position::WindowRect::new(
+                rect.position.x as f32,
+                rect.position.y as f32,
+                rect.size.width as f32,
+                rect.size.height as f32,
+            )
+        })
+    }
+
     pub fn new() -> Result<Self> {
         let tray_menu = Menu::new();
 

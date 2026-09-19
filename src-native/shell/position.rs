@@ -230,3 +230,41 @@ mod tests {
         assert_eq!(pos.y, 25.0);
     }
 }
+
+/// tray-icon은 Windows에서 물리 좌표를 반환한다. GPUI와 같은 DPI 기준으로 변환한다.
+#[cfg(target_os = "windows")]
+pub fn native_tray_work_area(tray: WindowRect) -> Option<(Point, WindowRect)> {
+    use windows::Win32::{
+        Foundation::POINT,
+        Graphics::Gdi::{GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST},
+        UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
+    };
+    let center = POINT {
+        x: (tray.x + tray.width / 2.) as i32,
+        y: (tray.y + tray.height / 2.) as i32,
+    };
+    // 유효한 출력 구조체와 OS 소유 monitor handle만 전달한다.
+    unsafe {
+        let monitor = MonitorFromPoint(center, MONITOR_DEFAULTTONEAREST);
+        let mut info = MONITORINFO {
+            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+        if !GetMonitorInfoW(monitor, &mut info).as_bool() {
+            return None;
+        }
+        let (mut x, mut y) = (96, 96);
+        GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut x, &mut y).ok()?;
+        let scale = x.max(1) as f32 / 96.;
+        let r = info.rcWork;
+        Some((
+            Point::new(center.x as f32 / scale, center.y as f32 / scale),
+            WindowRect::new(
+                r.left as f32 / scale,
+                r.top as f32 / scale,
+                (r.right - r.left) as f32 / scale,
+                (r.bottom - r.top) as f32 / scale,
+            ),
+        ))
+    }
+}

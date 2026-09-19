@@ -32,6 +32,7 @@ struct AppState {
     refreshing: bool,
     refresh_requested: bool,
     preferences_path: PathBuf,
+    tray_bounds: Option<WindowRect>,
 }
 impl AppState {
     fn save_preferences(&self) {
@@ -45,6 +46,17 @@ impl AppState {
         let _ = std::fs::write(&self.preferences_path, value.to_string());
     }
 }
+// GPUI Windows는 마지막 창 제거 시 PostQuitMessage를 보낸다.
+// 표시되지 않는 최소 창을 유지해야 팝오버 제거 후에도 트레이가 동작한다.
+#[cfg(target_os = "windows")]
+struct TrayKeepAlive;
+#[cfg(target_os = "windows")]
+impl Render for TrayKeepAlive {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div()
+    }
+}
+
 struct PopoverView {
     state: Arc<Mutex<AppState>>,
 }
@@ -235,7 +247,31 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
         }
         state.lock().unwrap().window_handle = None;
     }
-    let display = cx.displays().first().cloned();
+    let displays = cx.displays();
+    #[cfg(target_os = "windows")]
+    let tray_bounds = state.lock().unwrap().tray_bounds;
+    #[cfg(target_os = "windows")]
+    let native_geometry =
+        tray_bounds.and_then(llm_usage_monitor_core::shell::position::native_tray_work_area);
+    #[cfg(not(target_os = "windows"))]
+    let native_geometry: Option<(PosPoint, WindowRect)> = None;
+    let display = native_geometry
+        .and_then(|(anchor, _)| {
+            displays
+                .iter()
+                .find(|d| {
+                    let b = d.bounds();
+                    let (x, y, w, h) = (
+                        f32::from(b.origin.x),
+                        f32::from(b.origin.y),
+                        f32::from(b.size.width),
+                        f32::from(b.size.height),
+                    );
+                    anchor.x >= x && anchor.x <= x + w && anchor.y >= y && anchor.y <= y + h
+                })
+                .cloned()
+        })
+        .or_else(|| displays.first().cloned());
     let area = display
         .as_ref()
         .map(|d| {
@@ -248,7 +284,7 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
             )
         })
         .unwrap_or(WindowRect::new(0., 0., 1920., 1080.));
-    // GPUI 0.2 exposes display bounds, not the OS usable work area. Keep this limitation explicit.
+    let area = native_geometry.map(|(_, work)| work).unwrap_or(area);
     let width = 400_f32.min(area.width);
     let height = 640_f32.min((area.height - 64.).max(100.));
     let anchor = PosPoint::new(
@@ -259,6 +295,9 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
             area.y + area.height
         },
     );
+    let anchor = native_geometry
+        .map(|(anchor, _)| anchor)
+        .unwrap_or(anchor);
     let pos = calculate_popover_position(anchor, area, WindowSize::new(width, height));
     let options = WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(Bounds {
@@ -347,6 +386,10 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let demo = args.iter().any(|a| a == "--demo");
     let hidden = args.iter().any(|a| a == "--start-hidden");
+    let hide_after = args.iter().find_map(|a| {
+        a.strip_prefix("--hide-after=")
+            .and_then(|v| v.parse::<u64>().ok())
+    });
     let quit_after = args.iter().find_map(|a| {
         a.strip_prefix("--quit-after=")
             .and_then(|v| v.parse::<u64>().ok())
@@ -384,6 +427,7 @@ fn main() {
             refreshing: false,
             refresh_requested: !demo,
             preferences_path,
+            tray_bounds: None,
         }));
         let engine = Arc::new(UsageMonitorEngine::new(data_dir));
         let tray = match SystemTrayManager::new() {
@@ -394,24 +438,58 @@ fn main() {
                 return;
             }
         };
+        #[cfg(target_os = "windows")]
+        if cx
+            .open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(Bounds {
+                        origin: point(px(0.), px(0.)),
+                        size: size(px(1.), px(1.)),
+                    })),
+                    focus: false,
+                    show: false,
+                    titlebar: None,
+                    kind: WindowKind::PopUp,
+                    is_movable: false,
+                    is_resizable: false,
+                    ..Default::default()
+                },
+                |_, cx| cx.new(|_| TrayKeepAlive),
+            )
+            .is_err()
+        {
+            eprintln!("트레이 유지 창 초기화에 실패했습니다.");
+            cx.quit();
+            return;
+        }
+        state.lock().unwrap().tray_bounds = tray.bounds();
         if !hidden {
             open_popover(state.clone(), cx);
         }
         let (tx, rx) = mpsc::channel();
-        let mut async_cx = cx.to_async();
+        let async_cx = cx.to_async();
         let timer = cx.background_executor().clone();
         cx.foreground_executor()
             .spawn(async move {
                 let _tray_lifetime = &tray;
                 let start = Instant::now();
+                let mut hidden_once = false;
                 let mut last_poll = Instant::now();
                 let mut last_render = Instant::now();
                 loop {
+                    if !hidden_once
+                        && hide_after.is_some_and(|seconds| start.elapsed().as_secs() >= seconds)
+                    {
+                        let state = state.clone();
+                        let _ = async_cx.update(move |cx| close_popover(&state, cx));
+                        hidden_once = true;
+                    }
                     if quit_after.is_some_and(|seconds| start.elapsed().as_secs() >= seconds) {
                         let _ = async_cx.update(|cx| cx.quit());
                         break;
                     }
                     while let Ok(event) = TrayIconEvent::receiver().try_recv() {
+                        state.lock().unwrap().tray_bounds = tray.bounds();
                         if let TrayIconEvent::Click {
                             button: tray_icon::MouseButton::Left,
                             button_state: tray_icon::MouseButtonState::Up,
@@ -430,6 +508,7 @@ fn main() {
                         }
                     }
                     while let Ok(event) = MenuEvent::receiver().try_recv() {
+                        state.lock().unwrap().tray_bounds = tray.bounds();
                         if event.id == tray.quit_id {
                             let _ = async_cx.update(|cx| cx.quit());
                             return;
