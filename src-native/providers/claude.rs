@@ -13,7 +13,6 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::process::Command;
 
 const CLAUDE_SAFE_SESSION_ARGS: &[&str] = &[
     "--safe-mode",
@@ -166,7 +165,7 @@ impl ClaudeProvider {
     async fn read_auth_status(&self) -> Option<ClaudeAuthStatusJson> {
         let output = tokio::time::timeout(
             Duration::from_secs(5),
-            Command::new(&self.command_name)
+            super::background_command(&self.command_name)
                 .kill_on_drop(true)
                 .args(["auth", "status", "--json"])
                 .stdin(Stdio::null())

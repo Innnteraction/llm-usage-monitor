@@ -11,7 +11,6 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
-use tokio::process::Command;
 
 const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 const USAGE_TIMEOUT: Duration = Duration::from_secs(25);
@@ -86,7 +85,7 @@ impl AntigravityProvider {
         // 1. Verify CLI executable & version
         let version_result = tokio::time::timeout(
             VERSION_TIMEOUT,
-            Command::new(&self.command_name)
+            super::background_command(&self.command_name)
                 .kill_on_drop(true)
                 .arg("--version")
                 .stdin(Stdio::null())
@@ -128,7 +127,7 @@ impl AntigravityProvider {
         // 2. Fetch usage
         let usage_result = tokio::time::timeout(
             USAGE_TIMEOUT,
-            Command::new(&self.command_name)
+            super::background_command(&self.command_name)
                 .kill_on_drop(true)
                 .args([
                     "--print",

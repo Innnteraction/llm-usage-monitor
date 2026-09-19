@@ -9,8 +9,8 @@ use std::collections::HashMap;
 use std::env;
 use std::process::Stdio;
 use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{ChildStdin, ChildStdout, Command};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::process::{ChildStdin, ChildStdout};
 
 const FIVE_HOUR_MINUTES: i64 = 5 * 60;
 const WEEKLY_MINUTES: i64 = 7 * 24 * 60;
@@ -36,8 +36,8 @@ struct CodexAccountResponse {
 struct CodexRateLimitWindow {
     #[serde(rename = "usedPercent")]
     used_percent: f64,
-    #[serde(rename = "windowDurationMins")]
-    window_duration_mins: i64,
+    #[serde(rename = "windowDurationMins", default)]
+    window_duration_mins: Option<i64>,
     #[serde(rename = "resetsAt", default)]
     resets_at: Option<i64>,
 }
@@ -86,7 +86,7 @@ impl CodexProvider {
         let fetched_at = Utc::now();
 
         // 1. Spawn codex app-server --stdio
-        let mut child = match Command::new(&self.command_name)
+        let mut child = match super::background_command(&self.command_name)
             .args(["app-server", "--stdio"])
             .kill_on_drop(true)
             .stdin(Stdio::piped())
@@ -110,20 +110,15 @@ impl CodexProvider {
         let mut reader = BufReader::new(stdout);
         let mut writer = stdin;
 
-        let result = tokio::time::timeout(
-            REQUEST_TIMEOUT,
-            self.execute_rpc_session(&mut reader, &mut writer),
-        )
-        .await;
+        let result = self.execute_rpc_session(&mut reader, &mut writer).await;
 
         let _ = child.kill().await;
 
         match result {
-            Ok(Ok((account, rate_limits))) => {
+            Ok((account, rate_limits)) => {
                 normalize_codex_snapshot(account, rate_limits, fetched_at)
             }
-            Ok(Err((code, msg))) => failure_snapshot(fetched_at, &code, &msg),
-            Err(_) => failure_snapshot(fetched_at, "timeout", "Codex quota refresh timed out."),
+            Err((code, msg)) => failure_snapshot(fetched_at, &code, &msg),
         }
     }
 
@@ -162,6 +157,13 @@ impl CodexProvider {
                 "The installed Codex CLI returned an unsupported response.".to_string(),
             )
         })?;
+
+        if account.requires_openai_auth && account.account.is_none() {
+            return Ok((
+                account,
+                serde_json::from_value(json!({"rateLimits": {}})).unwrap(),
+            ));
+        }
 
         // Step 4: rateLimits/read
         let limits_req = json!({
@@ -207,50 +209,54 @@ async fn send_json(writer: &mut ChildStdin, val: &Value) -> Result<(), (String, 
 }
 
 async fn read_response_matching_id(
-    reader: &mut BufReader<ChildStdout>,
+    reader: &mut (impl AsyncBufRead + Unpin),
     target_id: i64,
 ) -> Result<Value, (String, String)> {
-    let mut line = String::new();
-    loop {
-        line.clear();
-        let bytes_read = reader.read_line(&mut line).await.map_err(|_| {
-            (
-                "process_failed".to_string(),
-                "Codex App Server stopped during quota refresh.".to_string(),
-            )
-        })?;
-        if bytes_read == 0 {
-            return Err((
-                "process_failed".to_string(),
-                "Codex App Server stopped during quota refresh.".to_string(),
-            ));
-        }
+    tokio::time::timeout(REQUEST_TIMEOUT, async {
+        let mut line = String::new();
+        loop {
+            line.clear();
+            let bytes_read = reader.read_line(&mut line).await.map_err(|_| {
+                (
+                    "process_failed".to_string(),
+                    "Codex App Server stopped during quota refresh.".to_string(),
+                )
+            })?;
+            if bytes_read == 0 {
+                return Err((
+                    "process_failed".to_string(),
+                    "Codex App Server stopped during quota refresh.".to_string(),
+                ));
+            }
 
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
 
-        if let Ok(val) = serde_json::from_str::<Value>(trimmed) {
-            if let Some(id) = val.get("id").and_then(|v| v.as_i64()) {
-                if id == target_id {
-                    if val.get("error").is_some() {
+            if let Ok(val) = serde_json::from_str::<Value>(trimmed) {
+                if let Some(id) = val.get("id").and_then(|v| v.as_i64()) {
+                    if id == target_id {
+                        if val.get("error").is_some() {
+                            return Err((
+                                "unavailable".to_string(),
+                                "Codex App Server could not provide quota.".to_string(),
+                            ));
+                        }
+                        if let Some(result) = val.get("result") {
+                            return Ok(result.clone());
+                        }
                         return Err((
-                            "unavailable".to_string(),
-                            "Codex App Server could not provide quota.".to_string(),
+                            "unsupported_output".to_string(),
+                            "The installed Codex CLI returned an unsupported response.".to_string(),
                         ));
                     }
-                    if let Some(result) = val.get("result") {
-                        return Ok(result.clone());
-                    }
-                    return Err((
-                        "unsupported_output".to_string(),
-                        "The installed Codex CLI returned an unsupported response.".to_string(),
-                    ));
                 }
             }
         }
-    }
+    })
+    .await
+    .unwrap_or_else(|_| Err(("timeout".into(), "Codex quota refresh timed out.".into())))
 }
 
 fn normalize_codex_snapshot(
@@ -280,8 +286,9 @@ fn normalize_codex_snapshot(
     let valid_window = |w: &CodexRateLimitWindow| {
         w.used_percent.is_finite()
             && (0.0..=100.0).contains(&w.used_percent)
+            && w.window_duration_mins.is_none_or(|v| v > 0)
             && w.resets_at
-                .is_none_or(|t| unix_secs_to_datetime(t).is_some())
+                .is_none_or(|t| t >= 0 && unix_secs_to_datetime(t).is_some())
     };
     let valid_snapshot = |s: &CodexRateLimitSnapshot| {
         s.primary.as_ref().is_none_or(&valid_window)
@@ -326,7 +333,7 @@ fn normalize_rate_limits(response: &CodexRateLimitsResponse) -> Vec<QuotaWindow>
 
     // 1. Primary (5h)
     if let Some(primary) = &response.rate_limits.primary {
-        let is_5h = primary.window_duration_mins == FIVE_HOUR_MINUTES;
+        let is_5h = primary.window_duration_mins == Some(FIVE_HOUR_MINUTES);
         windows.push(QuotaWindow {
             id: if is_5h {
                 "codex-five-hour".to_string()
@@ -362,7 +369,7 @@ fn normalize_rate_limits(response: &CodexRateLimitsResponse) -> Vec<QuotaWindow>
 
     // 2. Secondary (Weekly)
     if let Some(sec) = &response.rate_limits.secondary {
-        let is_weekly = sec.window_duration_mins == WEEKLY_MINUTES;
+        let is_weekly = sec.window_duration_mins == Some(WEEKLY_MINUTES);
         windows.push(QuotaWindow {
             id: if is_weekly {
                 "codex-weekly".to_string()
@@ -403,16 +410,40 @@ fn normalize_rate_limits(response: &CodexRateLimitsResponse) -> Vec<QuotaWindow>
 
         for key in sorted_keys {
             if let Some(snapshot) = by_id.get(key) {
-                let label_prefix = snapshot.limit_name.as_deref().unwrap_or(key);
+                let label_prefix = snapshot
+                    .limit_name
+                    .as_deref()
+                    .or(snapshot.limit_id.as_deref())
+                    .unwrap_or(key);
+                let account_weekly = !windows
+                    .iter()
+                    .any(|w| w.kind == QuotaKind::Weekly && w.status == SnapshotStatus::Fresh)
+                    && [
+                        Some(key.as_str()),
+                        snapshot.limit_id.as_deref(),
+                        snapshot.limit_name.as_deref(),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .any(|v| v.trim().eq_ignore_ascii_case("codex"));
                 if let Some(pri) = &snapshot.primary {
                     windows.push(QuotaWindow {
                         id: format!("codex-limit-{}-primary", key.to_lowercase()),
-                        kind: if pri.window_duration_mins == WEEKLY_MINUTES {
-                            QuotaKind::ModelWeekly
+                        kind: if pri.window_duration_mins == Some(WEEKLY_MINUTES) {
+                            if account_weekly {
+                                QuotaKind::Weekly
+                            } else {
+                                QuotaKind::ModelWeekly
+                            }
                         } else {
                             QuotaKind::Other
                         },
-                        label: format!("{} Primary", label_prefix),
+                        label: if account_weekly && pri.window_duration_mins == Some(WEEKLY_MINUTES)
+                        {
+                            "Weekly".into()
+                        } else {
+                            format!("{} Primary", label_prefix)
+                        },
                         used_percent: Some(pri.used_percent),
                         resets_at: pri.resets_at.and_then(unix_secs_to_datetime),
                         source: ProviderSource::CodexAppServer,
@@ -422,12 +453,21 @@ fn normalize_rate_limits(response: &CodexRateLimitsResponse) -> Vec<QuotaWindow>
                 if let Some(sec) = &snapshot.secondary {
                     windows.push(QuotaWindow {
                         id: format!("codex-limit-{}-secondary", key.to_lowercase()),
-                        kind: if sec.window_duration_mins == WEEKLY_MINUTES {
-                            QuotaKind::ModelWeekly
+                        kind: if sec.window_duration_mins == Some(WEEKLY_MINUTES) {
+                            if account_weekly {
+                                QuotaKind::Weekly
+                            } else {
+                                QuotaKind::ModelWeekly
+                            }
                         } else {
                             QuotaKind::Other
                         },
-                        label: format!("{} Weekly", label_prefix),
+                        label: if account_weekly && sec.window_duration_mins == Some(WEEKLY_MINUTES)
+                        {
+                            "Weekly".into()
+                        } else {
+                            format!("{} Weekly", label_prefix)
+                        },
                         used_percent: Some(sec.used_percent),
                         resets_at: sec.resets_at.and_then(unix_secs_to_datetime),
                         source: ProviderSource::CodexAppServer,
@@ -438,7 +478,25 @@ fn normalize_rate_limits(response: &CodexRateLimitsResponse) -> Vec<QuotaWindow>
         }
     }
 
-    windows
+    // Always select the confirmed account windows before model/unknown windows.
+    let mut selected = expected_unavailable_windows();
+    for (index, kind) in [QuotaKind::FiveHour, QuotaKind::Weekly]
+        .into_iter()
+        .enumerate()
+    {
+        if let Some(position) = windows
+            .iter()
+            .position(|w| w.kind == kind && w.status == SnapshotStatus::Fresh)
+        {
+            selected[index] = windows.remove(position);
+        }
+    }
+    selected.extend(
+        windows
+            .into_iter()
+            .filter(|w| w.status == SnapshotStatus::Fresh),
+    );
+    selected
 }
 
 fn expected_unavailable_windows() -> Vec<QuotaWindow> {
@@ -519,6 +577,57 @@ mod tests {
             Utc::now(),
         );
         assert_eq!(s.error.unwrap().code, "not_authenticated");
+    }
+    #[test]
+    fn nullable_duration_and_account_weekly_fallback_match_electron() {
+        let limits: CodexRateLimitsResponse = serde_json::from_value(json!({
+            "rateLimits": {"primary": {"usedPercent": 12, "windowDurationMins": null}},
+            "rateLimitsByLimitId": {
+                "codex": {"primary": {"usedPercent": 42, "windowDurationMins": 10080}},
+                "model": {"secondary": {"usedPercent": 24, "windowDurationMins": 10080}}
+            }
+        }))
+        .unwrap();
+        let windows = normalize_rate_limits(&limits);
+        assert_eq!(windows[0].used_percent, None);
+        assert_eq!(windows[1].kind, QuotaKind::Weekly);
+        assert_eq!(windows[1].used_percent, Some(42.));
+        assert_eq!(
+            windows
+                .iter()
+                .filter(|w| w.kind == QuotaKind::Weekly)
+                .count(),
+            1
+        );
+        assert!(windows
+            .iter()
+            .any(|w| w.kind == QuotaKind::Other && w.used_percent == Some(12.)));
+        assert!(windows.iter().any(|w| w.kind == QuotaKind::ModelWeekly));
+        let omitted: CodexRateLimitsResponse =
+            serde_json::from_value(json!({"rateLimits":{"primary":{"usedPercent": 0}}})).unwrap();
+        assert_eq!(normalize_rate_limits(&omitted)[0].used_percent, None);
+    }
+    #[tokio::test]
+    async fn rpc_notifications_failures_and_closed_transport_are_safe() {
+        for (input, expected) in [
+            ("{\"method\":\"notice\"}\n{\"id\":3,\"result\":{}}\n", None),
+            (
+                "{\"id\":3,\"error\":{\"code\":429,\"message\":\"synthetic-private-detail\"}}\n",
+                Some("unavailable"),
+            ),
+            ("{\"id\":3}\n", Some("unsupported_output")),
+            ("", Some("process_failed")),
+        ] {
+            let mut reader = BufReader::new(input.as_bytes());
+            let result = read_response_matching_id(&mut reader, 3).await;
+            if let Some(code) = expected {
+                let error = result.unwrap_err();
+                assert_eq!(error.0, code);
+                assert!(!error.1.contains("synthetic-private-detail"));
+            } else {
+                assert!(result.is_ok());
+            }
+        }
     }
     #[tokio::test]
     async fn missing_cli_is_unavailable() {
