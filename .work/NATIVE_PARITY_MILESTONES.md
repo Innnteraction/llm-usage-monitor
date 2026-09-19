@@ -9,7 +9,7 @@
 | 단계 | 결과물 | 상태 / 완료 조건 |
 | --- | --- | --- |
 | P0 기준 고정 | 대응표, 공통 snapshot/고정 시각, Electron 기준 화면 | 진행 중. 기준 캡처와 공통 입력 재현 필요 |
-| P1 기본 화면 | 상세/간략 × 라이트/다크 실행 화면 및 비교 | 대기. 배치·크기·문구·콘텐츠 높이 동일 |
+| P1 기본 화면 | 상세/간략 × 라이트/다크 실행 화면 및 비교 | 구현 진행 중. 배치·크기·문구·콘텐츠 높이 동일 |
 | P2 상태·입력 | 실패/갱신/도움말 화면, 마우스·키보드 시나리오 | 대기. 상태와 입력 결과 동일 |
 | P3 OS 통합 | 트레이·창·CLI 설정·시작 프로그램 시험 빌드 | 대기. 실제 항상 위, 위치, 재열기, 설정 상태 동일 |
 | P4 플랫폼 수용 | Windows/macOS 화면·동작 증거 | 대기. 배율/다중 모니터/Retina 실기 확인 |
@@ -48,3 +48,11 @@
 - 승인된 기존 아키텍처 baseline은 유지한다. Rust UI→정규화 타입, app→UI/core/shell 경계 안에서 진행한다. 신규 native UI presentation/icon 모듈을 계획에 포함했고 영향 검사 통과. Electron 제품 소스는 수정하지 않는다.
 
 P0 자동 검증: 아키텍처 verify와 Rust 17개 테스트 통과. `--snapshot-only`는 정본 createFakeUsageStore를 2026-09-19T12:00:00Z에 실행하여 공통 JSON을 생성한다. GUI 캡처는 재시도 후에도 페이지 종료/타임아웃이 발생하여 기준 PNG는 아직 확보하지 못했다. P0는 완료로 판정하지 않고 입력·기준 계약만 먼저 커밋한다.
+
+## P1 구현 1차 결과
+
+- Electron SVG path를 assets/native-icons에 그대로 추출해 바이너리에 내장했다. 팔레트, 480px 폭, CSS 기준 글자 크기·간격, 상세 quota 행과 5분할 게이지, provider 내부 토큰, compact 3슬롯 구조를 이식했다.
+- 정본의 기본/추가 quota 선택, reserve 제외, 퍼센트·토큰·카운트다운 표기, 30분 stale 판정을 순수 표시 함수로 옮겼다. 공통 fixture를 사용하는 회귀 테스트를 추가했다.
+- 콘텐츠 측정 기반 높이 요청과 제목 새로고침, 추가 quota/compact 오류 펼침, 두 단계 테마 토글, 단축키를 연결했다. P2/P3 동작 중 같은 화면 작업에 필요한 일부가 포함된다.
+- 아키텍처 verify와 Rust 테스트 18개, Windows release 빌드 통과. 공통 fixture 데모는 exit 0, 없는 fixture는 exit 2. Computer Use native pipe는 계속 연결되지 않아 실제 화면 대조는 미완료다.
+- 남은 P1/P2 차이: 폰트 fallback의 실화면 확인, compact Fable 팔레트/반전 글자, 카운트다운 gradient animation, 토큰 색·세부 도움말, 도움말 focus/click 및 경계 동작. 창 높이·위치 변화는 실기 확인 필요. P1 완료로 표시하지 않는다.

@@ -6,3 +6,6 @@ pub mod vendor_banner;
 pub mod compact;
 pub mod theme;
 pub mod tooltip;
+
+pub mod presentation;
+pub mod icons;

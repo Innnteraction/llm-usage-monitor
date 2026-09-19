@@ -10,8 +10,11 @@ use llm_usage_monitor_core::{
         tray::SystemTrayManager,
     },
     ui::{
-        compact::render_compact, local_tokens::render_local_tokens_card,
-        quota_card::render_quota_card, theme::ThemeMode,
+        compact::render_compact,
+        icons::Icons,
+        presentation::{UiAction, UiEvents},
+        quota_card::render_quota_card,
+        theme::ThemeMode,
         vendor_banner::render_vendor_health_banner,
     },
 };
@@ -34,16 +37,14 @@ struct AppState {
     preferences_path: PathBuf,
     tray_bounds: Option<WindowRect>,
     fixed_now: Option<chrono::DateTime<chrono::Utc>>,
+    expanded: std::collections::HashSet<ProviderId>,
+    expanded_errors: std::collections::HashSet<ProviderId>,
+    desired_height: Option<f32>,
+    max_height: f32,
 }
 impl AppState {
     fn save_preferences(&self) {
-        let theme = match self.theme {
-            ThemeMode::System => "system",
-            ThemeMode::Light => "light",
-            ThemeMode::Dark => "dark",
-        };
-        let value =
-            serde_json::json!({"compact": self.compact, "theme": theme, "pinned": self.pinned});
+        let value = serde_json::json!({"pinned": self.pinned});
         let _ = std::fs::write(&self.preferences_path, value.to_string());
     }
 }
@@ -60,10 +61,11 @@ impl Render for TrayKeepAlive {
 
 struct PopoverView {
     state: Arc<Mutex<AppState>>,
+    focus: gpui::FocusHandle,
 }
 impl Render for PopoverView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (pinned, compact, theme, snapshot, refreshing, now) = {
+        let (pinned, compact, theme, snapshot, refreshing, now, expanded, errors) = {
             let s = self.state.lock().unwrap();
             (
                 s.pinned,
@@ -72,163 +74,90 @@ impl Render for PopoverView {
                 s.snapshot.clone(),
                 s.refreshing,
                 s.fixed_now.unwrap_or_else(chrono::Utc::now),
+                s.expanded.clone(),
+                s.expanded_errors.clone(),
             )
         };
         let palette = theme.palette(window.appearance());
-        div()
-            .flex()
-            .flex_col()
-            .size_full()
-            .bg(palette.background)
-            .text_color(palette.text)
-            .rounded_xl()
-            .border_1()
-            .border_color(palette.border)
-            .p_3()
-            .gap_2()
-            .child(
-                div()
-                    .flex()
-                    .justify_between()
-                    .items_center()
-                    .child(div().text_sm().child("LLM Usage Monitor"))
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(palette.muted)
-                            .child(if refreshing {
-                                "수집 중…"
-                            } else {
-                                "v0.12.0"
-                            }),
-                    ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .gap_2()
-                    .text_xs()
-                    .child(
-                        div()
-                            .id("refresh")
-                            .px_2()
-                            .py_1()
-                            .bg(palette.surface)
-                            .rounded_md()
-                            .cursor_pointer()
-                            .child(if refreshing {
-                                "갱신 중…"
-                            } else {
-                                "새로고침"
-                            })
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                let mut s = this.state.lock().unwrap();
-                                if !s.refreshing {
-                                    s.refresh_requested = true;
-                                }
-                                cx.notify();
-                            })),
-                    )
-                    .child(
-                        div()
-                            .id("compact")
-                            .px_2()
-                            .py_1()
-                            .bg(palette.surface)
-                            .rounded_md()
-                            .cursor_pointer()
-                            .child(if compact {
-                                "카드 보기"
-                            } else {
-                                "간략 보기"
-                            })
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                let mut s = this.state.lock().unwrap();
-                                s.compact = !s.compact;
-                                s.save_preferences();
-                                cx.notify();
-                            })),
-                    )
-                    .child(
-                        div()
-                            .id("theme")
-                            .px_2()
-                            .py_1()
-                            .bg(palette.surface)
-                            .rounded_md()
-                            .cursor_pointer()
-                            .child(theme.label())
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                let mut s = this.state.lock().unwrap();
-                                s.theme = s.theme.next();
-                                s.save_preferences();
-                                cx.notify();
-                            })),
-                    )
-                    .child(
-                        div()
-                            .id("pin")
-                            .px_2()
-                            .py_1()
-                            .bg(palette.surface)
-                            .rounded_md()
-                            .cursor_pointer()
-                            .child(if pinned { "고정 해제" } else { "고정" })
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                let mut s = this.state.lock().unwrap();
-                                s.pinned = !s.pinned;
-                                s.save_preferences();
-                                cx.notify();
-                            })),
-                    ),
-            )
-            .child(
-                div()
-                    .id("content")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .flex()
-                    .flex_col()
-                    .gap_2()
-                    .children(if let Some(snap) = snapshot {
-                        vec![
-                            render_vendor_health_banner(&snap.providers, palette)
-                                .into_any_element(),
-                            if compact {
-                                render_compact(&snap.providers, palette, now).into_any_element()
-                            } else {
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap_2()
-                                    .children(
-                                        snap.providers
-                                            .iter()
-                                            .map(|p| render_quota_card(p, palette, now)),
-                                    )
-                                    .into_any_element()
-                            },
-                            render_local_tokens_card(&snap.providers, palette).into_any_element(),
-                            div()
-                                .text_xs()
-                                .text_color(palette.muted)
-                                .child(format!(
-                                    "갱신 {} · 사용률·리셋에 마우스를 올리면 도움말",
-                                    snap.updated_at
-                                        .with_timezone(&chrono::Local)
-                                        .format("%H:%M:%S")
-                                ))
-                                .into_any_element(),
-                        ]
-                    } else {
-                        vec![div()
-                            .p_4()
-                            .text_sm()
-                            .child("쿼터와 로컬 사용량을 수집하고 있습니다…")
-                            .into_any_element()]
-                    }),
-            )
+        let weak = cx.entity().downgrade();
+        let events: UiEvents = std::rc::Rc::new(move |action, _, cx| {
+            let _ = weak.update(cx, |view, cx| {
+                let mut s = view.state.lock().unwrap();
+                let (set, id) = match action {
+                    UiAction::Additional(id) => (&mut s.expanded, id),
+                    UiAction::Error(id) => (&mut s.expanded_errors, id),
+                };
+                if !set.remove(&id) {
+                    set.insert(id);
+                }
+                cx.notify();
+            });
+        });
+        let measured_state = self.state.clone();
+        let font = if cfg!(target_os = "macos") {
+            "SFMono-Regular"
+        } else {
+            "Cascadia Mono"
+        };
+        div().id("app-shell").track_focus(&self.focus)
+            .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, window, cx| {
+                let key = &event.keystroke;
+                if key.key == "escape" {
+                    if !this.state.lock().unwrap().pinned {
+                        this.state.lock().unwrap().window_handle = None;
+                        window.remove_window();
+                    }
+                    return;
+                }
+                let modifier = if cfg!(target_os="macos") { key.modifiers.platform } else { key.modifiers.control };
+                if modifier && key.modifiers.shift {
+                    let mut s=this.state.lock().unwrap();
+                    match key.key.to_lowercase().as_str() {
+                        "c" => s.compact = !s.compact,
+                        "l" => s.theme = s.theme.next(window.appearance()),
+                        "p" => { s.pinned = !s.pinned; s.save_preferences(); },
+                        _ => return,
+                    }
+                    cx.notify();
+                }
+            }))
+            .flex().flex_col().size_full().bg(palette.background).text_color(palette.text)
+            .font_family(font).text_size(px(17.6)).line_height(gpui::relative(1.2))
+            .pt(px(if compact {10.} else {12.})).px(px(if compact {10.} else {18.})).pb(px(6.))
+            .child(div().flex().items_center().justify_between().gap(px(12.)).flex_shrink_0()
+                .on_mouse_down(gpui::MouseButton::Left, |_,window,_| window.start_window_move())
+                .child(div().id("refresh").cursor_pointer().text_size(px(14.432)).font_weight(gpui::FontWeight::BOLD).text_color(palette.muted)
+                    .child(if refreshing { "LLM Usage Monitor…" } else { "LLM Usage Monitor" })
+                    .on_mouse_down(gpui::MouseButton::Left, |_,_,cx|cx.stop_propagation())
+                    .on_click(cx.listener(|this,_,_,cx| { let mut s=this.state.lock().unwrap(); if !s.refreshing && s.snapshot.is_some() {s.refresh_requested=true;} cx.notify(); })))
+                .child(div().flex().items_center().gap(px(10.))
+                    .child(div().id("compact").cursor_pointer().size(px(16.)).child(gpui::svg().path(if compact {"AddSquare"} else {"MinusSquare"}).size_full().text_color(palette.muted))
+                        .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
+                        .tooltip(move |_,cx|llm_usage_monitor_core::ui::tooltip::tooltip(if compact {"Expand to detailed mode"} else {"Collapse to compact mode"}.into(),palette,cx))
+                        .on_click(cx.listener(|this,_,_,cx| {let mut s=this.state.lock().unwrap();s.compact=!s.compact;cx.notify();})))
+                    .child(div().id("theme").cursor_pointer().size(px(16.)).child(gpui::svg().path(if palette.background == gpui::rgb(0x101010) {"Moon-filled"} else {"Sun-filled"}).size_full().text_color(palette.muted))
+                        .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
+                        .on_click(cx.listener(|this,_,window,cx| {let mut s=this.state.lock().unwrap();s.theme=s.theme.next(window.appearance());cx.notify();})))
+                    .child(div().id("pin").cursor_pointer().size(px(16.)).child(gpui::svg().path(if pinned {"Pin-filled"} else {"Pin"}).size_full().text_color(palette.muted))
+                        .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
+                        .on_click(cx.listener(|this,_,_,cx| {let mut s=this.state.lock().unwrap();s.pinned=!s.pinned;s.save_preferences();cx.notify();})))
+                    .child(div().id("help").cursor_pointer().size(px(16.)).child(gpui::svg().path("Help").size_full().text_color(palette.muted))
+                        .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
+                        .tooltip(move |_,cx|llm_usage_monitor_core::ui::tooltip::tooltip("LLM Usage Monitor v0.12.0\nquota: account · tokens: this PC\nCtrl/⌘+Shift+C  Toggle compact mode\nCtrl/⌘+Shift+L  Toggle theme (dark/light)\nCtrl/⌘+Shift+P  Toggle pin (always on top)\nEsc  Close popover (stay in tray)".into(),palette,cx)))))
+            .child(div().id("content").flex_1().min_h_0().overflow_y_scroll().mt(px(if compact {8.} else {12.}))
+                .child(div().flex().flex_col().gap(px(7.)).flex_shrink_0().w_full()
+                    .on_children_prepainted(move |bounds,_,_| {
+                        if let (Some(first),Some(last))=(bounds.first(),bounds.last()) {
+                            measured_state.lock().unwrap().desired_height=Some(f32::from(last.bottom()-first.top())+if compact {50.} else {56.});
+                        }
+                    })
+                    .children(if let Some(snap)=snapshot {
+                        let mut children=Vec::new();
+                        if !compact && snap.providers.iter().any(|p| p.service_status.as_ref().is_some_and(|s| matches!(s.indicator, ServiceHealthIndicator::Minor | ServiceHealthIndicator::Major | ServiceHealthIndicator::Critical))) { children.push(render_vendor_health_banner(&snap.providers,palette).into_any_element()); }
+                        if compact { children.push(render_compact(&snap.providers,palette,now,&errors,events.clone()).into_any_element()); }
+                        else { for (index,p) in snap.providers.iter().enumerate() {children.push(render_quota_card(p,index,palette,now,expanded.contains(&p.provider_id),events.clone()).into_any_element());} }
+                        children
+                    } else {vec![div().text_size(px(11.968)).child("Loading quota…").into_any_element()]})))
     }
 }
 
@@ -287,8 +216,9 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
         })
         .unwrap_or(WindowRect::new(0., 0., 1920., 1080.));
     let area = native_geometry.map(|(_, work)| work).unwrap_or(area);
-    let width = 400_f32.min(area.width);
-    let height = 640_f32.min((area.height - 64.).max(100.));
+    let width = 480_f32.min(area.width);
+    let height = 360_f32.min((area.height - 4.).max(100.));
+    state.lock().unwrap().max_height = (area.height - 4.).max(100.);
     let anchor = PosPoint::new(
         area.x + area.width - 140.,
         if cfg!(target_os = "macos") {
@@ -297,9 +227,7 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
             area.y + area.height
         },
     );
-    let anchor = native_geometry
-        .map(|(anchor, _)| anchor)
-        .unwrap_or(anchor);
+    let anchor = native_geometry.map(|(anchor, _)| anchor).unwrap_or(anchor);
     let pos = calculate_popover_position(anchor, area, WindowSize::new(width, height));
     let options = WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(Bounds {
@@ -330,7 +258,12 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
             .detach();
             cx.observe_window_appearance(window, |_, _, cx| cx.notify())
                 .detach();
-            PopoverView { state: view_state }
+            let focus = cx.focus_handle();
+            window.focus(&focus);
+            PopoverView {
+                state: view_state,
+                focus,
+            }
         })
     }) {
         Ok(handle) => state.lock().unwrap().window_handle = Some(handle),
@@ -388,8 +321,13 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let fixture_path = args.iter().find_map(|a| a.strip_prefix("--demo-snapshot="));
     let fixture: Option<AppSnapshot> = fixture_path.map(|path| {
-        std::fs::read(path).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok())
-            .unwrap_or_else(|| { eprintln!("Invalid demo snapshot"); std::process::exit(2) })
+        std::fs::read(path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_else(|| {
+                eprintln!("Invalid demo snapshot");
+                std::process::exit(2)
+            })
     });
     let demo = fixture.is_some() || args.iter().any(|a| a == "--demo");
     let fixed_now = fixture.as_ref().map(|s| s.updated_at);
@@ -408,7 +346,7 @@ fn main() {
         .build()
         .expect("collector runtime");
     let runtime_handle = runtime.handle().clone();
-    Application::new().run(move |cx| {
+    Application::new().with_assets(Icons).run(move |cx| {
         let data_dir = if demo {
             std::env::temp_dir().join(format!("llm-monitor-demo-{}", std::process::id()))
         } else {
@@ -425,18 +363,18 @@ fn main() {
         let state = Arc::new(Mutex::new(AppState {
             window_handle: None,
             pinned: preferences["pinned"].as_bool().unwrap_or(demo),
-            compact: preferences["compact"].as_bool().unwrap_or(false),
-            theme: match preferences["theme"].as_str() {
-                Some("light") => ThemeMode::Light,
-                Some("dark") => ThemeMode::Dark,
-                _ => ThemeMode::System,
-            },
+            compact: false,
+            theme: ThemeMode::System,
             snapshot: fixture.clone().or_else(|| demo.then(demo_snapshot)),
             refreshing: false,
             refresh_requested: !demo,
             preferences_path,
             tray_bounds: None,
             fixed_now,
+            expanded: Default::default(),
+            expanded_errors: Default::default(),
+            desired_height: None,
+            max_height: 1000.,
         }));
         let engine = Arc::new(UsageMonitorEngine::new(data_dir));
         let tray = match SystemTrayManager::new() {
@@ -496,6 +434,22 @@ fn main() {
                     if quit_after.is_some_and(|seconds| start.elapsed().as_secs() >= seconds) {
                         let _ = async_cx.update(|cx| cx.quit());
                         break;
+                    }
+                    let resize = {
+                        let mut s = state.lock().unwrap();
+                        s.desired_height.take().and_then(|h| {
+                            s.window_handle
+                                .map(|handle| (handle, h.clamp(100., s.max_height)))
+                        })
+                    };
+                    if let Some((handle, height)) = resize {
+                        let _ = async_cx.update(|cx| {
+                            handle.update(cx, |_, window, _| {
+                                if (f32::from(window.bounds().size.height) - height).abs() > 1. {
+                                    window.resize(size(px(480.), px(height.ceil())));
+                                }
+                            })
+                        });
                     }
                     while let Ok(event) = TrayIconEvent::receiver().try_recv() {
                         state.lock().unwrap().tray_bounds = tray.bounds();
@@ -564,9 +518,10 @@ fn main() {
                         let _ = async_cx.refresh();
                         let tx = tx.clone();
                         let engine = engine.clone();
+                        let demo_input = fixture.clone();
                         runtime_handle.spawn(async move {
                             let snapshot = if demo {
-                                demo_snapshot()
+                                demo_input.unwrap_or_else(demo_snapshot)
                             } else {
                                 engine.fetch_all_snapshots().await
                             };

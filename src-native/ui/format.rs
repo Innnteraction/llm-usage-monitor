@@ -3,10 +3,10 @@ use chrono::{DateTime, Utc};
 /// 사용률에 따른 색상 톤
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UsageTone {
-    Low,      // < 70% (초록/파랑)
-    Medium,   // 70% ~ 89% (주황/노랑)
-    High,     // >= 90% (빨강)
-    Stale,    // 오래된 데이터 (회색)
+    Low,    // < 70% (초록/파랑)
+    Medium, // 70% ~ 89% (주황/노랑)
+    High,   // >= 90% (빨강)
+    Stale,  // 오래된 데이터 (회색)
 }
 
 pub fn get_usage_tone(used_percent: Option<f64>, is_stale: bool) -> UsageTone {
@@ -23,19 +23,19 @@ pub fn get_usage_tone(used_percent: Option<f64>, is_stale: bool) -> UsageTone {
 /// 백분율 포맷팅 (예: 47.0%)
 pub fn format_percent(val: Option<f64>) -> String {
     match val {
-        Some(v) => format!("{:.1}%", v),
-        None => "N/A".to_string(),
+        Some(v) if v.is_finite() => format!("{:02.0}%", v.max(0.).round()),
+        _ => "--".to_string(),
     }
 }
 
 /// 토큰 수 친화적 포맷팅 (예: 5.04B, 12.3M, 450K)
 pub fn format_token_count(tokens: u64) -> String {
     if tokens >= 1_000_000_000 {
-        format!("{:.2}B", tokens as f64 / 1_000_000_000.0)
+        format!("{:.1}B", tokens as f64 / 1_000_000_000.0)
     } else if tokens >= 1_000_000 {
-        format!("{:.2}M", tokens as f64 / 1_000_000.0)
+        format!("{:.1}M", tokens as f64 / 1_000_000.0)
     } else if tokens >= 1_000 {
-        format!("{:.1}K", tokens as f64 / 1_000.0)
+        format!("{:.0}K", (tokens as f64 / 1_000.0).round())
     } else {
         tokens.to_string()
     }
@@ -59,11 +59,11 @@ pub fn format_reset_countdown(resets_at: Option<DateTime<Utc>>, now_utc: DateTim
     let minutes = remaining_mins % 60;
 
     if days > 0 {
-        format!("in {days}d {hours}h")
+        format!("{days}d {hours}h")
     } else if hours > 0 {
-        format!("in {hours}h {minutes}m")
+        format!("{hours}h {minutes}m")
     } else {
-        format!("in {minutes}m")
+        format!("{minutes}m")
     }
 }
 
@@ -75,9 +75,9 @@ mod tests {
     #[test]
     fn test_format_token_count() {
         assert_eq!(format_token_count(500), "500");
-        assert_eq!(format_token_count(1500), "1.5K");
-        assert_eq!(format_token_count(12_340_000), "12.34M");
-        assert_eq!(format_token_count(7_047_286_282), "7.05B");
+        assert_eq!(format_token_count(1500), "2K");
+        assert_eq!(format_token_count(12_340_000), "12.3M");
+        assert_eq!(format_token_count(7_047_286_282), "7.0B");
     }
 
     #[test]
@@ -86,11 +86,11 @@ mod tests {
 
         // 2시간 30분 뒤
         let future_2h = Utc.with_ymd_and_hms(2026, 9, 19, 14, 30, 0).unwrap();
-        assert_eq!(format_reset_countdown(Some(future_2h), now), "in 2h 30m");
+        assert_eq!(format_reset_countdown(Some(future_2h), now), "2h 30m");
 
         // 1일 5시간 뒤
         let future_1d = Utc.with_ymd_and_hms(2026, 9, 20, 17, 0, 0).unwrap();
-        assert_eq!(format_reset_countdown(Some(future_1d), now), "in 1d 5h");
+        assert_eq!(format_reset_countdown(Some(future_1d), now), "1d 5h");
 
         // 과거 시각
         let past = Utc.with_ymd_and_hms(2026, 9, 19, 11, 0, 0).unwrap();

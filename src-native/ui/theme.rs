@@ -8,11 +8,20 @@ pub enum ThemeMode {
     Dark,
 }
 impl ThemeMode {
-    pub fn next(self) -> Self {
+    pub fn next(self, appearance: WindowAppearance) -> Self {
         match self {
-            Self::System => Self::Light,
+            Self::System => {
+                if matches!(
+                    appearance,
+                    WindowAppearance::Dark | WindowAppearance::VibrantDark
+                ) {
+                    Self::Light
+                } else {
+                    Self::Dark
+                }
+            }
             Self::Light => Self::Dark,
-            Self::Dark => Self::System,
+            Self::Dark => Self::Light,
         }
     }
     pub fn label(self) -> &'static str {
@@ -33,19 +42,27 @@ impl ThemeMode {
         };
         if dark {
             Palette {
-                background: rgb(0x18181b),
-                surface: rgb(0x27272a),
-                border: rgb(0x3f3f46),
-                text: rgb(0xf4f4f5),
-                muted: rgb(0xa1a1aa),
+                background: rgb(0x101010),
+                surface: rgb(0x101010),
+                border: rgb(0x858585),
+                text: rgb(0xe0e0e0),
+                muted: rgb(0xa5a5a5),
+                low: rgb(0x80ae88),
+                medium: rgb(0xd2a95f),
+                high: rgb(0xdf6269),
+                track: rgb(0x3b3b3b),
             }
         } else {
             Palette {
-                background: rgb(0xfafafa),
-                surface: rgb(0xffffff),
-                border: rgb(0xd4d4d8),
-                text: rgb(0x18181b),
-                muted: rgb(0x52525b),
+                background: rgb(0xf5f5f7),
+                surface: rgb(0xf5f5f7),
+                border: rgb(0xd8d8de),
+                text: rgb(0x1d1d1f),
+                muted: rgb(0x5e5e64),
+                low: rgb(0x15803d),
+                medium: rgb(0xb45309),
+                high: rgb(0xdc2626),
+                track: rgb(0xd8d8de),
             }
         }
     }
@@ -57,4 +74,8 @@ pub struct Palette {
     pub border: Rgba,
     pub text: Rgba,
     pub muted: Rgba,
+    pub low: Rgba,
+    pub medium: Rgba,
+    pub high: Rgba,
+    pub track: Rgba,
 }

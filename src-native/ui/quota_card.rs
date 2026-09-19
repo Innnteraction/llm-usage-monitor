@@ -1,184 +1,333 @@
-use super::format::{format_percent, format_reset_countdown, get_usage_tone, UsageTone};
-use super::theme::Palette;
-use crate::core::types::{ProviderId, ProviderSnapshot, QuotaWindow, SnapshotStatus};
-use chrono::Utc;
-use gpui::prelude::*;
-use gpui::{div, rgb, DefiniteLength, FontWeight, IntoElement, ParentElement, Styled};
+use super::{format::*, presentation::*, theme::Palette};
+use crate::core::types::*;
+use chrono::{DateTime, Utc};
+use gpui::{div, prelude::*, px, relative, FontWeight, IntoElement, SharedString};
 
-pub fn render_quota_card(provider: &ProviderSnapshot, palette: Palette, now: chrono::DateTime<Utc>) -> impl IntoElement {
-    let is_stale = provider.status == SnapshotStatus::Stale;
-
-    let status_color = match provider.status {
-        SnapshotStatus::Fresh => rgb(0x22c55e),       // green-500
-        SnapshotStatus::Stale => palette.muted,       // zinc-400
-        SnapshotStatus::Unavailable => rgb(0xef4444), // red-500
+pub fn render_quota_card(
+    p: &ProviderSnapshot,
+    index: usize,
+    palette: Palette,
+    now: DateTime<Utc>,
+    expanded: bool,
+    events: UiEvents,
+) -> impl IntoElement {
+    let status = status(p, now);
+    let status_color = match status {
+        "fresh" => palette.low,
+        "stale" => palette.medium,
+        _ => palette.high,
     };
-
-    let status_text = match provider.status {
-        SnapshotStatus::Fresh => "Fresh",
-        SnapshotStatus::Stale => "Stale",
-        SnapshotStatus::Unavailable => "Offline",
+    let primary = primary_windows(p);
+    let additional = additional_windows(p);
+    let mut rows = Vec::new();
+    for w in &primary {
+        rows.push(render_quota_window(w, palette, now).into_any_element());
+    }
+    for (kind, label) in if p.provider_id == ProviderId::Codex {
+        vec![(QuotaKind::Weekly, "7d")]
+    } else if p.provider_id == ProviderId::Claude {
+        vec![(QuotaKind::FiveHour, "5h"), (QuotaKind::Weekly, "7d")]
+    } else {
+        vec![]
+    } {
+        if !primary.iter().any(|w| w.kind == kind) {
+            rows.push(missing(label, "not provided", palette).into_any_element());
+        }
+    }
+    if p.provider_id == ProviderId::Claude && !p.quota_windows.iter().any(is_fable) {
+        rows.push(missing("Fable", "not provided by Claude CLI", palette).into_any_element());
+    }
+    if p.provider_id == ProviderId::Antigravity && p.quota_windows.is_empty() {
+        rows.push(missing("Quota", "not provided", palette).into_any_element());
+    }
+    let mut sources: Vec<&str> = Vec::new();
+    for w in &p.quota_windows {
+        let source = source_name(w.source);
+        if !sources.contains(&source) {
+            sources.push(source);
+        }
+    }
+    let source = if sources.is_empty() {
+        match p.provider_id {
+            ProviderId::Codex => "Codex CLI",
+            ProviderId::Claude => "Claude Code CLI",
+            ProviderId::Antigravity => "Antigravity CLI, IDE",
+        }
+        .into()
+    } else {
+        sources.join(", ")
     };
-
-    let display_name = match provider.provider_id {
-        ProviderId::Codex => "Codex",
-        ProviderId::Claude => "Claude Code",
-        ProviderId::Antigravity => "Antigravity",
-    };
-
+    let id = p.provider_id;
+    let incident = p.service_status.as_ref().filter(|s| {
+        matches!(
+            s.indicator,
+            ServiceHealthIndicator::Minor
+                | ServiceHealthIndicator::Major
+                | ServiceHealthIndicator::Critical
+        )
+    });
     div()
         .flex()
         .flex_col()
-        .gap_2()
-        .p_3()
-        .rounded_lg()
-        .bg(palette.surface) // zinc-800
-        .border_1()
-        .border_color(palette.border) // zinc-700
-        // Header
+        .w_full()
+        .min_w_0()
+        .flex_shrink_0()
         .child(
             div()
                 .flex()
-                .items_center()
-                .justify_between()
-                .pb_1()
-                .border_b_1()
-                .border_color(palette.border)
+                .items_baseline()
+                .gap(px(8.))
+                .mb(px(5.))
                 .child(
                     div()
-                        .flex()
-                        .items_center()
-                        .gap_2()
-                        .child(div().size_2().rounded_full().bg(status_color))
-                        .child(
-                            div()
-                                .text_sm()
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(palette.text)
-                                .child(display_name),
-                        ),
+                        .w(px(24.))
+                        .flex_shrink_0()
+                        .text_right()
+                        .text_size(px(14.432))
+                        .font_weight(FontWeight::BOLD)
+                        .child((index + 1).to_string()),
                 )
                 .child(
                     div()
                         .flex()
-                        .items_center()
-                        .gap_2()
-                        .children(provider.account_label.as_ref().map(|acc| {
-                            div().text_xs().text_color(palette.muted).child(acc.clone())
-                        }))
-                        .child(div().text_xs().text_color(status_color).child(status_text)),
+                        .items_baseline()
+                        .min_w_0()
+                        .flex_1()
+                        .gap(px(8.))
+                        .child(
+                            div()
+                                .flex_shrink_0()
+                                .text_size(px(15.84))
+                                .font_weight(FontWeight::BOLD)
+                                .child(provider_name(id)),
+                        )
+                        .children(p.account_label.as_ref().map(|account| {
+                            div()
+                                .min_w_0()
+                                .overflow_hidden()
+                                .text_ellipsis()
+                                .text_size(px(10.912))
+                                .text_color(palette.muted)
+                                .child(account.clone())
+                        })),
+                )
+                .child(
+                    div()
+                        .flex_shrink_0()
+                        .text_size(px(11.968))
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(if incident.is_some() {
+                            palette.high
+                        } else {
+                            status_color
+                        })
+                        .child(if let Some(s) = incident {
+                            format!(
+                                "⚠️ {}",
+                                if s.indicator == ServiceHealthIndicator::Critical {
+                                    "outage"
+                                } else {
+                                    "degraded"
+                                }
+                            )
+                        } else {
+                            format!("● {status}")
+                        }),
                 ),
         )
-        .children(provider.error.as_ref().map(|error| {
+        .children(p.error.as_ref().map(|e| {
             div()
-                .text_xs()
-                .text_color(palette.muted)
-                .child(error.message.clone())
+                .ml(px(32.))
+                .text_size(px(10.56))
+                .text_color(palette.high)
+                .child(format!(
+                    "{}{}",
+                    error_help(&e.code),
+                    if p.status == SnapshotStatus::Stale {
+                        format!(
+                            " Last successful {}.",
+                            updated_at(p.last_successful_at.unwrap_or(p.fetched_at))
+                        )
+                    } else {
+                        String::new()
+                    }
+                ))
         }))
-        .children(
-            provider
-                .last_successful_at
-                .filter(|_| is_stale)
-                .map(|time| {
-                    div().text_xs().text_color(palette.muted).child(format!(
-                        "마지막 정상: {}",
-                        time.with_timezone(&chrono::Local).format("%m/%d %H:%M")
-                    ))
-                }),
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(4.))
+                .pl(px(32.))
+                .children(rows),
         )
-        // Quota Windows
-        .child(div().flex().flex_col().gap_2().pt_1().children(
-            if provider.quota_windows.is_empty() {
-                vec![div()
-                    .text_xs()
-                    .text_color(palette.muted)
-                    .child("쿼터 정보가 제공되지 않거나 미설치 상태입니다.")
-                    .into_any_element()]
-            } else {
-                provider
-                    .quota_windows
-                    .iter()
-                    .map(|win| render_quota_window(win, is_stale, now, palette).into_any_element())
-                    .collect()
-            },
-        ))
+        .children((!additional.is_empty()).then(|| {
+            let events = events.clone();
+            div()
+                .ml(px(32.))
+                .child(
+                    div()
+                        .id(SharedString::from(format!("additional-{}", id.as_str())))
+                        .cursor_pointer()
+                        .text_size(px(11.968))
+                        .text_color(palette.muted)
+                        .py(px(3.))
+                        .child(format!("+{} additional limits", additional.len()))
+                        .on_click(move |_, window, cx| {
+                            events(UiAction::Additional(id), window, cx)
+                        }),
+                )
+                .children(expanded.then(|| {
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(4.))
+                        .children(additional.iter().map(|w| {
+                            div()
+                                .child(div().text_size(px(11.968)).child(w.label.clone()))
+                                .child(render_quota_window(w, palette, now))
+                        }))
+                }))
+        }))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(4.))
+                .mt(px(2.))
+                .ml(px(32.))
+                .text_size(px(9.504))
+                .text_color(palette.muted)
+                .children(
+                    p.local_usage
+                        .as_ref()
+                        .map(|u| super::local_tokens::render_usage(u, palette)),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .flex_wrap()
+                        .justify_between()
+                        .gap_x(px(10.))
+                        .child(format!(
+                            "source {}{}",
+                            source,
+                            if id == ProviderId::Claude {
+                                " (Desktop not inspected)"
+                            } else {
+                                ""
+                            }
+                        ))
+                        .child(format!(
+                            "updated {}",
+                            updated_at(if p.status == SnapshotStatus::Stale {
+                                p.last_successful_at.unwrap_or(p.fetched_at)
+                            } else {
+                                p.fetched_at
+                            })
+                        )),
+                ),
+        )
 }
-
-fn render_quota_window(
-    win: &QuotaWindow,
-    is_stale: bool,
-    now: chrono::DateTime<Utc>,
-    palette: Palette,
-) -> impl IntoElement {
-    let tone = get_usage_tone(win.used_percent, is_stale);
-    let bar_color = match tone {
-        UsageTone::Low => rgb(0x10b981),    // emerald-500
-        UsageTone::Medium => rgb(0xf59e0b), // amber-500
-        UsageTone::High => rgb(0xef4444),   // red-500
-        UsageTone::Stale => palette.muted,  // zinc-500
+fn missing(label: &str, message: &str, p: Palette) -> impl IntoElement {
+    div()
+        .flex()
+        .justify_between()
+        .text_color(p.muted)
+        .child(div().text_size(px(13.024)).child(label.to_owned()))
+        .child(div().text_size(px(10.912)).child(message.to_owned()))
+}
+fn render_quota_window(w: &QuotaWindow, p: Palette, now: DateTime<Utc>) -> impl IntoElement {
+    let unavailable = w.status == SnapshotStatus::Unavailable || w.used_percent.is_none();
+    let tone = match get_usage_tone(w.used_percent, w.status == SnapshotStatus::Stale) {
+        UsageTone::Low => p.low,
+        UsageTone::Medium => p.medium,
+        UsageTone::High => p.high,
+        UsageTone::Stale => p.muted,
     };
-
-    let fraction = match win.used_percent {
-        Some(p) => (p.clamp(0.0, 100.0) / 100.0) as f32,
-        None => 0.0,
-    };
-
-    let countdown_text = format_reset_countdown(win.resets_at, now);
-
+    let label = quota_label(w);
     let help = format!(
-        "계정 전체 쿼터 사용률입니다. 로컬 토큰 합계와 별개입니다.\n리셋: {}",
-        win.resets_at
-            .map(|t| t
-                .with_timezone(&chrono::Local)
-                .format("%Y-%m-%d %H:%M:%S %Z")
-                .to_string())
-            .unwrap_or_else(|| "벤더 미제공".into())
+        "Used {}, remaining {}.{}",
+        format_percent(w.used_percent),
+        format_percent(w.used_percent.map(|v| (100. - v.round()).max(0.))),
+        if w.status == SnapshotStatus::Stale {
+            " (Retaining last measured value; not updated in latest check.)"
+        } else {
+            ""
+        }
     );
     div()
-        .id(gpui::SharedString::from(win.id.clone()))
-        .tooltip(move |_, cx| super::tooltip::tooltip(help.clone(), palette, cx))
         .flex()
-        .flex_col()
-        .gap_1()
+        .items_center()
+        .gap(px(8.))
+        .text_size(px(13.024))
         .child(
             div()
-                .flex()
-                .items_center()
-                .justify_between()
-                .text_xs()
-                .child(
-                    div()
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(palette.text)
-                        .child(win.label.clone()),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap_2()
-                        .child(
-                            div()
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(bar_color)
-                                .child(format_percent(win.used_percent)),
-                        )
-                        .child(div().text_color(palette.muted).child(countdown_text)),
-                ),
+                .w(px(38.))
+                .flex_shrink_0()
+                .text_color(p.muted)
+                .child(label),
         )
-        // Progress Bar
-        .child(
-            div()
-                .w_full()
-                .h_2()
-                .rounded_full()
-                .bg(palette.background) // zinc-900 background track
-                .child(
-                    div()
-                        .h_full()
-                        .rounded_full()
-                        .w(DefiniteLength::Fraction(fraction))
-                        .bg(bar_color),
-                ),
-        )
+        .when(unavailable, |el| {
+            el.child(
+                div()
+                    .text_size(px(11.968))
+                    .text_color(p.muted)
+                    .child("not provided"),
+            )
+        })
+        .when(!unavailable, |el| {
+            el.child(
+                div()
+                    .flex_1()
+                    .min_w(px(80.))
+                    .h(px(4.))
+                    .flex()
+                    .gap(px(2.))
+                    .children((0..5).map(|i| {
+                        let fraction = ((w.used_percent.unwrap_or(0.) - i as f64 * 20.) / 20.)
+                            .clamp(0., 1.) as f32;
+                        div()
+                            .flex_1()
+                            .h_full()
+                            .bg(p.track)
+                            .child(div().h_full().w(relative(fraction)).bg(tone))
+                    })),
+            )
+            .child(
+                div()
+                    .id(SharedString::from(format!("usage-{}", w.id)))
+                    .w(px(38.))
+                    .flex_shrink_0()
+                    .text_right()
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(tone)
+                    .tooltip(move |_, cx| super::tooltip::tooltip(help.clone(), p, cx))
+                    .child(format_percent(w.used_percent)),
+            )
+            .child(
+                div()
+                    .id(SharedString::from(format!("reset-{}", w.id)))
+                    .w(px(56.))
+                    .flex_shrink_0()
+                    .overflow_hidden()
+                    .text_ellipsis()
+                    .text_right()
+                    .text_size(px(12.672))
+                    .text_color(p.muted)
+                    .tooltip({
+                        let text = w
+                            .resets_at
+                            .map(|t| {
+                                format!(
+                                    "Local reset time: {}.",
+                                    t.with_timezone(&chrono::Local).format("%m/%d/%Y %-I:%M %p")
+                                )
+                            })
+                            .unwrap_or_else(|| "Reset time not provided.".into());
+                        move |_, cx| super::tooltip::tooltip(text.clone(), p, cx)
+                    })
+                    .child(format_reset_countdown(w.resets_at, now)),
+            )
+        })
 }

@@ -1,141 +1,47 @@
-use super::format::format_token_count;
-use super::theme::Palette;
-use crate::core::types::{ProviderId, ProviderSnapshot};
-use gpui::{div, rgb, FontWeight, IntoElement, ParentElement, Styled};
-
-pub fn render_local_tokens_card(
-    providers: &[ProviderSnapshot],
-    palette: Palette,
-) -> impl IntoElement {
-    let mut total_tokens = 0u64;
-    let mut total_files = 0u64;
-
-    let mut codex_tokens = 0u64;
-    let mut claude_tokens = 0u64;
-
-    for p in providers {
-        if let Some(ref usage) = p.local_usage {
-            total_tokens += usage.total_tokens;
-            total_files += usage.scanned_file_count;
-
-            match p.provider_id {
-                ProviderId::Codex => codex_tokens += usage.total_tokens,
-                ProviderId::Claude => claude_tokens += usage.total_tokens,
-                _ => {}
-            }
-        }
-    }
-
+use super::{format::format_token_count, theme::Palette};
+use crate::core::types::LocalTokenUsage;
+use gpui::{div, prelude::*, px, IntoElement};
+pub fn render_usage(u: &LocalTokenUsage, p: Palette) -> impl IntoElement {
+    let count = |v: Option<u64>| v.map(format_token_count).unwrap_or_else(|| "--".into());
     div()
         .flex()
         .flex_col()
-        .gap_2()
-        .p_3()
-        .rounded_lg()
-        .bg(palette.surface) // zinc-800
-        .border_1()
-        .border_color(palette.border) // zinc-700
-        // Header
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .justify_between()
-                .pb_1()
-                .border_b_1()
-                .border_color(palette.border)
-                .child(
-                    div()
-                        .text_xs()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(palette.muted)
-                        .child("💻 로컬 토큰 집계 (Local Token Usage)"),
-                )
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(palette.muted)
-                        .child(format!("{}개 세션 파일 스캔됨", total_files)),
-                ),
-        )
-        .children(
-            providers
-                .iter()
-                .filter(|p| p.local_usage.as_ref().is_some_and(|u| u.partial))
-                .map(|p| {
-                    div()
-                        .text_xs()
-                        .text_color(palette.muted)
-                        .child(format!("{}: 일부 파일 집계 실패", p.provider_id.as_str()))
-                }),
-        )
-        .child(
-            div()
-                .text_xs()
-                .text_color(palette.muted)
-                .child("이 PC의 로그 합계 · 계정 쿼터와 별개"),
-        )
-        // Token Counts Grid
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .justify_between()
-                .pt_1()
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(palette.muted)
-                                .child("Claude 누적 토큰"),
-                        )
-                        .child(
-                            div()
-                                .text_base()
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(rgb(0x38bdf8)) // sky-400
-                                .child(format_token_count(claude_tokens)),
-                        ),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(palette.muted)
-                                .child("Codex 누적 토큰"),
-                        )
-                        .child(
-                            div()
-                                .text_base()
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(rgb(0xa78bfa)) // purple-400
-                                .child(format_token_count(codex_tokens)),
-                        ),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .items_end()
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(palette.muted)
-                                .child("전체 누적 합계"),
-                        )
-                        .child(
-                            div()
-                                .text_base()
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(rgb(0x4ade80)) // green-400
-                                .child(format_token_count(total_tokens)),
-                        ),
-                ),
-        )
+        .text_color(p.muted)
+        .when(u.scanned_file_count == 0 && !u.partial, |el| {
+            el.child("this PC no local logs")
+        })
+        .when(u.scanned_file_count > 0 || u.partial, |el| {
+            el.child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .gap_x(px(7.))
+                    .child("this PC")
+                    .child(format!("total {}", format_token_count(u.total_tokens)))
+                    .child(format!(
+                        "since {}",
+                        u.observed_from
+                            .map(|t| t
+                                .with_timezone(&chrono::Local)
+                                .format("%-m/%-d")
+                                .to_string())
+                            .unwrap_or_else(|| "unavailable".into())
+                    ))
+                    .children(u.partial.then(|| {
+                        div()
+                            .text_color(p.medium)
+                            .child(format!("partial {}", u.failed_file_count))
+                    })),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .gap_x(px(7.))
+                    .child(format!("input {}", format_token_count(u.input_tokens)))
+                    .child(format!("output {}", format_token_count(u.output_tokens)))
+                    .child(format!("cache read {}", count(u.cache_read_tokens)))
+                    .child(format!("cache write {}", count(u.cache_write_tokens))),
+            )
+        })
 }
