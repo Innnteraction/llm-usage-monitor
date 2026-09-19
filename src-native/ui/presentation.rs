@@ -55,9 +55,11 @@ pub fn additional_windows(p: &ProviderSnapshot) -> Vec<&QuotaWindow> {
         .collect()
 }
 pub fn quota_label(w: &QuotaWindow) -> String {
-    if w.id == "agy-gemini-weekly" || w.kind == QuotaKind::Weekly {
+    if matches!(w.id.as_str(), "agy-gemini-weekly" | "agy-claude-gpt-weekly")
+        || w.kind == QuotaKind::Weekly
+    {
         "7d".into()
-    } else if w.id == "agy-gemini-5h" {
+    } else if matches!(w.id.as_str(), "agy-gemini-5h" | "agy-claude-gpt-5h") {
         "5h".into()
     } else if w.kind == QuotaKind::ModelWeekly && w.label.to_lowercase().ends_with(" weekly") {
         w.label[..w.label.len() - 7].into()

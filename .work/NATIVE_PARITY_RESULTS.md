@@ -118,3 +118,11 @@ P0 자동 검증: 아키텍처 verify와 Rust 17개 테스트 통과. `--snapsho
 - architecture verify 및 Rust 27개 테스트 통과. 자동 검사는 실제 브라우저 포커스 전환/트레이 재진입 재현을 대신하지 않는다. 근본 원인을 실기 재현으로 확정한 것은 아니며 사용자 재검수 필요.
 
 - release 링크 산출물은 생성되었으나 실행 중인 기본 exe 교체는 os error 5. 새 산출물을 `target/release/llm-usage-monitor-browser-fix.exe`로 복사했다. 이 바이너리의 Codex major 데모 `--quit-after=3`: exit 0, stderr 0 bytes. 기존 앱은 강제 종료하지 않았다.
+
+## 추가 제한 표시 정렬 — 2026-09-20
+
+- AGY는 Electron의 AntigravityAdditionalQuotas와 같이 Claude/GPT 제목 아래 5h·7d 순서로 묶는다. 나머지 추가 제한은 제목을 한 번만 표시하며 게이지 옆 중복 라벨을 제거했다.
+- 추가 제한 제목 크기·간격과 일반 추가 제한의 사용량/남은 시간 열 폭을 기존 CSS 값에 맞췄다. 수집 및 quota 값은 변경하지 않았다.
+- architecture verify와 Rust 테스트 27개 통과. 화면 픽셀 동일성 및 펼침 상태 실화면은 사용자 수동 검수 대상이다.
+- Codex work 누락은 기존 표시 이름 확인 대기. 이름 기반 제외는 gpt-reserve Weekly뿐이며 work를 직접 제외하지 않는다. 해당 항목의 정체를 추측해 숨김 규칙을 제거하거나 quota를 합성하지 않았다.
+- 기본 release exe 교체 성공. 공통 허구 snapshot 데모 --quit-after=3 실행: exit 0, stderr 0 bytes. 펼침 클릭/시각 비교 검증을 대신하지 않는다.

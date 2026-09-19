@@ -22,7 +22,7 @@ pub fn render_quota_card(
     let additional = additional_windows(p);
     let mut rows = Vec::new();
     for w in &primary {
-        rows.push(render_quota_window(w, palette, now, reduced_motion).into_any_element());
+        rows.push(render_quota_window(w, palette, now, reduced_motion, true).into_any_element());
     }
     for (kind, label) in if p.provider_id == ProviderId::Codex {
         vec![(QuotaKind::Weekly, "7d")]
@@ -229,11 +229,12 @@ pub fn render_quota_card(
             let events = events.clone();
             div()
                 .ml(px(32.))
+                .mt(px(5.))
                 .child(
                     div()
                         .id(SharedString::from(format!("additional-{}", id.as_str())))
                         .cursor_pointer()
-                        .text_size(px(11.968))
+                        .text_size(px(10.208))
                         .text_color(palette.muted)
                         .py(px(3.))
                         .child(format!("+{} additional limits", additional.len()))
@@ -242,15 +243,45 @@ pub fn render_quota_card(
                         }),
                 )
                 .children(expanded.then(|| {
+                    let shared: Vec<_> = if id == ProviderId::Antigravity {
+                        ["agy-claude-gpt-5h", "agy-claude-gpt-weekly"]
+                            .iter()
+                            .filter_map(|id| additional.iter().copied().find(|w| w.id == *id))
+                            .collect()
+                    } else {
+                        Vec::new()
+                    };
                     div()
                         .flex()
                         .flex_col()
-                        .gap(px(4.))
-                        .children(additional.iter().map(|w| {
+                        .mt(px(5.))
+                        .gap(px(5.))
+                        .children((!shared.is_empty()).then(|| {
                             div()
-                                .child(div().text_size(px(11.968)).child(w.label.clone()))
-                                .child(render_quota_window(w, palette, now, reduced_motion))
+                                .child(additional_heading("Claude/GPT", palette))
+                                .child(div().flex().flex_col().gap(px(4.)).children(
+                                    shared.iter().map(|w| {
+                                        render_quota_window(w, palette, now, reduced_motion, true)
+                                    }),
+                                ))
                         }))
+                        .children(
+                            additional
+                                .iter()
+                                .filter(|w| !shared.iter().any(|s| s.id == w.id))
+                                .map(|w| {
+                                    div()
+                                        .min_w_0()
+                                        .child(additional_heading(&w.label, palette))
+                                        .child(render_quota_window(
+                                            w,
+                                            palette,
+                                            now,
+                                            reduced_motion,
+                                            false,
+                                        ))
+                                }),
+                        )
                 }))
         }))
         .child(
@@ -293,6 +324,15 @@ pub fn render_quota_card(
                 ),
         )
 }
+fn additional_heading(label: &str, p: Palette) -> impl IntoElement {
+    div()
+        .mb(px(2.))
+        .text_size(px(10.912))
+        .line_height(px(14.1856))
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(p.muted)
+        .child(label.to_owned())
+}
 fn missing(label: &str, message: &str, p: Palette) -> impl IntoElement {
     div()
         .flex()
@@ -306,6 +346,7 @@ fn render_quota_window(
     p: Palette,
     now: DateTime<Utc>,
     reduced_motion: bool,
+    show_label: bool,
 ) -> impl IntoElement {
     let unavailable = w.status == SnapshotStatus::Unavailable || w.used_percent.is_none();
     let tone = match get_usage_tone(w.used_percent, w.status == SnapshotStatus::Stale) {
@@ -330,14 +371,14 @@ fn render_quota_window(
         .items_center()
         .gap(px(8.))
         .text_size(px(13.024))
-        .child(
+        .children(show_label.then(|| {
             div()
                 .w(px(38.))
                 .whitespace_nowrap()
                 .flex_shrink_0()
                 .text_color(p.muted)
-                .child(label),
-        )
+                .child(label)
+        }))
         .when(unavailable, |el| {
             el.child(
                 div()
@@ -355,7 +396,7 @@ fn render_quota_window(
             .child(
                 div()
                     .id(SharedString::from(format!("usage-{}", w.id)))
-                    .w(px(38.))
+                    .w(px(if show_label { 38. } else { 42. }))
                     .flex_shrink_0()
                     .text_right()
                     .font_weight(FontWeight::BOLD)
@@ -366,7 +407,7 @@ fn render_quota_window(
             .child(
                 div()
                     .id(SharedString::from(format!("reset-{}", w.id)))
-                    .w(px(56.))
+                    .w(px(if show_label { 56. } else { 94. }))
                     .flex_shrink_0()
                     .overflow_hidden()
                     .text_ellipsis()
