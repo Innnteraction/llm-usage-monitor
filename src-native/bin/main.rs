@@ -4,7 +4,7 @@ use gpui::{
     Window, WindowBackgroundAppearance, WindowBounds, WindowHandle, WindowKind, WindowOptions,
 };
 use llm_usage_monitor_core::{
-    core::{engine::UsageMonitorEngine, types::*},
+    core::{engine::{self, MonitorCommand}, types::*},
     shell::{
         position::{
             calculate_popover_position, clamp_popover_height, clamp_window_position,
@@ -148,7 +148,7 @@ impl Render for PopoverView {
                 let mut s = view.state.lock().unwrap();
                 match &action {
                     UiAction::Refresh => {
-                        if !s.refreshing && s.snapshot.is_some() {
+                        if s.snapshot.is_some() {
                             s.refresh_requested = true;
                         }
                         cx.notify();
@@ -535,6 +535,10 @@ fn main() {
         .expect("collector runtime");
     let runtime_handle = runtime.handle().clone();
     startup_mark("runtime-ready");
+    let (tx, rx) = mpsc::channel();
+    let live = if !demo { Some(engine::start_live(&runtime_handle, engine::cache::directory(), tx.clone())) }
+        else if args.iter().any(|a|a=="--demo-progress") {Some(engine::start_fixture(&runtime_handle, std::env::temp_dir().join(format!("llm-monitor-progress-{}", std::process::id())), tx.clone(), fixture.clone().unwrap_or_else(demo_snapshot)))} else {None};
+    let live_commands = live.as_ref().map(|l| l.commands.clone());
     let startup_failed = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let startup_status = startup_failed.clone();
     let application = Application::new().with_assets(Icons);
@@ -559,10 +563,10 @@ fn main() {
             pinned: preferences["pinned"].as_bool().unwrap_or(demo),
             compact: false,
             theme: ThemeMode::System,
-            snapshot: fixture.clone().or_else(|| demo.then(demo_snapshot)),
+            snapshot: Some(if live_commands.is_some() {engine::initial_snapshot()} else {fixture.clone().unwrap_or_else(demo_snapshot)}),
             refreshing: false,
             refresh_started: None,
-            refresh_requested: !demo,
+            refresh_requested: false,
             preferences_path,
             tray_bounds: None,
             fixed_now,
@@ -581,8 +585,7 @@ fn main() {
             reduced_motion: llm_usage_monitor_core::shell::desktop::prefers_reduced_motion(),
         }));
         startup_mark("state-ready");
-        let engine = Arc::new(UsageMonitorEngine::new(data_dir));
-        startup_mark("engine-ready");
+        startup_mark("collector-background-started");
         let tray = match SystemTrayManager::new() {
             Ok(t) => t,
             Err(_) => {
@@ -616,8 +619,8 @@ fn main() {
             return;
         }
         startup_mark("keepalive-ready");
-        if !demo { tray.launch_item.set_checked(llm_usage_monitor_core::shell::desktop::launch_at_login().unwrap_or(false)); }
-        startup_mark("login-setting-ready");
+
+
         state.lock().unwrap().tray_bounds = tray.bounds();
         if !hidden {
             open_popover(state.clone(), cx);
@@ -628,9 +631,13 @@ fn main() {
         }
         startup_status.store(false,std::sync::atomic::Ordering::Relaxed);
         startup_mark("event-loop-ready");
-        let (tx, rx) = mpsc::channel();
         let (startup_tx,startup_rx)=mpsc::channel();
-        let mut startup_pending=false;
+        let mut startup_pending=!demo;
+        if !demo {
+            tray.launch_item.set_enabled(false);
+            let startup_tx=startup_tx.clone();
+            std::thread::spawn(move || { let _=startup_tx.send(Ok(llm_usage_monitor_core::shell::desktop::launch_at_login().unwrap_or(false))); });
+        }
         let async_cx = cx.to_async();
         let timer = cx.background_executor().clone();
         cx.foreground_executor()
@@ -702,6 +709,7 @@ fn main() {
                         }
                     }
                     if let Ok(result)=startup_rx.try_recv() {
+                        startup_mark("login-setting-ready");
                         startup_pending=false;
                         tray.launch_item.set_enabled(true);
                         match result { Ok(actual)=>tray.launch_item.set_checked(actual), Err(previous)=>{tray.launch_item.set_checked(previous);state.lock().unwrap().ui_error=Some("Failed to change launch-at-login setting.".into());} }
@@ -722,9 +730,7 @@ fn main() {
                         }
                         if event.id == tray.refresh_id {
                             let mut s = state.lock().unwrap();
-                            if !s.refreshing {
-                                s.refresh_requested = true;
-                            }
+                            s.refresh_requested = true;
                         }
                         if event.id == tray.open_id || event.id == tray.reset_pos_id {
                             let state = state.clone();
@@ -738,21 +744,25 @@ fn main() {
                             });
                         }
                     }
-                    if let Ok(snapshot) = rx.try_recv() {
+                    let mut latest=None;
+                    while let Ok(snapshot)=rx.try_recv() {latest=Some(snapshot);}
+                    if let Some(snapshot) = latest {
                         startup_mark("snapshot-received");
                         let mut s = state.lock().unwrap();
+                        let refreshing=!snapshot.refreshing.is_empty();
+                        if refreshing && !s.refreshing {s.refresh_started=Some(Instant::now());}
+                        if !refreshing {s.refresh_started=None;}
+                        if s.snapshot.as_ref().is_none_or(|p| p.providers.iter().all(|v|v.last_successful_at.is_none())) && snapshot.providers.iter().any(|p|p.last_successful_at.is_some()) {startup_mark("first-data-visible");}
+                        if s.refreshing && !refreshing {startup_mark("collection-complete");}
                         s.snapshot = Some(snapshot);
-                        s.refreshing = false;
-                        s.refresh_started = None;
+                        s.refreshing = refreshing;
                         drop(s);
                         last_poll = Instant::now();
                         let _ = async_cx.refresh();
                     }
                     let should_collect = {
                         let mut s = state.lock().unwrap();
-                        if !s.refreshing
-                            && (s.refresh_requested
-                                || last_poll.elapsed() >= Duration::from_secs(60))
+                        if s.refresh_requested || (demo && !s.refreshing && last_poll.elapsed() >= Duration::from_secs(60))
                         {
                             s.refresh_requested = false;
                             s.refreshing = true;
@@ -766,18 +776,17 @@ fn main() {
                         startup_mark("collection-start");
                         let _ = async_cx.refresh();
                         let tx = tx.clone();
-                        let engine = engine.clone();
                         let demo_input = fixture.clone();
+                        if let Some(commands)=&live_commands {let _=commands.send(MonitorCommand::Refresh);} else {
                         runtime_handle.spawn(async move {
-                            let snapshot = if demo {
+                            let snapshot = {
                                 // Keep synthetic refresh visible long enough to inspect shimmer.
                                 tokio::time::sleep(Duration::from_millis(1800)).await;
                                 demo_input.unwrap_or_else(demo_snapshot)
-                            } else {
-                                engine.fetch_all_snapshots().await
                             };
                             let _ = tx.send(snapshot);
                         });
+                        }
                     }
                     let render_interval=if state.lock().unwrap().refreshing {Duration::from_millis(400)} else {Duration::from_secs(30)};
                     if last_render.elapsed() >= render_interval {
@@ -792,6 +801,7 @@ fn main() {
             })
             .detach();
     });
+    if let Some(live)=live { let _=live.commands.send(MonitorCommand::Stop); let _=runtime.block_on(live.task); }
     runtime.shutdown_background();
     for (phase, elapsed) in STARTUP_EVENTS.lock().unwrap().iter() {
         eprintln!("[startup] {phase}: {elapsed:.2?}");

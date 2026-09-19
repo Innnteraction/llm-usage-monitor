@@ -3,7 +3,7 @@
 - [x] M1: 공통 경로·quota v2 저장 계약·공통 실행 잠금 구현.
 - [x] M1: guard·Node 캐시 8개·Rust engine 2개·TS 타입 검사 통과. 공유 quota 실제 표시 연결은 M3에서 수행.
 - [x] M2: v2 토큰 인덱스·해시 식별·4KiB 경계 검증·Claude 파일 간 중복 제거·Node→Rust→Node 이어읽기 검증.
-- [ ] M3: 캐시 우선 표시와 독립 결과 반영.
+- [x] M3: 캐시 우선 표시와 독립 결과 반영. 느린 fake Claude 완료 전 캐시·Codex·AGY 실패 반영, Rust 30개·Node store 12개·타입 검사 통과.
 - [ ] M4: 갱신 병합·주기·종료 처리.
 - [ ] M5: 교차 검증·배포 산출물·수동 화면 검수.
 

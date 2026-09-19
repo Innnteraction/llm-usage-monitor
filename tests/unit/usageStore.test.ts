@@ -250,7 +250,7 @@ describe("UsageStore refresh coordination", () => {
     expect(JSON.stringify(store.getState())).not.toContain("private provider");
   });
 
-  it("retains previously measured quota window as stale when omitted or unavailable in a fresh response", async () => {
+  it("does not resurrect previously measured quota when a successful response reports it unavailable", async () => {
     const firstFresh: ProviderSnapshot = {
       providerId: "antigravity",
       status: "fresh",
@@ -328,14 +328,12 @@ describe("UsageStore refresh coordination", () => {
       usedPercent: 45,
       status: "fresh",
     });
-    expect(weekly).toMatchObject({
-      usedPercent: 75,
-      resetsAt: "2026-09-08T00:00:00.000Z",
-      status: "stale",
-    });
+    expect(weekly).toMatchObject({ status: "unavailable" });
+    expect(weekly?.usedPercent).toBeUndefined();
+    expect(weekly?.resetsAt).toBeUndefined();
   });
 
-  it("retains previously measured quota window when omitted entirely from fresh response and restores to fresh on recovery", async () => {
+  it("removes quota omitted from a successful response and restores it on recovery", async () => {
     const firstFresh: ProviderSnapshot = {
       providerId: "codex",
       status: "fresh",
@@ -421,10 +419,7 @@ describe("UsageStore refresh coordination", () => {
 
     const omittedWindows = store.getState().providers[0]?.quotaWindows;
     const staleExtra = omittedWindows?.find((w) => w.id === "codex-model-extra");
-    expect(staleExtra).toMatchObject({
-      usedPercent: 20,
-      status: "stale",
-    });
+    expect(staleExtra).toBeUndefined();
 
     await store.refresh("codex");
     const recoveredWindows = store.getState().providers[0]?.quotaWindows;

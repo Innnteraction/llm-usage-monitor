@@ -1,5 +1,6 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { homedir } from "node:os";
 import {
   ClaudeQuotaProvider,
   CodexQuotaProvider,
@@ -21,6 +22,7 @@ import {
   ClaudeLocalUsageScanner,
   CodexLocalUsageScanner,
   LocalUsageCheckpointStore,
+  rootKey,
 } from "../local-usage/index";
 import {
   mergeCachedSnapshots,
@@ -136,6 +138,15 @@ export class UsageMonitorCore {
           path.join(options.sharedDataDir ?? sharedCacheDirectory(), "local-usage-index-v2.json"),
         );
 
+    if (checkpointStore) {
+      void checkpointStore.load().then(async cached => {
+        for (const id of ["codex", "claude"] as const) {
+          const root = id === "codex" ? path.join(process.env.CODEX_HOME ?? path.join(homedir(), ".codex"), "sessions") : path.join(process.env.CLAUDE_CONFIG_DIR ?? path.join(homedir(), ".claude"), "projects");
+          const section=cached.providers[id];
+          if (section.summary && section.rootKey === await rootKey(root) && !store.getState().providers.find(p=>p.providerId===id)?.localUsage) store.updateLocalUsage(id, section.summary);
+        }
+      }).catch(() => undefined);
+    }
     const localUsageCoordinator = useFake
       ? undefined
       : createLocalUsageCoordinator({

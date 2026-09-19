@@ -26,6 +26,12 @@ impl CodexLocalScanner {
             checkpoint_store,
         }
     }
+    pub fn cached_summary(&self) -> Option<LocalTokenUsage> {
+        let section = self.checkpoint_store.get_provider("codex");
+        (section.root_key.as_deref() == Some(super::root_hash(&self.root_path).as_str()))
+            .then_some(section.summary)
+            .flatten()
+    }
     pub async fn scan(&self) -> LocalTokenUsage {
         let root = self.root_path.clone();
         let store = self.checkpoint_store.clone();

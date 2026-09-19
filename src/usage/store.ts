@@ -30,39 +30,10 @@ export const mergeQuotaWindows = (
   currentWindows: QuotaWindow[],
   freshWindows: QuotaWindow[],
 ): QuotaWindow[] => {
-  const currentMap = new Map(currentWindows.map((window) => [window.id, window]));
-  const processedIds = new Set<string>();
-
-  const merged = freshWindows.map((freshWindow) => {
-    processedIds.add(freshWindow.id);
-    const prev = currentMap.get(freshWindow.id);
-
-    const isMissingUsage =
-      freshWindow.usedPercent === undefined || freshWindow.status === "unavailable";
-
-    if (isMissingUsage && prev && prev.usedPercent !== undefined) {
-      return {
-        ...freshWindow,
-        usedPercent: prev.usedPercent,
-        resetsAt: freshWindow.resetsAt ?? prev.resetsAt,
-        status: "stale" as const,
-      };
-    }
-
-    return freshWindow;
-  });
-
-  for (const prev of currentWindows) {
-    if (!processedIds.has(prev.id) && prev.usedPercent !== undefined) {
-      merged.push({
-        ...prev,
-        status: "stale" as const,
-      });
-      processedIds.add(prev.id);
-    }
-  }
-
-  return merged;
+  // Successful authoritative responses replace missing/deleted limits too.
+  // Whole-provider failures are handled separately by retainLastSuccessfulSnapshot.
+  void currentWindows;
+  return freshWindows;
 };
 
 const retainLastSuccessfulSnapshot = (
