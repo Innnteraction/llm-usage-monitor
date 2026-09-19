@@ -136,9 +136,11 @@ mod tests {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum UiAction {
     Additional(ProviderId),
     Error(ProviderId),
+    OpenUrl(String),
+    Setup(ProviderId, bool),
 }
 pub type UiEvents = std::rc::Rc<dyn Fn(UiAction, &mut gpui::Window, &mut gpui::App)>;

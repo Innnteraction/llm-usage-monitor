@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use muda::{Menu, MenuItem, PredefinedMenuItem};
+use muda::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 pub struct SystemTrayManager {
@@ -8,6 +8,7 @@ pub struct SystemTrayManager {
     pub refresh_id: muda::MenuId,
     pub reset_pos_id: muda::MenuId,
     pub quit_id: muda::MenuId,
+    pub launch_item: CheckMenuItem,
 }
 
 pub fn load_tray_icon() -> Result<Icon> {
@@ -41,23 +42,34 @@ impl SystemTrayManager {
         let _ = tray_menu.append(&PredefinedMenuItem::separator());
 
         // 2. 열기
-        let open_item = MenuItem::new("열기 (Open)", true, None);
+        let open_item = MenuItem::new("Open", true, None);
         let open_id = open_item.id().clone();
         let _ = tray_menu.append(&open_item);
 
         // 3. 새로고침
-        let refresh_item = MenuItem::new("새로고침 (Refresh)", true, None);
+        let refresh_item = MenuItem::new("Refresh", true, None);
         let refresh_id = refresh_item.id().clone();
         let _ = tray_menu.append(&refresh_item);
 
         // 4. 위치 초기화
-        let reset_pos_item = MenuItem::new("위치 초기화 (Reset Position)", true, None);
+        let reset_pos_item = MenuItem::new("Reset Position", true, None);
         let reset_pos_id = reset_pos_item.id().clone();
         let _ = tray_menu.append(&reset_pos_item);
 
+        let launch_item = CheckMenuItem::new(
+            if cfg!(target_os = "windows") {
+                "Start on Windows login"
+            } else {
+                "Start at login"
+            },
+            true,
+            false,
+            None,
+        );
+        let _ = tray_menu.append(&launch_item);
         // 5. 구분선 & 종료
         let _ = tray_menu.append(&PredefinedMenuItem::separator());
-        let quit_item = MenuItem::new("종료 (Quit)", true, None);
+        let quit_item = MenuItem::new("Quit", true, None);
         let quit_id = quit_item.id().clone();
         let _ = tray_menu.append(&quit_item);
 
@@ -78,6 +90,7 @@ impl SystemTrayManager {
             refresh_id,
             reset_pos_id,
             quit_id,
+            launch_item,
         })
     }
 }

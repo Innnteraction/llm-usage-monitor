@@ -6,7 +6,10 @@ use gpui::{
 use llm_usage_monitor_core::{
     core::{engine::UsageMonitorEngine, types::*},
     shell::{
-        position::{calculate_popover_position, Point as PosPoint, WindowRect, WindowSize},
+        position::{
+            calculate_popover_position, clamp_popover_height, clamp_window_position,
+            Point as PosPoint, WindowRect, WindowSize,
+        },
         tray::SystemTrayManager,
     },
     ui::{
@@ -41,6 +44,12 @@ struct AppState {
     expanded_errors: std::collections::HashSet<ProviderId>,
     desired_height: Option<f32>,
     max_height: f32,
+    work_area: WindowRect,
+    anchor: PosPoint,
+    custom_position: Option<PosPoint>,
+    dragging: bool,
+    ui_error: Option<String>,
+    demo: bool,
 }
 impl AppState {
     fn save_preferences(&self) {
@@ -80,12 +89,40 @@ impl Render for PopoverView {
         };
         let palette = theme.palette(window.appearance());
         let weak = cx.entity().downgrade();
-        let events: UiEvents = std::rc::Rc::new(move |action, _, cx| {
+        let events: UiEvents = std::rc::Rc::new(move |action, window, cx| {
             let _ = weak.update(cx, |view, cx| {
                 let mut s = view.state.lock().unwrap();
+                match &action {
+                    UiAction::OpenUrl(url) => {
+                        if !s.demo && llm_usage_monitor_core::shell::desktop::open_url(url).is_err()
+                        {
+                            s.ui_error = Some("Failed to open status page.".into());
+                        }
+                        cx.notify();
+                        return;
+                    }
+                    UiAction::Setup(id, alternate) => {
+                        use llm_usage_monitor_core::shell::desktop::{open_setup, Setup};
+                        let setup = match (id, alternate) {
+                            (ProviderId::Claude, false) => Setup::ClaudeLogin,
+                            (ProviderId::Claude, true) => Setup::ClaudeTrust,
+                            (ProviderId::Antigravity, false) => Setup::AntigravityLogin,
+                            (ProviderId::Antigravity, true) => Setup::AntigravitySwitch,
+                            _ => return,
+                        };
+                        if !s.demo && open_setup(setup).is_err() {
+                            s.ui_error = Some("Failed to open setup terminal.".into());
+                        }
+                        cx.notify();
+                        return;
+                    }
+                    _ => {}
+                }
+                let _ = window;
                 let (set, id) = match action {
                     UiAction::Additional(id) => (&mut s.expanded, id),
                     UiAction::Error(id) => (&mut s.expanded_errors, id),
+                    _ => unreachable!(),
                 };
                 if !set.remove(&id) {
                     set.insert(id);
@@ -115,7 +152,7 @@ impl Render for PopoverView {
                     match key.key.to_lowercase().as_str() {
                         "c" => s.compact = !s.compact,
                         "l" => s.theme = s.theme.next(window.appearance()),
-                        "p" => { s.pinned = !s.pinned; s.save_preferences(); },
+                        "p" => { if llm_usage_monitor_core::shell::desktop::set_topmost(window,!s.pinned).is_ok() {s.pinned = !s.pinned; s.save_preferences();} else {s.ui_error=Some("Failed to change always-on-top state.".into());} },
                         _ => return,
                     }
                     cx.notify();
@@ -125,7 +162,8 @@ impl Render for PopoverView {
             .font_family(font).text_size(px(17.6)).line_height(gpui::relative(1.2))
             .pt(px(if compact {10.} else {12.})).px(px(if compact {10.} else {18.})).pb(px(6.))
             .child(div().flex().items_center().justify_between().gap(px(12.)).flex_shrink_0()
-                .on_mouse_down(gpui::MouseButton::Left, |_,window,_| window.start_window_move())
+                .on_mouse_down(gpui::MouseButton::Left, cx.listener(|this,_,window,_| {this.state.lock().unwrap().dragging=true; window.start_window_move();}))
+                .on_mouse_up(gpui::MouseButton::Left, cx.listener(|this,_,_,_| this.state.lock().unwrap().dragging=false))
                 .child(div().id("refresh").cursor_pointer().text_size(px(14.432)).font_weight(gpui::FontWeight::BOLD).text_color(palette.muted)
                     .child(if refreshing { "LLM Usage Monitor…" } else { "LLM Usage Monitor" })
                     .on_mouse_down(gpui::MouseButton::Left, |_,_,cx|cx.stop_propagation())
@@ -140,10 +178,11 @@ impl Render for PopoverView {
                         .on_click(cx.listener(|this,_,window,cx| {let mut s=this.state.lock().unwrap();s.theme=s.theme.next(window.appearance());cx.notify();})))
                     .child(div().id("pin").cursor_pointer().size(px(16.)).child(gpui::svg().path(if pinned {"Pin-filled"} else {"Pin"}).size_full().text_color(palette.muted))
                         .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
-                        .on_click(cx.listener(|this,_,_,cx| {let mut s=this.state.lock().unwrap();s.pinned=!s.pinned;s.save_preferences();cx.notify();})))
+                        .on_click(cx.listener(|this,_,window,cx| {let mut s=this.state.lock().unwrap();if llm_usage_monitor_core::shell::desktop::set_topmost(window,!s.pinned).is_ok() {s.pinned=!s.pinned;s.save_preferences();} else {s.ui_error=Some("Failed to change always-on-top state.".into());} cx.notify();})))
                     .child(div().id("help").cursor_pointer().size(px(16.)).child(gpui::svg().path("Help").size_full().text_color(palette.muted))
                         .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
                         .tooltip(move |_,cx|llm_usage_monitor_core::ui::tooltip::tooltip("LLM Usage Monitor v0.12.0\nquota: account · tokens: this PC\nCtrl/⌘+Shift+C  Toggle compact mode\nCtrl/⌘+Shift+L  Toggle theme (dark/light)\nCtrl/⌘+Shift+P  Toggle pin (always on top)\nEsc  Close popover (stay in tray)".into(),palette,cx)))))
+            .children(self.state.lock().unwrap().ui_error.clone().map(|message|div().text_size(px(11.968)).text_color(palette.high).child(message)))
             .child(div().id("content").flex_1().min_h_0().overflow_y_scroll().mt(px(if compact {8.} else {12.}))
                 .child(div().flex().flex_col().gap(px(7.)).flex_shrink_0().w_full()
                     .on_children_prepainted(move |bounds,_,_| {
@@ -153,7 +192,7 @@ impl Render for PopoverView {
                     })
                     .children(if let Some(snap)=snapshot {
                         let mut children=Vec::new();
-                        if !compact && snap.providers.iter().any(|p| p.service_status.as_ref().is_some_and(|s| matches!(s.indicator, ServiceHealthIndicator::Minor | ServiceHealthIndicator::Major | ServiceHealthIndicator::Critical))) { children.push(render_vendor_health_banner(&snap.providers,palette).into_any_element()); }
+                        if !compact && snap.providers.iter().any(|p| p.service_status.as_ref().is_some_and(|s| matches!(s.indicator, ServiceHealthIndicator::Minor | ServiceHealthIndicator::Major | ServiceHealthIndicator::Critical))) { children.push(render_vendor_health_banner(&snap.providers,palette,events.clone()).into_any_element()); }
                         if compact { children.push(render_compact(&snap.providers,palette,now,&errors,events.clone()).into_any_element()); }
                         else { for (index,p) in snap.providers.iter().enumerate() {children.push(render_quota_card(p,index,palette,now,expanded.contains(&p.provider_id),events.clone()).into_any_element());} }
                         children
@@ -228,7 +267,17 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
         },
     );
     let anchor = native_geometry.map(|(anchor, _)| anchor).unwrap_or(anchor);
-    let pos = calculate_popover_position(anchor, area, WindowSize::new(width, height));
+    let pos = {
+        let mut s = state.lock().unwrap();
+        s.work_area = area;
+        s.anchor = anchor;
+        s.dragging = false;
+        s.custom_position
+            .map(|p| clamp_window_position(p, WindowSize::new(width, height), area))
+            .unwrap_or_else(|| {
+                calculate_popover_position(anchor, area, WindowSize::new(width, height))
+            })
+    };
     let options = WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(Bounds {
             origin: point(px(pos.x), px(pos.y)),
@@ -240,13 +289,21 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
         focus: true,
         show: true,
         kind: WindowKind::PopUp,
-        is_movable: false,
+        is_movable: true,
         is_resizable: false,
         ..Default::default()
     };
     let view_state = state.clone();
     match cx.open_window(options, move |window, cx| {
         cx.new(|cx| {
+            cx.observe_window_bounds(window, |this: &mut PopoverView, window, _| {
+                let mut s = this.state.lock().unwrap();
+                if s.dragging {
+                    let origin = window.bounds().origin;
+                    s.custom_position = Some(PosPoint::new(origin.x.into(), origin.y.into()));
+                }
+            })
+            .detach();
             cx.observe_window_activation(window, |this: &mut PopoverView, window, _| {
                 let mut s = this.state.lock().unwrap();
                 if !window.is_window_active() && !s.pinned {
@@ -258,6 +315,11 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
             .detach();
             cx.observe_window_appearance(window, |_, _, cx| cx.notify())
                 .detach();
+            let pinned = view_state.lock().unwrap().pinned;
+            if llm_usage_monitor_core::shell::desktop::set_topmost(window, pinned).is_err() {
+                view_state.lock().unwrap().ui_error =
+                    Some("Failed to change always-on-top state.".into());
+            }
             let focus = cx.focus_handle();
             window.focus(&focus);
             PopoverView {
@@ -375,6 +437,12 @@ fn main() {
             expanded_errors: Default::default(),
             desired_height: None,
             max_height: 1000.,
+            work_area: WindowRect::new(0.,0.,1920.,1080.),
+            anchor: PosPoint::new(1780.,1080.),
+            custom_position: None,
+            dragging: false,
+            ui_error: None,
+            demo,
         }));
         let engine = Arc::new(UsageMonitorEngine::new(data_dir));
         let tray = match SystemTrayManager::new() {
@@ -409,11 +477,14 @@ fn main() {
             cx.quit();
             return;
         }
+        if !demo { tray.launch_item.set_checked(llm_usage_monitor_core::shell::desktop::launch_at_login().unwrap_or(false)); }
         state.lock().unwrap().tray_bounds = tray.bounds();
         if !hidden {
             open_popover(state.clone(), cx);
         }
         let (tx, rx) = mpsc::channel();
+        let (startup_tx,startup_rx)=mpsc::channel();
+        let mut startup_pending=false;
         let async_cx = cx.to_async();
         let timer = cx.background_executor().clone();
         cx.foreground_executor()
@@ -439,14 +510,26 @@ fn main() {
                         let mut s = state.lock().unwrap();
                         s.desired_height.take().and_then(|h| {
                             s.window_handle
-                                .map(|handle| (handle, h.clamp(100., s.max_height)))
+                                .map(|handle| (handle, clamp_popover_height(Some(h),if h<304. {h.max(124.)} else {360.},s.max_height)))
                         })
                     };
                     if let Some((handle, height)) = resize {
                         let _ = async_cx.update(|cx| {
-                            handle.update(cx, |_, window, _| {
+                            handle.update(cx, |view, window, _| {
                                 if (f32::from(window.bounds().size.height) - height).abs() > 1. {
-                                    window.resize(size(px(480.), px(height.ceil())));
+                                    let mut s=view.state.lock().unwrap();
+                                    s.dragging=false;
+                                    let width=480_f32.min(s.work_area.width);
+                                    window.resize(size(px(width), px(height.ceil())));
+                                    #[cfg(target_os="windows")]
+                                    {
+                                        let dimensions=WindowSize::new(width,height.ceil());
+                                        let pos=s.custom_position.map(|p|clamp_window_position(p,dimensions,s.work_area))
+                                            .unwrap_or_else(||calculate_popover_position(s.anchor,s.work_area,dimensions));
+                                        if llm_usage_monitor_core::shell::desktop::set_position(window,pos.x,pos.y).is_err() {
+                                            s.ui_error=Some("Failed to update window position.".into());
+                                        }
+                                    }
                                 }
                             })
                         });
@@ -470,9 +553,22 @@ fn main() {
                             });
                         }
                     }
+                    if let Ok(result)=startup_rx.try_recv() {
+                        startup_pending=false;
+                        tray.launch_item.set_enabled(true);
+                        match result { Ok(actual)=>tray.launch_item.set_checked(actual), Err(previous)=>{tray.launch_item.set_checked(previous);state.lock().unwrap().ui_error=Some("Failed to change launch-at-login setting.".into());} }
+                        let _=async_cx.refresh();
+                    }
                     while let Ok(event) = MenuEvent::receiver().try_recv() {
                         state.lock().unwrap().tray_bounds = tray.bounds();
-                        if event.id == tray.quit_id {
+                        if event.id == *tray.launch_item.id() && !startup_pending {
+                            let requested=tray.launch_item.is_checked();
+                            if !demo {
+                                startup_pending=true;tray.launch_item.set_enabled(false);
+                                let tx=startup_tx.clone();
+                                std::thread::spawn(move || {let result=llm_usage_monitor_core::shell::desktop::set_launch_at_login(requested).map_err(|_|!requested);let _=tx.send(result);});
+                            }
+                        } else if event.id == tray.quit_id {
                             let _ = async_cx.update(|cx| cx.quit());
                             return;
                         }
@@ -487,6 +583,7 @@ fn main() {
                             let reset = event.id == tray.reset_pos_id;
                             let _ = async_cx.update(move |cx| {
                                 if reset {
+                                    state.lock().unwrap().custom_position=None;
                                     close_popover(&state, cx);
                                 }
                                 open_popover(state, cx);

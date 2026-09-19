@@ -109,10 +109,36 @@ pub fn render_quota_card(
                                 .text_size(px(10.912))
                                 .text_color(palette.muted)
                                 .child(account.clone())
-                        })),
+                        }))
+                        .children(
+                            (id == ProviderId::Antigravity && p.account_label.is_some()).then(
+                                || {
+                                    let events = events.clone();
+                                    div()
+                                        .id("switch-account")
+                                        .cursor_pointer()
+                                        .text_size(px(9.504))
+                                        .text_color(palette.muted)
+                                        .child("switch")
+                                        .on_click(move |_, window, cx| {
+                                            events(UiAction::Setup(id, true), window, cx)
+                                        })
+                                },
+                            ),
+                        ),
                 )
                 .child(
                     div()
+                        .id(SharedString::from(format!("status-{}", id.as_str())))
+                        .on_click({
+                            let events = events.clone();
+                            let url = incident.map(|s| s.status_page_url.clone());
+                            move |_, window, cx| {
+                                if let Some(url) = &url {
+                                    events(UiAction::OpenUrl(url.clone()), window, cx);
+                                }
+                            }
+                        })
                         .flex_shrink_0()
                         .text_size(px(11.968))
                         .font_weight(FontWeight::BOLD)
@@ -153,6 +179,32 @@ pub fn render_quota_card(
                     }
                 ))
         }))
+        .children(
+            p.error
+                .as_ref()
+                .filter(|e| {
+                    matches!(id, ProviderId::Claude | ProviderId::Antigravity)
+                        && (e.code == "not_authenticated"
+                            || id == ProviderId::Claude && e.code == "workspace_trust_required")
+                })
+                .map(|e| {
+                    let alternate = e.code == "workspace_trust_required";
+                    let events = events.clone();
+                    div()
+                        .id(SharedString::from(format!("setup-{}", id.as_str())))
+                        .cursor_pointer()
+                        .ml(px(32.))
+                        .text_size(px(11.968))
+                        .child(if alternate {
+                            "prepare folder"
+                        } else {
+                            "sign in"
+                        })
+                        .on_click(move |_, window, cx| {
+                            events(UiAction::Setup(id, alternate), window, cx)
+                        })
+                }),
+        )
         .child(
             div()
                 .flex()

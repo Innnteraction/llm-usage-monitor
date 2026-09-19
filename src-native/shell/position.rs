@@ -188,6 +188,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn content_resize_keeps_bottom_anchor_and_custom_position_in_work_area() {
+        let area = WindowRect::new(-1280., 0., 1280., 984.);
+        for requested in [124., 360., 720., 2000.] {
+            let height = clamp_popover_height(Some(requested), 124., area.height);
+            let size = WindowSize::new(480., height);
+            let anchored = calculate_popover_position(Point::new(-20., 1000.), area, size);
+            let custom = clamp_window_position(Point::new(-100., 900.), size, area);
+            for pos in [anchored, custom] {
+                assert!(pos.x >= area.x && pos.x + size.width <= area.x + area.width);
+                assert!(pos.y >= area.y && pos.y + size.height <= area.y + area.height);
+            }
+        }
+    }
+
+    #[test]
     fn test_bottom_taskbar_position() {
         // 하단 작업표시줄: 화면 1920x1080 중 작업영역 (0, 0, 1920, 1040)
         // 트레이 위치 (1800, 1040, 40, 40)
