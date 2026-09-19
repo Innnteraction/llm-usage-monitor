@@ -33,6 +33,7 @@ struct AppState {
     refresh_requested: bool,
     preferences_path: PathBuf,
     tray_bounds: Option<WindowRect>,
+    fixed_now: Option<chrono::DateTime<chrono::Utc>>,
 }
 impl AppState {
     fn save_preferences(&self) {
@@ -62,7 +63,7 @@ struct PopoverView {
 }
 impl Render for PopoverView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (pinned, compact, theme, snapshot, refreshing) = {
+        let (pinned, compact, theme, snapshot, refreshing, now) = {
             let s = self.state.lock().unwrap();
             (
                 s.pinned,
@@ -70,6 +71,7 @@ impl Render for PopoverView {
                 s.theme,
                 s.snapshot.clone(),
                 s.refreshing,
+                s.fixed_now.unwrap_or_else(chrono::Utc::now),
             )
         };
         let palette = theme.palette(window.appearance());
@@ -194,7 +196,7 @@ impl Render for PopoverView {
                             render_vendor_health_banner(&snap.providers, palette)
                                 .into_any_element(),
                             if compact {
-                                render_compact(&snap.providers, palette).into_any_element()
+                                render_compact(&snap.providers, palette, now).into_any_element()
                             } else {
                                 div()
                                     .flex()
@@ -203,7 +205,7 @@ impl Render for PopoverView {
                                     .children(
                                         snap.providers
                                             .iter()
-                                            .map(|p| render_quota_card(p, palette)),
+                                            .map(|p| render_quota_card(p, palette, now)),
                                     )
                                     .into_any_element()
                             },
@@ -384,7 +386,13 @@ fn demo_snapshot() -> AppSnapshot {
 }
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let demo = args.iter().any(|a| a == "--demo");
+    let fixture_path = args.iter().find_map(|a| a.strip_prefix("--demo-snapshot="));
+    let fixture: Option<AppSnapshot> = fixture_path.map(|path| {
+        std::fs::read(path).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_else(|| { eprintln!("Invalid demo snapshot"); std::process::exit(2) })
+    });
+    let demo = fixture.is_some() || args.iter().any(|a| a == "--demo");
+    let fixed_now = fixture.as_ref().map(|s| s.updated_at);
     let hidden = args.iter().any(|a| a == "--start-hidden");
     let hide_after = args.iter().find_map(|a| {
         a.strip_prefix("--hide-after=")
@@ -423,11 +431,12 @@ fn main() {
                 Some("dark") => ThemeMode::Dark,
                 _ => ThemeMode::System,
             },
-            snapshot: demo.then(demo_snapshot),
+            snapshot: fixture.clone().or_else(|| demo.then(demo_snapshot)),
             refreshing: false,
             refresh_requested: !demo,
             preferences_path,
             tray_bounds: None,
+            fixed_now,
         }));
         let engine = Arc::new(UsageMonitorEngine::new(data_dir));
         let tray = match SystemTrayManager::new() {

@@ -5,8 +5,7 @@ use chrono::Utc;
 use gpui::prelude::*;
 use gpui::{div, rgb, DefiniteLength, FontWeight, IntoElement, ParentElement, Styled};
 
-pub fn render_quota_card(provider: &ProviderSnapshot, palette: Palette) -> impl IntoElement {
-    let now = Utc::now();
+pub fn render_quota_card(provider: &ProviderSnapshot, palette: Palette, now: chrono::DateTime<Utc>) -> impl IntoElement {
     let is_stale = provider.status == SnapshotStatus::Stale;
 
     let status_color = match provider.status {

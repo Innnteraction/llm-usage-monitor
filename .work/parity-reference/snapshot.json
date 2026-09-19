@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "providers": [
+    {
+      "providerId": "codex",
+      "accountLabel": "codex.user@example.com",
+      "status": "fresh",
+      "fetchedAt": "2026-09-19T12:00:00.000Z",
+      "lastSuccessfulAt": "2026-09-19T12:00:00.000Z",
+      "localUsage": {
+        "scope": "local_device",
+        "scannedFileCount": 9,
+        "failedFileCount": 0,
+        "inputTokens": 900000,
+        "outputTokens": 330000,
+        "cacheReadTokens": 700000,
+        "cacheWriteTokens": 20000,
+        "totalTokens": 1230000,
+        "partial": false,
+        "calculatedAt": "2026-09-19T12:00:00.000Z",
+        "observedFrom": "2026-09-01T00:00:00.000Z"
+      },
+      "quotaWindows": [
+        {
+          "id": "codex-five-hour",
+          "kind": "five_hour",
+          "label": "5h",
+          "usedPercent": 42,
+          "resetsAt": "2026-09-19T17:00:00.000Z",
+          "source": "local_fixture",
+          "status": "fresh"
+        },
+        {
+          "id": "codex-weekly",
+          "kind": "weekly",
+          "label": "Weekly",
+          "usedPercent": 63,
+          "resetsAt": "2026-09-26T12:00:00.000Z",
+          "source": "local_fixture",
+          "status": "fresh"
+        },
+        {
+          "id": "codex-limit-example-model-primary",
+          "kind": "other",
+          "label": "Example Codex model with a deliberately long primary label",
+          "usedPercent": 17,
+          "resetsAt": "2026-09-19T17:00:00.000Z",
+          "source": "local_fixture",
+          "status": "fresh"
+        },
+        {
+          "id": "codex-limit-example-model-weekly",
+          "kind": "model_weekly",
+          "label": "Example Codex model with a deliberately long weekly label",
+          "usedPercent": 31,
+          "resetsAt": "2026-09-26T12:00:00.000Z",
+          "source": "local_fixture",
+          "status": "fresh"
+        },
+        {
+          "id": "codex-limit-gpt-reserve-weekly",
+          "kind": "model_weekly",
+          "label": "gpt-reserve Weekly",
+          "usedPercent": 24,
+          "resetsAt": "2026-09-26T12:00:00.000Z",
+          "source": "local_fixture",
+          "status": "fresh"
+        }
+      ]
+    },
+    {
+      "providerId": "claude",
+      "accountLabel": "claude.user@example.com",
+      "authKind": "subscription",
+      "status": "fresh",
+      "fetchedAt": "2026-09-19T12:00:00.000Z",
+      "lastSuccessfulAt": "2026-09-19T12:00:00.000Z",
+      "localUsage": {
+        "scope": "local_device",
+        "scannedFileCount": 4,
+        "failedFileCount": 1,
+        "inputTokens": 420000,
+        "outputTokens": 180000,
+        "cacheReadTokens": 200000,
+        "cacheWriteTokens": 10000,
+        "totalTokens": 600000,
+        "partial": true,
+        "calculatedAt": "2026-09-19T12:00:00.000Z",
+        "observedFrom": "2026-09-01T00:00:00.000Z"
+      },
+      "quotaWindows": [
+        {
+          "id": "claude-five-hour",
+          "kind": "five_hour",
+          "label": "5h",
+          "usedPercent": 28,
+          "resetsAt": "2026-09-19T17:00:00.000Z",
+          "source": "local_fixture",
+          "status": "fresh"
+        },
+        {
+          "id": "claude-weekly",
+          "kind": "weekly",
+          "label": "Weekly",
+          "usedPercent": 51,
+          "resetsAt": "2026-09-26T12:00:00.000Z",
+          "source": "local_fixture",
+          "status": "fresh"
+        },
+        {
+          "id": "claude-model-fable",
+          "kind": "model_weekly",
+          "label": "Fable Weekly",
+          "usedPercent": 39,
+          "resetsAt": "2026-09-25T12:00:00.000Z",
+          "source": "local_fixture",
+          "status": "fresh"
+        }
+      ]
+    },
+    {
+      "providerId": "antigravity",
+      "status": "fresh",
+      "fetchedAt": "2026-09-19T12:00:00.000Z",
+      "lastSuccessfulAt": "2026-09-19T12:00:00.000Z",
+      "quotaWindows": [
+        {
+          "id": "agy-gemini-5h",
+          "kind": "five_hour",
+          "label": "Gemini 5h",
+          "usedPercent": 20,
+          "resetsAt": "2026-09-19T17:00:00.000Z",
+          "source": "antigravity_cli",
+          "status": "fresh"
+        },
+        {
+          "id": "agy-gemini-weekly",
+          "kind": "model_weekly",
+          "label": "Gemini Weekly",
+          "usedPercent": 40,
+          "resetsAt": "2026-09-26T12:00:00.000Z",
+          "source": "antigravity_cli",
+          "status": "fresh"
+        },
+        {
+          "id": "agy-claude-gpt-5h",
+          "kind": "five_hour",
+          "label": "Claude/GPT 5h",
+          "usedPercent": 30,
+          "resetsAt": "2026-09-19T17:00:00.000Z",
+          "source": "antigravity_cli",
+          "status": "fresh"
+        },
+        {
+          "id": "agy-claude-gpt-weekly",
+          "kind": "model_weekly",
+          "label": "Claude/GPT Weekly",
+          "usedPercent": 50,
+          "resetsAt": "2026-09-26T12:00:00.000Z",
+          "source": "antigravity_cli",
+          "status": "fresh"
+        }
+      ]
+    }
+  ],
+  "refreshing": [],
+  "updatedAt": "2026-09-19T12:00:00.000Z"
+}

@@ -11,3 +11,5 @@
 - [M4·M5 재검증 및 리스크 기록](NATIVE_M4_M5_RISKS.md): 구현 차이, 검증 환경, 전환 판정 조건
 - [M5 Windows 검증 및 전환 판정](NATIVE_M5_REPORT.md): 최신 테스트·실측, 목표 미달과 대체 보류 근거
 - [Windows 의존성 라이선스 선언](NATIVE_WINDOWS_LICENSES.md): 타깃을 한정한 메타데이터 확인 결과
+
+- [디자인·동작 동일성 복원 P0~P5](NATIVE_PARITY_MILESTONES.md): 후속 작업의 기준·산출물·완료 판정

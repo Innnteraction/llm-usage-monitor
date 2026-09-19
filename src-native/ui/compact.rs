@@ -6,7 +6,7 @@ use crate::core::types::{ProviderSnapshot, SnapshotStatus};
 use chrono::Utc;
 use gpui::{div, prelude::*, px, IntoElement};
 
-pub fn render_compact(providers: &[ProviderSnapshot], palette: Palette) -> impl IntoElement {
+pub fn render_compact(providers: &[ProviderSnapshot], palette: Palette, now: chrono::DateTime<Utc>) -> impl IntoElement {
     div()
         .flex()
         .flex_col()
@@ -65,7 +65,7 @@ pub fn render_compact(providers: &[ProviderSnapshot], palette: Palette) -> impl 
                             div()
                                 .w(px(110.))
                                 .text_color(palette.muted)
-                                .child(format_reset_countdown(quota.resets_at, Utc::now())),
+                                .child(format_reset_countdown(quota.resets_at, now)),
                         )
                 }))
         }))
