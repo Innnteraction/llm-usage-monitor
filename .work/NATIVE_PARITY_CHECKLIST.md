@@ -135,3 +135,10 @@ node scripts/create-parity-scenarios.mjs
 node scripts/create-parity-scenarios.mjs
 ./target/release/llm-usage-monitor.exe --demo-snapshot=.work/parity-captures/fixtures/incident_claude_critical.json
 ```
+
+
+### 브라우저 복귀 프리징·장애 배지 단순화 — 2026-09-20
+
+- [ ] 데모에서 장애 링크 → 브라우저 활성화 → 트레이 아이콘으로 닫기/재열기 반복. pinned 켜짐/꺼짐, 상세/간략 각 조합에서 응답 유지 확인.
+- [ ] 브라우저 실행이 지연되는 동안에도 트레이/모드 전환이 응답하는지 확인. 실행 실패는 오류 문구로 표시되어야 한다.
+- [ ] 벤더 이름 우측 degraded/outage는 경고와 색상 글자만 표시한다. 사용자가 박스 제거를 요청했으므로 이 부분은 기존 Electron 박스 스타일과 달라도 된다. 상단 장애 배너는 유지한다.

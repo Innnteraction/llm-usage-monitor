@@ -112,7 +112,24 @@ impl Render for PopoverView {
         };
         let palette = theme.palette(window.appearance());
         let weak = cx.entity().downgrade();
+        let action_state = self.state.clone();
         let events: UiEvents = std::rc::Rc::new(move |action, window, cx| {
+            // ShellExecute can wait for a browser and dispatch focus messages.
+            // Never call it while borrowing the view or holding AppState's mutex.
+            if let UiAction::OpenUrl(url) = action {
+                let task = cx
+                    .background_executor()
+                    .spawn(async move { llm_usage_monitor_core::shell::desktop::open_url(&url) });
+                let state = action_state.clone();
+                cx.spawn(async move |cx| {
+                    if task.await.is_err() {
+                        state.lock().unwrap().ui_error = Some("Failed to open status page.".into());
+                        let _ = cx.refresh();
+                    }
+                })
+                .detach();
+                return;
+            }
             let _ = weak.update(cx, |view, cx| {
                 let mut s = view.state.lock().unwrap();
                 match &action {
@@ -141,13 +158,6 @@ impl Render for PopoverView {
                             s.save_preferences();
                         } else {
                             s.ui_error = Some("Failed to change always-on-top state.".into());
-                        }
-                        cx.notify();
-                        return;
-                    }
-                    UiAction::OpenUrl(url) => {
-                        if llm_usage_monitor_core::shell::desktop::open_url(url).is_err() {
-                            s.ui_error = Some("Failed to open status page.".into());
                         }
                         cx.notify();
                         return;
@@ -617,18 +627,20 @@ fn main() {
                         let _ = async_cx.update(|cx| {
                             handle.update(cx, |view, window, _| {
                                 if (f32::from(window.bounds().size.height) - height).abs() > 1. {
-                                    let mut s=view.state.lock().unwrap();
-                                    s.dragging=false;
-                                    let width=480_f32.min(s.work_area.width);
-                                    window.resize(size(px(width), px(height.ceil())));
-                                    #[cfg(target_os="windows")]
-                                    {
-                                        let dimensions=WindowSize::new(width,height.ceil());
-                                        let pos=s.custom_position.map(|p|clamp_window_position(p,dimensions,s.work_area))
+                                    let (width, pos) = {
+                                        let mut s = view.state.lock().unwrap();
+                                        s.dragging = false;
+                                        let width = 480_f32.min(s.work_area.width);
+                                        let dimensions = WindowSize::new(width,height.ceil());
+                                        let pos = s.custom_position.map(|p|clamp_window_position(p,dimensions,s.work_area))
                                             .unwrap_or_else(||calculate_popover_position(s.anchor,s.work_area,dimensions));
-                                        if llm_usage_monitor_core::shell::desktop::set_position(window,pos.x,pos.y).is_err() {
-                                            s.ui_error=Some("Failed to update window position.".into());
-                                        }
+                                        (width, pos)
+                                    };
+                                    // Bounds observers may acquire AppState again during OS calls.
+                                    window.resize(size(px(width),px(height.ceil())));
+                                    #[cfg(target_os="windows")]
+                                    if llm_usage_monitor_core::shell::desktop::set_position(window,pos.x,pos.y).is_err() {
+                                        view.state.lock().unwrap().ui_error=Some("Failed to update window position.".into());
                                     }
                                 }
                             })

@@ -153,16 +153,6 @@ pub fn render_quota_card(
                                 s.status_page_url
                             );
                             el.cursor_pointer()
-                                .px(px(6.))
-                                .py(px(1.))
-                                .rounded(px(4.))
-                                .border_1()
-                                .border_color(if outage { palette.high } else { palette.medium })
-                                .bg(if outage {
-                                    gpui::rgba(0xdf626926)
-                                } else {
-                                    gpui::rgba(0xd2a95f26)
-                                })
                                 .text_color(if outage { palette.high } else { palette.medium })
                                 .hover(|s| s.opacity(0.9))
                                 .tooltip(move |_, cx| {

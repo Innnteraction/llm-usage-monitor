@@ -107,3 +107,14 @@ P0 자동 검증: 아키텍처 verify와 Rust 17개 테스트 통과. `--snapsho
 - compact 일반 텍스트 안내를 hoverable tooltip view로 교체해 팝업 안의 `상태 확인 [Status ↗]`을 누를 수 있게 했다. 브라우저 실패는 기존 UI 오류 경로에 표시한다.
 - Electron App.tsx/CompactQuotaTable.tsx/ProviderCard.tsx 및 styles.css에 맞춰 장애 배너 배경·1px 테두리·4px 라운드·가로 행·제목 말줄임·링크 우측 배치, degraded/outage 배지, compact 제목/장애 박스/버튼을 적용했다. 아이콘 교대의 CSS ease-in-out과 0.7~1 크기도 반영했다.
 - architecture verify, Rust 27개 테스트, Windows release 빌드 통과. 이번에는 기본 exe 교체도 성공했다. 브라우저 클릭과 실화면 비교는 사용자 수동 재검수 대상이다. hover 팝업 위치/지연, 클릭·키보드로 여는 HelpTrigger 전체 동작 및 전체 화면 픽셀 동일성은 여전히 별도 수용 항목이다.
+
+
+## 브라우저 복귀 프리징 대응 — 2026-09-20
+
+- 사용자 보고: 장애 링크로 브라우저를 연 다음 트레이 아이콘을 누르면 프리징. 사용자 스크린샷은 저장소에 반입하지 않았다.
+- 코드상 위험: OpenUrl은 GPUI view update와 AppState mutex 안에서 동기 ShellExecute를 호출했다. 브라우저 응답 대기 및 포커스 이벤트 재진입 시 UI/상태 처리를 막을 수 있다. URL 열기를 view update 밖에서 background executor로 분리하고 실패 결과만 UI 스레드로 반영한다. 창이 닫혀도 오류는 공유 상태에 보존한다.
+- 같은 잠금 위험이 있던 자동 크기 변경도 좌표/폭 계산 후 mutex를 풀고 resize/SetWindowPos를 호출하도록 변경했다. bounds observer의 상태 접근과 충돌하지 않도록 한다.
+- 사용자 디자인 변경: 벤더별 degraded/outage의 배경·테두리·패딩 박스를 제거했다. 경고 아이콘, 상태 색, 클릭 링크와 상단 장애 배너는 유지한다.
+- architecture verify 및 Rust 27개 테스트 통과. 자동 검사는 실제 브라우저 포커스 전환/트레이 재진입 재현을 대신하지 않는다. 근본 원인을 실기 재현으로 확정한 것은 아니며 사용자 재검수 필요.
+
+- release 링크 산출물은 생성되었으나 실행 중인 기본 exe 교체는 os error 5. 새 산출물을 `target/release/llm-usage-monitor-browser-fix.exe`로 복사했다. 이 바이너리의 Codex major 데모 `--quit-after=3`: exit 0, stderr 0 bytes. 기존 앱은 강제 종료하지 않았다.
