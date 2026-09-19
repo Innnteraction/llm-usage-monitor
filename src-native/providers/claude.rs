@@ -2,7 +2,7 @@ use crate::core::types::{
     ProviderAuthKind, ProviderError, ProviderId, ProviderSnapshot, ProviderSource, QuotaKind,
     QuotaWindow, SnapshotStatus,
 };
-use chrono::{DateTime, Datelike, Duration as ChronoDuration, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration as ChronoDuration, Local, TimeZone, Utc};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use regex::Regex;
 use serde::Deserialize;
@@ -491,6 +491,16 @@ fn is_promo_line(line: &str) -> bool {
 }
 
 fn parse_reset(block: &[&str], now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    // The CLI displays the host's local wall time, just like the Node collector.
+    parse_reset_in_timezone(block, now, Local)
+}
+
+fn parse_reset_in_timezone<Tz: TimeZone>(
+    block: &[&str],
+    now: DateTime<Utc>,
+    timezone: Tz,
+) -> Option<DateTime<Utc>> {
+    let local_now = now.with_timezone(&timezone);
     let re_reset = Regex::new(r"(?i)\bresets?\s+(?:in\s+)?(.+)$").ok()?;
     let mut reset_str = None;
     for line in block {
@@ -524,6 +534,9 @@ fn parse_reset(block: &[&str], now: DateTime<Utc>) -> Option<DateTime<Utc>> {
             .unwrap_or(0);
         let meridiem = cap.get(3)?.as_str().to_lowercase();
 
+        if !(1..=12).contains(&hour_raw) || min_raw > 59 {
+            return None;
+        }
         let hour24 = if meridiem == "pm" && hour_raw < 12 {
             hour_raw + 12
         } else if meridiem == "am" && hour_raw == 12 {
@@ -532,14 +545,21 @@ fn parse_reset(block: &[&str], now: DateTime<Utc>) -> Option<DateTime<Utc>> {
             hour_raw
         };
 
-        if let Some(candidate) = now.date_naive().and_hms_opt(hour24, min_raw, 0) {
-            let candidate_utc = Utc.from_utc_datetime(&candidate);
-            return if candidate_utc <= now {
-                Some(candidate_utc + ChronoDuration::days(1))
-            } else {
-                Some(candidate_utc)
-            };
-        }
+        let date = local_now.date_naive();
+        let candidate = date.and_hms_opt(hour24, min_raw, 0)?;
+        let candidate_utc = timezone
+            .from_local_datetime(&candidate)
+            .single()?
+            .with_timezone(&Utc);
+        return if candidate_utc <= now {
+            let next = date.succ_opt()?.and_hms_opt(hour24, min_raw, 0)?;
+            timezone
+                .from_local_datetime(&next)
+                .single()
+                .map(|t| t.with_timezone(&Utc))
+        } else {
+            Some(candidate_utc)
+        };
     }
 
     // 3. Dated format (e.g. "Sep 5, 5pm", "Jan 2, 5pm")
@@ -572,6 +592,9 @@ fn parse_reset(block: &[&str], now: DateTime<Utc>) -> Option<DateTime<Utc>> {
             _ => return None,
         };
 
+        if !(1..=12).contains(&hour_raw) || min_raw > 59 {
+            return None;
+        }
         let hour24 = if meridiem == "pm" && hour_raw < 12 {
             hour_raw + 12
         } else if meridiem == "am" && hour_raw == 12 {
@@ -580,15 +603,21 @@ fn parse_reset(block: &[&str], now: DateTime<Utc>) -> Option<DateTime<Utc>> {
             hour_raw
         };
 
-        let mut year = now.year();
+        let mut year = local_now.year();
         if let Some(naive_date) = chrono::NaiveDate::from_ymd_opt(year, month, day) {
             if let Some(candidate_naive) = naive_date.and_hms_opt(hour24, min_raw, 0) {
-                let candidate_utc = Utc.from_utc_datetime(&candidate_naive);
+                let candidate_utc = timezone
+                    .from_local_datetime(&candidate_naive)
+                    .single()?
+                    .with_timezone(&Utc);
                 if candidate_utc < now - ChronoDuration::days(1) {
                     year += 1;
                     if let Some(next_date) = chrono::NaiveDate::from_ymd_opt(year, month, day) {
                         if let Some(next_naive) = next_date.and_hms_opt(hour24, min_raw, 0) {
-                            return Some(Utc.from_utc_datetime(&next_naive));
+                            return timezone
+                                .from_local_datetime(&next_naive)
+                                .single()
+                                .map(|t| t.with_timezone(&Utc));
                         }
                     }
                 }
@@ -682,27 +711,83 @@ mod tests {
     }
 
     #[test]
-    fn test_dated_reset_with_tz() {
-        let now = DateTime::parse_from_rfc3339("2026-09-01T03:00:00Z")
+    fn reset_uses_local_wall_time_instead_of_utc() {
+        let seoul = chrono::FixedOffset::east_opt(9 * 3600).unwrap();
+        let now = DateTime::parse_from_rfc3339("2026-09-19T22:54:00Z")
             .unwrap()
             .with_timezone(&Utc);
-        let screen = "Current week (all models)\n41% used\nResets Sep 5, 5pm (Asia/Seoul)";
-        let clean = strip_ansi_escapes::strip(screen.as_bytes());
-        let text = String::from_utf8_lossy(&clean);
-        let normalized = text.replace('\r', "\n");
-        let lines: Vec<&str> = normalized
-            .lines()
-            .map(|l| l.trim())
-            .filter(|l| !l.is_empty())
-            .collect();
-        println!("lines: {:?}", lines);
-        for l in &lines {
-            println!("header for '{}': {:?}", l, classify_header(l));
+        for line in [
+            "Resets 5pm (Asia/Seoul)",
+            "Resets Sep 20, 5pm (Asia/Seoul)",
+            "Resets 5pm",
+        ] {
+            let reset = parse_reset_in_timezone(&[line], now, seoul).unwrap();
+            assert_eq!(reset.to_rfc3339(), "2026-09-20T08:00:00+00:00");
+            assert_eq!(reset - now, ChronoDuration::minutes(9 * 60 + 6));
         }
+        let screen = "Current week (all models)\n41% used\nResets Sep 20, 5pm (Asia/Seoul)";
         let windows = parse_claude_usage_screen(screen, now);
-        println!("windows: {:?}", windows);
-        assert_eq!(windows.len(), 1);
-        assert_eq!(windows[0].used_percent, 41.0);
-        assert!(windows[0].resets_at.is_some());
+        let expected = Local
+            .with_ymd_and_hms(2026, 9, 20, 17, 0, 0)
+            .single()
+            .unwrap()
+            .with_timezone(&Utc);
+        assert_eq!(windows[0].resets_at, Some(expected));
+    }
+
+    #[test]
+    fn reset_uses_local_date_for_midnight_and_year_rollover() {
+        let seoul = chrono::FixedOffset::east_opt(9 * 3600).unwrap();
+        let parse = |now: &str, line: &str| {
+            parse_reset_in_timezone(
+                &[line],
+                DateTime::parse_from_rfc3339(now)
+                    .unwrap()
+                    .with_timezone(&Utc),
+                seoul,
+            )
+            .unwrap()
+            .to_rfc3339()
+        };
+        assert_eq!(
+            parse("2026-09-19T15:30:00Z", "Resets 1am"),
+            "2026-09-19T16:00:00+00:00"
+        );
+        assert_eq!(
+            parse("2026-09-20T09:00:00Z", "Resets 5pm"),
+            "2026-09-21T08:00:00+00:00"
+        );
+        assert_eq!(
+            parse("2026-12-31T16:00:00Z", "Resets Jan 2, 5pm"),
+            "2027-01-02T08:00:00+00:00"
+        );
+        assert_eq!(
+            parse("2026-12-31T10:00:00Z", "Resets Jan 2, 5pm"),
+            "2027-01-02T08:00:00+00:00"
+        );
+    }
+
+    #[test]
+    fn reset_keeps_relative_durations_and_rejects_invalid_times() {
+        let now = DateTime::parse_from_rfc3339("2026-09-20T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        for offset in [-7 * 3600, 0, 9 * 3600] {
+            let zone = chrono::FixedOffset::east_opt(offset).unwrap();
+            assert_eq!(
+                parse_reset_in_timezone(&["Resets in 2 hr 30 min"], now, zone),
+                Some(now + ChronoDuration::minutes(150))
+            );
+            for invalid in [
+                "Resets 13pm",
+                "Resets 0am",
+                "Resets 7:60pm",
+                "Resets Feb 30, 5pm",
+                "Unknown reset",
+                "Resets unknown",
+            ] {
+                assert_eq!(parse_reset_in_timezone(&[invalid], now, zone), None);
+            }
+        }
     }
 }

@@ -79,3 +79,12 @@ node -e 'require("@electron-forge/core").api.package({dir:process.cwd(),outDir:"
 - 정상 종료는 진행 중 작업과 저장을 기다린다. 느린 벤더 CLI timeout 동안 잠금이 유지될 수 있다. 강제 종료하면 마지막 완성 캐시를 사용한다.
 - rechecking은 provider의 진행 중 작업을 나타내므로 토큰 재검증이 먼저 끝나도 해당 provider의 quota/장애 조회가 끝날 때까지 표시될 수 있다.
 - 전체 검사 중 기존 AGY 테스트가 PC의 설치 경로를 사용하던 문제가 드러나 fake command를 명시했다. 기존 캡처/fixture 스크립트 lint 7건은 globalThis 참조로 수정했다. 두 스크립트와 UsageMonitorCore.ts는 기존 guard include 밖이므로 의존성을 수동 확인했다. 정책이나 baseline은 확대하지 않았다.
+
+## 후속 수정: Claude 리셋 시각의 9시간 오차
+
+- 원인: Rust 파서가 CLI의 로컬 wall time에서 `(Asia/Seoul)` 표기를 제거한 뒤 UTC 시각으로 생성했다. KST 17:00을 17:00Z로 처리하여 정상 08:00Z보다 9시간 늦어졌다. UI의 UTC 차감 계산 자체는 정상이었다.
+- 수정: 기존 Node와 같이 호스트 로컬 시간대로 날짜·시각을 해석한 다음 UTC로 변환한다. 자정·다음 날·연도 경계도 로컬 날짜를 기준으로 처리한다. 새 라이브러리나 인증 접근은 추가하지 않았다.
+- 검증: KST 07:54 → 17:00의 남은 시간이 546분(9시간 6분)임을 명시적으로 검증했다. 날짜 포함/시간만/시간대 표기 생략, 자정과 연도 경계, 상대 기간 유지, 잘못된 시간 거부를 포함해 Claude 파서 테스트 4개와 guard가 통과했다.
+- 캐시: 이전 버전이 저장한 잘못된 resetsAt은 stale로 남을 수 있다. 수정한 실행 파일로 재시작한 뒤 Claude 수집이 성공하면 새 시각으로 교체된다. Node에서 생성한 정상 캐시와 구별할 수 없으므로 저장된 시각을 일괄 9시간 차감하지 않는다.
+- 범위: CLI와 앱이 같은 호스트 로컬 시간대를 사용하는 기존 Node 계약을 따른다. 문자열에 적힌 임의의 다른 IANA 시간대를 별도로 해석하는 기능은 추가하지 않았다. 실계정 수집은 실행하지 않았다.
+- 실행 산출물: release 링크 결과를 `target/release/preview/llm-usage-monitor.exe`에 복사하고 SHA-256 일치를 확인했다. 실행 중인 앱이 기존 `target/release/llm-usage-monitor.exe`를 잠가 Cargo의 최종 교체는 실패했다. 기존 앱을 종료한 뒤 preview 실행 파일로 확인한다.
