@@ -29,6 +29,18 @@ use std::{
 };
 use tray_icon::TrayIconEvent;
 
+// Opt-in diagnostics contain phase names and elapsed time only, never snapshots.
+static STARTUP_CLOCK: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+static STARTUP_EVENTS: Mutex<Vec<(&'static str, Duration)>> = Mutex::new(Vec::new());
+fn startup_mark(phase: &'static str) {
+    if let Some(start) = STARTUP_CLOCK.get() {
+        let mut events = STARTUP_EVENTS.lock().unwrap();
+        if events.len() < 64 {
+            events.push((phase, start.elapsed()));
+        }
+    }
+}
+
 struct AppState {
     window_handle: Option<WindowHandle<PopoverView>>,
     pinned: bool,
@@ -97,6 +109,8 @@ struct PopoverView {
 }
 impl Render for PopoverView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        static FIRST_RENDER: std::sync::Once = std::sync::Once::new();
+        FIRST_RENDER.call_once(|| startup_mark("first-render"));
         let (pinned, compact, theme, snapshot, refreshing, now, expanded, errors) = {
             let s = self.state.lock().unwrap();
             (
@@ -300,6 +314,7 @@ fn close_popover(state: &Arc<Mutex<AppState>>, cx: &mut App) {
     }
 }
 fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
+    startup_mark("popover-request");
     let existing = state.lock().unwrap().window_handle;
     if let Some(handle) = existing {
         if handle
@@ -426,6 +441,7 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
         Ok(handle) => state.lock().unwrap().window_handle = Some(handle),
         Err(_) => eprintln!("네이티브 창을 열지 못했습니다."),
     }
+    startup_mark("popover-created");
 }
 
 fn demo_snapshot() -> AppSnapshot {
@@ -479,7 +495,12 @@ fn startup_hidden(args: &[String], demo: bool) -> bool {
 }
 
 fn main() {
+    let entered = Instant::now();
     let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--startup-timing") {
+        let _ = STARTUP_CLOCK.set(entered);
+        startup_mark("main");
+    }
     let fixture_path = args.iter().find_map(|a| a.strip_prefix("--demo-snapshot="));
     let fixture: Option<AppSnapshot> = fixture_path.map(|path| {
         std::fs::read(path)
@@ -507,9 +528,13 @@ fn main() {
         .build()
         .expect("collector runtime");
     let runtime_handle = runtime.handle().clone();
+    startup_mark("runtime-ready");
     let startup_failed = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let startup_status = startup_failed.clone();
-    Application::new().with_assets(Icons).run(move |cx| {
+    let application = Application::new().with_assets(Icons);
+    startup_mark("platform-ready");
+    application.run(move |cx| {
+        startup_mark("application-ready");
         let data_dir = if demo {
             std::env::temp_dir().join(format!("llm-monitor-demo-{}", std::process::id()))
         } else {
@@ -549,7 +574,9 @@ fn main() {
             scroll: gpui::ScrollHandle::new(),
             reduced_motion: llm_usage_monitor_core::shell::desktop::prefers_reduced_motion(),
         }));
+        startup_mark("state-ready");
         let engine = Arc::new(UsageMonitorEngine::new(data_dir));
+        startup_mark("engine-ready");
         let tray = match SystemTrayManager::new() {
             Ok(t) => t,
             Err(_) => {
@@ -582,7 +609,9 @@ fn main() {
             cx.quit();
             return;
         }
+        startup_mark("keepalive-ready");
         if !demo { tray.launch_item.set_checked(llm_usage_monitor_core::shell::desktop::launch_at_login().unwrap_or(false)); }
+        startup_mark("login-setting-ready");
         state.lock().unwrap().tray_bounds = tray.bounds();
         if !hidden {
             open_popover(state.clone(), cx);
@@ -592,6 +621,7 @@ fn main() {
             }
         }
         startup_status.store(false,std::sync::atomic::Ordering::Relaxed);
+        startup_mark("event-loop-ready");
         let (tx, rx) = mpsc::channel();
         let (startup_tx,startup_rx)=mpsc::channel();
         let mut startup_pending=false;
@@ -703,6 +733,7 @@ fn main() {
                         }
                     }
                     if let Ok(snapshot) = rx.try_recv() {
+                        startup_mark("snapshot-received");
                         let mut s = state.lock().unwrap();
                         s.snapshot = Some(snapshot);
                         s.refreshing = false;
@@ -726,6 +757,7 @@ fn main() {
                         }
                     };
                     if should_collect {
+                        startup_mark("collection-start");
                         let _ = async_cx.refresh();
                         let tx = tx.clone();
                         let engine = engine.clone();
@@ -755,6 +787,9 @@ fn main() {
             .detach();
     });
     runtime.shutdown_background();
+    for (phase, elapsed) in STARTUP_EVENTS.lock().unwrap().iter() {
+        eprintln!("[startup] {phase}: {elapsed:.2?}");
+    }
     if startup_failed.load(std::sync::atomic::Ordering::Relaxed) {
         std::process::exit(1);
     }
