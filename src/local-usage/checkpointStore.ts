@@ -39,7 +39,7 @@ const fileCheckpointSchema = z
   })
   .strict().refine(v => v.offset <= v.size);
 const sectionSchema = z
-  .object({ files: z.record(z.string().regex(/^[a-f0-9]{64}$/), fileCheckpointSchema), rootKey: z.string().regex(/^[a-f0-9]{64}$/).optional(), summary: localTokenUsageSchema.optional() })
+  .object({ files: z.record(z.string().regex(/^[a-f0-9]{64}$/), fileCheckpointSchema), rootKey: z.string().regex(/^[a-f0-9]{64}$/).optional(), summary: localTokenUsageSchema.refine(u => Number.isSafeInteger(u.scannedFileCount) && Number.isSafeInteger(u.failedFileCount) && u.inputTokens + u.outputTokens === u.totalTokens).optional() })
   .strict().refine(v => Object.entries(v.files).every(([key,file]) => key === file.fileKey));
 const checkpointStateSchema = z
   .object({

@@ -654,6 +654,8 @@ fn main() {
                 let _tray_lifetime = &tray;
                 let start = Instant::now();
                 let mut hidden_once = false;
+                let mut cache_visible=false;
+                let mut measured_visible=false;
                 let mut last_poll = Instant::now();
                 let mut last_render = Instant::now();
                 loop {
@@ -757,6 +759,8 @@ fn main() {
                     while let Ok(snapshot)=rx.try_recv() {latest=Some(snapshot);}
                     if let Some(snapshot) = latest {
                         startup_mark("snapshot-received");
+                        if !cache_visible && snapshot.providers.iter().any(|p| p.status==SnapshotStatus::Stale && p.last_successful_at.is_some()) {cache_visible=true; startup_mark("cache-first-applied");}
+                        if !measured_visible && snapshot.providers.iter().any(|p| p.status==SnapshotStatus::Fresh) {measured_visible=true; startup_mark("first-measured-applied");}
                         let mut s = state.lock().unwrap();
                         let refreshing=!snapshot.refreshing.is_empty();
                         if refreshing && !s.refreshing {s.refresh_started=Some(Instant::now());}

@@ -55,7 +55,7 @@ export function createUsagePoller({
 }: UsagePollerOptions) {
   const timers = new Map<ProviderId, ReturnType<typeof setTimeout>>();
   const failureCounts = new Map<ProviderId, number>();
-  const inFlight = new Set<Promise<void>>();
+  const inFlight = new Map<ProviderId, Promise<void>>();
   let running = false;
   let stopped = false;
   let stopPromise: Promise<void> | undefined;
@@ -94,15 +94,22 @@ export function createUsagePoller({
   const refreshProvider = async (providerId: ProviderId): Promise<void> => {
     if (stopped) return;
     clearTimer(providerId);
+    const existing = inFlight.get(providerId);
+    if (existing) {
+      // The store merges requests; schedule/backoff only once after the merged work.
+      void store.refresh(providerId).catch(() => undefined);
+      await existing;
+      return;
+    }
     const operation = Promise.resolve()
       .then(() => store.refresh(providerId))
       .catch(() => undefined)
       .finally(() => {
         if (running && !stopped) scheduleNext(providerId);
       });
-    inFlight.add(operation);
+    inFlight.set(providerId, operation);
     await operation;
-    inFlight.delete(operation);
+    inFlight.delete(providerId);
   };
 
   const refresh = async (providerId?: ProviderId): Promise<void> => {
@@ -139,7 +146,7 @@ export function createUsagePoller({
       for (const providerId of providerIds) {
         clearTimer(providerId);
       }
-      stopPromise = Promise.all([...inFlight]).then(() => undefined);
+      stopPromise = Promise.all([...inFlight.values()]).then(() => undefined);
       await stopPromise;
     },
   };

@@ -53,7 +53,9 @@ const parseCachedProvider = (value: unknown): ProviderSnapshot => {
     !isRecord(value) ||
     "accountLabel" in value ||
     "error" in value ||
-    "localUsage" in value
+    "localUsage" in value ||
+    "authKind" in value ||
+    "serviceStatus" in value
   ) {
     throw new Error("Unsupported snapshot cache.");
   }

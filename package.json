@@ -44,7 +44,8 @@
     "deploy:win": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1",
     "deploy:win:autostart": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1 -AutoStart",
     "deploy:win:quick": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1 -SkipBuild",
-    "deploy:win:uninstall": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1 -Uninstall"
+    "deploy:win:uninstall": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-windows.ps1 -Uninstall",
+    "test:shared-cache": "cargo build --bin cache-fixture && vitest run tests/unit/sharedCacheInterop.test.ts"
   },
   "dependencies": {
     "electron-squirrel-startup": "1.0.1",

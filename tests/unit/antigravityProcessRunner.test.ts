@@ -92,7 +92,7 @@ describe("AntigravityCliRunner", () => {
   it("runs only the fixed commands in an isolated temporary directory and preserves UTF-8 chunks", async () => {
     const { spawn, calls } = createSpawn();
     const removed: string[] = [];
-    const runner = new AntigravityCliRunner({ platform: "win32", spawn, createTempDirectory: async () => "C:/temp/agy-unique", removeEmptyDirectory: async (directory) => { removed.push(directory); } });
+    const runner = new AntigravityCliRunner({ command: "agy.exe", platform: "win32", spawn, createTempDirectory: async () => "C:/temp/agy-unique", removeEmptyDirectory: async (directory) => { removed.push(directory); } });
     const result = runner.readUsage();
     const version = await nextCall(calls, 0);
     expect(version).toMatchObject({ command: "agy.exe", args: ["--version"], options: { cwd: "C:/temp/agy-unique", shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] } });
@@ -107,7 +107,7 @@ describe("AntigravityCliRunner", () => {
   it("rejects versions older than 1.1.11 without invoking usage, while accepting newer patches, minor, and major versions", async () => {
     for (const rejectedVersion of ["1.1.10", "1.0.5", "0.9.0", "invalid"]) {
       const old = createSpawn();
-      const oldRunner = new AntigravityCliRunner({ spawn: old.spawn, createTempDirectory: async () => "C:/temp/old", removeEmptyDirectory: async () => undefined });
+      const oldRunner = new AntigravityCliRunner({ command: "agy.exe", spawn: old.spawn, createTempDirectory: async () => "C:/temp/old", removeEmptyDirectory: async () => undefined });
       const oldResult = oldRunner.readUsage();
       (await nextCall(old.calls, 0)).child.emitStdout(rejectedVersion); old.calls[0]!.child.emitClose();
       await expect(oldResult).rejects.toMatchObject({ reason: "unsupported" });
@@ -116,7 +116,7 @@ describe("AntigravityCliRunner", () => {
 
     for (const acceptedVersion of ["1.1.11", "1.1.25", "1.2.0", "1.3.0", "2.0.0"]) {
       const current = createSpawn();
-      const currentRunner = new AntigravityCliRunner({ spawn: current.spawn, createTempDirectory: async () => "C:/temp/new", removeEmptyDirectory: async () => undefined });
+      const currentRunner = new AntigravityCliRunner({ command: "agy.exe", spawn: current.spawn, createTempDirectory: async () => "C:/temp/new", removeEmptyDirectory: async () => undefined });
       const currentResult = currentRunner.readUsage();
       await completeSupportedRun(current.calls, '{"status":"success"}', acceptedVersion);
       await expect(currentResult).resolves.toBe('{"status":"success"}');
@@ -125,15 +125,15 @@ describe("AntigravityCliRunner", () => {
 
   it("classifies missing executables, spawn throws, non-closing errors, and service output without exposing secrets", async () => {
     const missing = createSpawn();
-    const missingRunner = new AntigravityCliRunner({ spawn: missing.spawn, createTempDirectory: async () => "C:/temp/missing", removeEmptyDirectory: async () => undefined });
+    const missingRunner = new AntigravityCliRunner({ command: "agy.exe", spawn: missing.spawn, createTempDirectory: async () => "C:/temp/missing", removeEmptyDirectory: async () => undefined });
     const missingResult = missingRunner.readUsage();
     (await nextCall(missing.calls, 0)).child.emitError(Object.assign(new Error("private executable detail"), { code: "ENOENT" }));
     await expect(missingResult).rejects.toMatchObject({ reason: "not_installed", message: "Antigravity CLI is not installed or is not available on PATH." });
 
-    const thrownRunner = new AntigravityCliRunner({ spawn: () => { throw new Error("private path"); }, createTempDirectory: async () => "C:/temp/throw", removeEmptyDirectory: async () => undefined });
+    const thrownRunner = new AntigravityCliRunner({ command: "agy.exe", spawn: () => { throw new Error("private path"); }, createTempDirectory: async () => "C:/temp/throw", removeEmptyDirectory: async () => undefined });
     await expect(thrownRunner.readUsage()).rejects.toMatchObject({ reason: "process_failed" });
 
-    const directoryRunner = new AntigravityCliRunner({
+    const directoryRunner = new AntigravityCliRunner({ command: "agy.exe",
       createTempDirectory: async () => {
         throw new Error("private directory detail");
       },
@@ -144,7 +144,7 @@ describe("AntigravityCliRunner", () => {
     });
 
     const auth = createSpawn();
-    const authRunner = new AntigravityCliRunner({ spawn: auth.spawn, createTempDirectory: async () => "C:/temp/auth", removeEmptyDirectory: async () => undefined });
+    const authRunner = new AntigravityCliRunner({ command: "agy.exe", spawn: auth.spawn, createTempDirectory: async () => "C:/temp/auth", removeEmptyDirectory: async () => undefined });
     const authResult = authRunner.readUsage();
     const authVersion = await nextCall(auth.calls, 0); authVersion.child.emitStderr("login required private detail"); authVersion.child.emitError(new Error("private") as NodeJS.ErrnoException);
     await expect(authResult).rejects.toMatchObject({ reason: "not_authenticated", message: "Sign in with the Antigravity CLI to view quota." });
@@ -156,7 +156,7 @@ describe("AntigravityCliRunner", () => {
     ["unexpected failure", "process_failed"],
   ] as const)("classifies nonzero CLI output as %s", async (output, reason) => {
     const fake = createSpawn();
-    const runner = new AntigravityCliRunner({
+    const runner = new AntigravityCliRunner({ command: "agy.exe",
       spawn: fake.spawn,
       createTempDirectory: async () => "C:/temp/nonzero",
       removeEmptyDirectory: async () => undefined,
@@ -170,7 +170,7 @@ describe("AntigravityCliRunner", () => {
 
   it("rejects malformed usage JSON and stderr overflow as unsupported output", async () => {
     const malformed = createSpawn();
-    const malformedRunner = new AntigravityCliRunner({
+    const malformedRunner = new AntigravityCliRunner({ command: "agy.exe",
       spawn: malformed.spawn,
       createTempDirectory: async () => "C:/temp/malformed",
       removeEmptyDirectory: async () => undefined,
@@ -185,7 +185,7 @@ describe("AntigravityCliRunner", () => {
     await expect(malformedResult).rejects.toMatchObject({ reason: "unsupported" });
 
     const overflow = createSpawn();
-    const overflowRunner = new AntigravityCliRunner({
+    const overflowRunner = new AntigravityCliRunner({ command: "agy.exe",
       spawn: overflow.spawn,
       createTempDirectory: async () => "C:/temp/stderr-overflow",
       removeEmptyDirectory: async () => undefined,
@@ -202,7 +202,7 @@ describe("AntigravityCliRunner", () => {
   it("preserves a missing-executable error when a child has no PID", async () => {
     const child = new FakeChild();
     const calls: Call[] = [];
-    const runner = new AntigravityCliRunner({
+    const runner = new AntigravityCliRunner({ command: "agy.exe",
       spawn: ((command, args, options) => {
         calls.push({ command, args, options, child });
         return child;
@@ -219,13 +219,13 @@ describe("AntigravityCliRunner", () => {
 
   it("times out or caps output by terminating only the owned process tree", async () => {
     const timeout = createSpawn();
-    const timeoutRunner = new AntigravityCliRunner({ platform: "win32", spawn: timeout.spawn, createTempDirectory: async () => "C:/temp/timeout", removeEmptyDirectory: async () => undefined, versionTimeoutMs: 1, taskkillTimeoutMs: 10 });
+    const timeoutRunner = new AntigravityCliRunner({ command: "agy.exe", platform: "win32", spawn: timeout.spawn, createTempDirectory: async () => "C:/temp/timeout", removeEmptyDirectory: async () => undefined, versionTimeoutMs: 1, taskkillTimeoutMs: 10 });
     await expect(timeoutRunner.readUsage()).rejects.toMatchObject({ reason: "timeout" });
     expect(timeout.calls[1]).toMatchObject({ command: "taskkill", args: ["/pid", "40", "/t", "/f"], options: { shell: false, windowsHide: true, stdio: "ignore" } });
     expect(timeout.calls[0]!.child.killed).toBe(true);
 
     const usageTimeout = createSpawn();
-    const usageTimeoutRunner = new AntigravityCliRunner({
+    const usageTimeoutRunner = new AntigravityCliRunner({ command: "agy.exe",
       platform: "win32",
       spawn: usageTimeout.spawn,
       createTempDirectory: async () => "C:/temp/usage-timeout",
@@ -242,7 +242,7 @@ describe("AntigravityCliRunner", () => {
     expect(usageTimeout.calls[2]).toMatchObject({ command: "taskkill" });
 
     const overflow = createSpawn();
-    const overflowRunner = new AntigravityCliRunner({ spawn: overflow.spawn, createTempDirectory: async () => "C:/temp/overflow", removeEmptyDirectory: async () => undefined });
+    const overflowRunner = new AntigravityCliRunner({ command: "agy.exe", spawn: overflow.spawn, createTempDirectory: async () => "C:/temp/overflow", removeEmptyDirectory: async () => undefined });
     const overflowResult = overflowRunner.readUsage();
     const version = await nextCall(overflow.calls, 0); version.child.emitStdout("1.1.25"); version.child.emitClose();
     const usage = await nextCall(overflow.calls, 1); usage.child.emitStdout(Buffer.alloc(256 * 1024 + 1));
@@ -251,12 +251,12 @@ describe("AntigravityCliRunner", () => {
 
   it("settles after taskkill failure and close aborts active work before preventing future runs", async () => {
     const failedKill = createSpawn("error");
-    const failedKillRunner = new AntigravityCliRunner({ platform: "win32", spawn: failedKill.spawn, createTempDirectory: async () => "C:/temp/kill", removeEmptyDirectory: async () => undefined, versionTimeoutMs: 1 });
+    const failedKillRunner = new AntigravityCliRunner({ command: "agy.exe", platform: "win32", spawn: failedKill.spawn, createTempDirectory: async () => "C:/temp/kill", removeEmptyDirectory: async () => undefined, versionTimeoutMs: 1 });
     await expect(failedKillRunner.readUsage()).rejects.toMatchObject({ reason: "process_failed" });
 
     const closing = createSpawn();
     const removed: string[] = [];
-    const runner = new AntigravityCliRunner({ platform: "win32", spawn: closing.spawn, createTempDirectory: async () => "C:/temp/close", removeEmptyDirectory: async (directory) => { removed.push(directory); } });
+    const runner = new AntigravityCliRunner({ command: "agy.exe", platform: "win32", spawn: closing.spawn, createTempDirectory: async () => "C:/temp/close", removeEmptyDirectory: async (directory) => { removed.push(directory); } });
     const reading = runner.readUsage();
     await nextCall(closing.calls, 0);
     await runner.close();
@@ -271,7 +271,7 @@ describe("AntigravityCliRunner", () => {
     try {
       const fake = createSpawn("hang");
       const order: string[] = [];
-      const runner = new AntigravityCliRunner({
+      const runner = new AntigravityCliRunner({ command: "agy.exe",
         platform: "win32",
         spawn: fake.spawn,
         createTempDirectory: async () => "C:/temp/hung-taskkill",
@@ -299,7 +299,7 @@ describe("AntigravityCliRunner", () => {
     const child = new FakeChild(1234);
     const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
     try {
-      const runner = new AntigravityCliRunner({
+      const runner = new AntigravityCliRunner({ command: "agy",
         platform: "darwin",
         spawn: ((command, args, options) => {
           calls.push({ command, args, options, child });

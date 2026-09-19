@@ -47,9 +47,9 @@ try {
       const name = `${compact ? "compact" : "detail"}-${theme}`;
       await page.screenshot({ path: path.join(output, `${name}.png`), animations: "disabled" });
       metrics[name] = await page.evaluate(() => ({
-        width: innerWidth, height: innerHeight, scale: devicePixelRatio,
-        font: getComputedStyle(document.body).fontFamily,
-        elements: [...document.querySelectorAll(".app-header,.provider-card,.quota,.compact-row,.app-footer")].map(el => {
+        width: globalThis.innerWidth, height: globalThis.innerHeight, scale: globalThis.devicePixelRatio,
+        font: globalThis.getComputedStyle(globalThis.document.body).fontFamily,
+        elements: [...globalThis.document.querySelectorAll(".app-header,.provider-card,.quota,.compact-row,.app-footer")].map(el => {
           const r = el.getBoundingClientRect();
           return { className: el.className, x:r.x, y:r.y, width:r.width, height:r.height };
         }),

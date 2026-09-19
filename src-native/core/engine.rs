@@ -594,6 +594,7 @@ fn start_monitor(
                         Some(MonitorEvent::Cache(providers)) => {
                             cache_loaded=true;
                             for cached in providers {if let Some(i)=PROVIDERS.iter().position(|p|*p==cached.provider_id) {if !received_quota[i] {let error=snapshot.providers[i].error.clone();let local=snapshot.providers[i].local_usage.clone();let health=snapshot.providers[i].service_status.clone();snapshot.providers[i]=cached;snapshot.providers[i].local_usage=local;snapshot.providers[i].service_status=health;snapshot.providers[i].error=error;}}}
+                            let _=writes.send(snapshot.providers.clone());
                         }
                         Some(MonitorEvent::Ready(ready)) => {
                             snapshot.providers[0].local_usage=ready.codex_local_scanner.cached_summary();

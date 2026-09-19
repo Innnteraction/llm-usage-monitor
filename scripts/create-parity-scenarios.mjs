@@ -79,7 +79,7 @@ for (const providerId of ["codex", "claude", "antigravity"]) {
   }
 }
 for (const [name, update] of Object.entries(scenarios)) {
-  const snapshot = structuredClone(base);
+  const snapshot = globalThis.structuredClone(base);
   update(snapshot);
   writeFileSync(path.join(output, `${name}.json`), JSON.stringify(snapshot, null, 2) + "\n");
 }

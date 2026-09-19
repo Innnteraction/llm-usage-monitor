@@ -374,6 +374,21 @@ mod tests {
         assert!(usage.partial);
     }
     #[tokio::test]
+    async fn unchanged_checkpoint_skips_json_parser() {
+        let dir=tempfile::tempdir().unwrap();
+        let path=dir.path().join("fake.jsonl");
+        std::fs::write(&path,codex_line(10)).unwrap();
+        let store=LocalUsageCheckpointStore::new(dir.path().join("index.json"));
+        let scanner=CodexLocalScanner::with_root(dir.path().into(),store.clone());
+        scanner.scan().await;
+        let section=store.get_provider("codex");
+        let previous=section.files.values().next().unwrap();
+        fn must_not_parse(_:serde_json::Value,_:&mut LocalUsageFileCheckpoint)->Result<(),()> {panic!("unchanged file was parsed");}
+        let next=scan_file(&path,&previous.file_key,Some(previous),must_not_parse,"codex").unwrap();
+        assert_eq!(next.offset,previous.offset);
+        assert_eq!(next.contribution,previous.contribution);
+    }
+    #[tokio::test]
     async fn oversized_line_is_bounded_and_following_usage_survives() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("large.jsonl");

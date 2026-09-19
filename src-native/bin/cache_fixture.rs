@@ -6,8 +6,26 @@ use llm_usage_monitor_core::core::{
 #[tokio::main]
 async fn main() {
     let args: Vec<_> = std::env::args().collect();
-    assert_eq!(args.len(), 4, "usage: cache-fixture scan|lock CACHE ROOT");
+    assert_eq!(args.len(), 4, "usage: cache-fixture scan|lock|quota|incomplete-write CACHE ROOT");
     let dir = std::path::PathBuf::from(&args[2]);
+    assert_ne!(dir, cache::directory(), "fixture requires isolated storage");
+    if args[1] == "quota" {
+        let providers = cache::load(&dir);
+        cache::save(&dir, &providers).ok();
+        println!("{}", serde_json::to_string(&providers).unwrap());
+        return;
+    }
+    if args[1] == "incomplete-write" {
+        use std::io::Write;
+        let _lock = cache::acquire_lock(&dir).unwrap();
+        let mut file = tempfile::NamedTempFile::new_in(&dir).unwrap();
+        file.write_all(b"{\"schemaVersion\":").unwrap();
+        file.as_file().sync_all().unwrap();
+        println!("temporary-written");
+        std::io::stdout().flush().unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(30));
+        return;
+    }
     if args[1] == "lock" {
         match cache::acquire_lock(&dir) {
             Ok(_lock) => {
