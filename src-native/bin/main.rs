@@ -512,6 +512,12 @@ fn main() {
             })
     });
     let demo = fixture.is_some() || args.iter().any(|a| a == "--demo");
+    let _shared_lock = if !demo {
+        match llm_usage_monitor_core::core::engine::cache::acquire_lock(&llm_usage_monitor_core::core::engine::cache::directory()) {
+            Ok(lock) => Some(lock),
+            Err(_) => { eprintln!("다른 버전이 실행 중이거나 공통 실행 잠금을 사용할 수 없습니다."); return; }
+        }
+    } else { None };
     let fixed_now = fixture.as_ref().map(|s| s.updated_at);
     let hidden = startup_hidden(&args, demo);
     let hide_after = args.iter().find_map(|a| {

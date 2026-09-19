@@ -26,6 +26,7 @@ import {
   mergeCachedSnapshots,
   SNAPSHOT_CACHE_FILENAME,
   SnapshotCache,
+  sharedCacheDirectory,
 } from "../main/snapshotCache";
 import { createFakeUsageStore } from "../main/fakeUsage";
 
@@ -36,6 +37,7 @@ export interface UsageMonitorCoreOptions {
   providers?: QuotaProvider[];
   useFakeProviders?: boolean;
   clock?: () => Date;
+  sharedDataDir?: string;
 }
 
 export class UsageMonitorCore {
@@ -103,7 +105,8 @@ export class UsageMonitorCore {
     const snapshotCache = useFake
       ? undefined
       : new SnapshotCache(
-          path.join(options.userDataDir, SNAPSHOT_CACHE_FILENAME),
+          path.join(options.sharedDataDir ?? sharedCacheDirectory(), SNAPSHOT_CACHE_FILENAME),
+          path.join(options.userDataDir, "usage-snapshot-v1.json"),
         );
 
     const cachedSnapshots = (await snapshotCache?.load()) ?? [];

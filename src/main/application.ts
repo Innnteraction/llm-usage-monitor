@@ -5,10 +5,12 @@ import {
   Menu,
   screen,
   Tray,
+  dialog,
 } from "electron";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { UsageMonitorCore } from "../core/index";
+import { acquireSharedLock, sharedCacheDirectory } from "./snapshotCache";
 import type { AppSnapshot, ProviderId } from "../shared/index";
 import { openAntigravitySetup } from "./antigravitySetup";
 import { openClaudeSetup } from "./claudeSetup";
@@ -299,6 +301,16 @@ export const startApplication = (): void => {
   void app.whenReady().then(async () => {
     setupPlatformDock(app);
     const useFakeProviders = process.env.LLM_USAGE_MONITOR_E2E === "1";
+    if (!useFakeProviders) {
+      try {
+        const sharedLock = await acquireSharedLock(sharedCacheDirectory());
+        app.once("will-quit", () => sharedLock.close());
+      } catch {
+        dialog.showErrorBox("LLM Usage Monitor", "다른 버전이 실행 중이거나 공통 실행 잠금을 사용할 수 없습니다.");
+        app.quit();
+        return;
+      }
+    }
     const keepVisibleForTest =
       useFakeProviders &&
       process.env.LLM_USAGE_MONITOR_E2E_KEEP_VISIBLE !== "0";

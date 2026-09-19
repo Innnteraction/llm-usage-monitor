@@ -6,6 +6,7 @@ import {
   mergeCachedSnapshots,
   SNAPSHOT_CACHE_FILENAME,
   SnapshotCache,
+  acquireSharedLock,
 } from "../../src/main/index";
 import type { AppSnapshot, ProviderSnapshot } from "../../src/shared/index";
 
@@ -58,6 +59,14 @@ afterEach(async () => {
 });
 
 describe("SnapshotCache", () => {
+  it("excludes a second runtime until the owner releases the shared lock", async () => {
+    const { directory } = await createCache();
+    const owner = await acquireSharedLock(directory);
+    try { await expect(acquireSharedLock(directory)).rejects.toThrow(); }
+    finally { await new Promise<void>((resolve) => owner.close(() => resolve())); }
+    const next = await acquireSharedLock(directory);
+    await new Promise<void>((resolve) => next.close(() => resolve()));
+  });
   it("restores a sanitized Antigravity snapshot stale without displacing Codex or Claude", async () => {
     const { cache, filePath } = await createCache();
     const antigravity: ProviderSnapshot = {
@@ -118,7 +127,7 @@ describe("SnapshotCache", () => {
     const raw = await readFile(filePath, "utf8");
     expect(raw).not.toContain("private.account");
     expect(JSON.parse(raw)).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       providers: [{ providerId: "codex", status: "fresh" }],
     });
     expect(await readdir(directory)).toEqual([SNAPSHOT_CACHE_FILENAME]);
