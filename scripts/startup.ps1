@@ -10,14 +10,19 @@ if ($manifest.schemaVersion -ne 1 -or $manifest.appId -ne 'llm-usage-monitor' -o
 $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $name = 'LLM Usage Monitor'
 $command = '"' + $target + '" --start-hidden'
-$current = Get-ItemPropertyValue -LiteralPath $key -Name $name -ErrorAction SilentlyContinue
+function Read-StartupCommand {
+    $properties = try { Get-ItemProperty -LiteralPath $key -ErrorAction Stop } catch [System.Management.Automation.ItemNotFoundException] { $null }
+    $property = if ($null -ne $properties) { $properties.PSObject.Properties[$name] } else { $null }
+    if ($null -ne $property) { $property.Value }
+}
+$current = Read-StartupCommand
 if ($Action -eq 'on') {
     New-Item -Path $key -Force | Out-Null
     New-ItemProperty -LiteralPath $key -Name $name -Value $command -PropertyType String -Force | Out-Null
 } elseif ($Action -eq 'off' -and $current -eq $command) {
     Remove-ItemProperty -LiteralPath $key -Name $name
 }
-$actual = Get-ItemPropertyValue -LiteralPath $key -Name $name -ErrorAction SilentlyContinue
+$actual = Read-StartupCommand
 if ($Action -eq 'on' -and $actual -ne $command) { throw 'Startup registration verification failed.' }
 if ($Action -eq 'off' -and $actual -eq $command) { throw 'Startup removal verification failed.' }
 if ($actual -eq $command) { 'true' } else { 'false' }

@@ -58,11 +58,22 @@ try {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'startup.ps1') -Destination $target
     @{schemaVersion=1;appId='llm-usage-monitor';variant='rust';executable='locked.exe'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $target 'install-info.json') -Encoding UTF8
     $global:installTestRegistry=$null
-    function Get-ItemPropertyValue { param($LiteralPath,$Name,$ErrorAction); return $global:installTestRegistry }
+    function Get-ItemProperty {
+        param($LiteralPath,$ErrorAction)
+        if ($global:installTestReadError) { throw $global:installTestReadError }
+        $values = @{}
+        if ($null -ne $global:installTestRegistry) { $values['LLM Usage Monitor'] = $global:installTestRegistry }
+        return [pscustomobject]$values
+    }
     function New-ItemProperty { param($LiteralPath,$Name,$Value,$PropertyType,[switch]$Force); $global:installTestRegistry=$Value }
     function Remove-ItemProperty { param($LiteralPath,$Name); $global:installTestRegistry=$null }
     function New-Item { param($Path,[switch]$Force); Assert ($Path -like 'HKCU:*') 'Only fake registry creation allowed' }
     $helper=Join-Path $target 'startup.ps1'
+    $global:installTestReadError = [System.Management.Automation.ItemNotFoundException]::new('Synthetic missing Run key')
+    Assert ((& $helper -Action query) -eq 'false') 'Missing Run key means startup off'
+    $global:installTestReadError = [UnauthorizedAccessException]::new('Synthetic registry access denied')
+    Must-Fail { & $helper -Action query }
+    $global:installTestReadError = $null
     Assert ((& $helper -Action query) -eq 'false') 'Startup initially off'
     Assert ((& $helper -Action on) -eq 'true') 'Startup enabled'
     Assert ($global:installTestRegistry -eq ('"'+(Join-Path $target 'locked.exe')+'" --start-hidden')) 'Quoted executable'
@@ -75,5 +86,5 @@ try {
 } finally {
     Assert-InstallChild $testRoot ([IO.Path]::GetTempPath())
     Remove-Item -LiteralPath $testRoot -Recurse -Force
-    Remove-Variable installTestRegistry,installTestCalls,installTestNode -Scope Global -ErrorAction SilentlyContinue
+    Remove-Variable installTestRegistry,installTestReadError,installTestCalls,installTestNode -Scope Global -ErrorAction SilentlyContinue
 }

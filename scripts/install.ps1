@@ -30,8 +30,10 @@ $legacyNative = Join-Path $installParent 'llm-usage-monitor-native'
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $startupName = 'LLM Usage Monitor'
 $oldRun = @{}
+$runProperties = try { Get-ItemProperty -LiteralPath $runKey -ErrorAction Stop } catch [System.Management.Automation.ItemNotFoundException] { $null }
 foreach ($name in @($startupName,'LLM Usage Monitor Native','llm-usage-monitor','electron.app.LLMUsageMonitor')) {
-    $value = Get-ItemPropertyValue -LiteralPath $runKey -Name $name -ErrorAction SilentlyContinue
+    $property = if ($null -ne $runProperties) { $runProperties.PSObject.Properties[$name] } else { $null }
+    $value = if ($null -ne $property) { $property.Value } else { $null }
     if ($value -and ($value.Contains($installRoot) -or $value.Contains($legacyNative) -or ($name -eq 'LLM Usage Monitor Native' -and $value -match 'llm-usage-monitor\.exe"? --start-hidden$'))) { $oldRun[$name] = $value }
     elseif ($value -and $name -eq $startupName) { throw '공통 자동 시작 이름에 다른 대상이 등록되어 있습니다. 기존 설정을 확인하세요.' }
 }
