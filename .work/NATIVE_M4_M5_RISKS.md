@@ -33,7 +33,16 @@
 
 기존 활성 정책은 Electron TypeScript만 포함한다. `plan --path src-native/bin/main.rs`는 `계획 경로가 policy include 범위 밖입니다`로 실패했다. 기존 정책을 덮어쓰는 `init`도 거부되었다.
 
-`.architecture-guard/policy-native.draft.json`에 기존 Electron 정책을 유지하고 Rust 타입·provider·로컬 스캐너·코어·UI·shell·app 경계를 추가한 초안을 작성했다. UI는 정규화 타입만 참조하며 provider 간 의존을 허용하지 않는다. 정책 활성화 승인을 요청한 상태다. 기존 baseline의 변경이나 신규 위반 수용은 아직 하지 않았다.
+`.architecture-guard/policy-native.draft.json`에 기존 Electron 정책을 유지하고 Rust 타입·provider·로컬 스캐너·코어·UI·shell·app 경계를 추가한 초안을 작성했다. UI는 정규화 타입만 참조한다. provider 파일은 현재 하나의 경계에 속하므로 provider 간 격리는 별도 코드 검토가 필요하다.
+
+사용자가 초안 적용을 승인했다. 활성화 시 baseline 11건 외에 다음 기존 위반 4건이 발견되어, 활성화는 아직 완료되지 않았다. 정책 자동 완화 대신 이 4건의 baseline 수용 승인을 요청했다.
+
+- `tests/unit/vendorHealthPoller.test.ts` → `src/usage/vendorHealthPoller.ts`: private-api-bypass
+- `tests/unit/i18n.test.ts` → `src/shared/i18n/index.ts`: private-api-bypass
+- `tests/unit/vendorHealthFetcher.test.ts` → `src/usage/vendorHealthFetcher.ts`: private-api-bypass
+- `src-native/lib.rs` → `src-native/providers/mod.rs`: forbidden-dependency (기존 모듈 선언)
+
+승인 대기 중 Windows 타깃의 누락된 Cargo 캐시를 내려받아 `cargo metadata --locked --filter-platform x86_64-pc-windows-msvc`를 완료했다. resolve node는 자체 패키지를 포함해 511개이며 `option-ext 0.2.0`의 MPL-2.0 선언이 포함된다. 자체 Cargo package에는 license 필드가 빠져 있다. 이는 메타데이터 확인 결과이며 release 바이너리의 최종 링크·배포 감사 완료를 뜻하지 않는다.
 
 ## M5 전환 판정 조건
 
