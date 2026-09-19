@@ -138,9 +138,37 @@ mod tests {
 
 #[derive(Clone)]
 pub enum UiAction {
+    Refresh,
+    Compact,
+    Theme,
+    Pin,
     Additional(ProviderId),
     Error(ProviderId),
     OpenUrl(String),
     Setup(ProviderId, bool),
 }
 pub type UiEvents = std::rc::Rc<dyn Fn(UiAction, &mut gpui::Window, &mut gpui::App)>;
+
+/// Mouse and keyboard activation share the same action and focus order.
+pub fn action_button(
+    id: impl Into<gpui::ElementId>,
+    action: UiAction,
+    events: UiEvents,
+) -> gpui::Stateful<gpui::Div> {
+    use gpui::prelude::*;
+    let clicked = events.clone();
+    let click_action = action.clone();
+    gpui::div()
+        .id(id)
+        .focusable()
+        .tab_index(0)
+        .cursor_pointer()
+        .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_click(move |_, window, cx| clicked(click_action.clone(), window, cx))
+        .on_key_down(move |event, window, cx| {
+            if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                cx.stop_propagation();
+                events(action.clone(), window, cx);
+            }
+        })
+}

@@ -59,3 +59,8 @@ desktop.ini
 
 # Secret scanner reports
 gitleaks-report*.json
+
+# Local parity screenshots, videos and capture metadata
+.work/parity-captures/
+.work/parity-reference/*.png
+.work/parity-reference/metrics.json

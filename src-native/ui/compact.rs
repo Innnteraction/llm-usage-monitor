@@ -1,7 +1,9 @@
 use super::{format::*, presentation::*, theme::Palette};
 use crate::core::types::*;
 use chrono::{DateTime, Utc};
-use gpui::{div, prelude::*, px, relative, svg, IntoElement, SharedString};
+use gpui::{
+    div, prelude::*, px, relative, svg, Animation, AnimationExt, IntoElement, SharedString,
+};
 use std::collections::HashSet;
 
 pub fn render_compact(
@@ -10,6 +12,7 @@ pub fn render_compact(
     now: DateTime<Utc>,
     errors: &HashSet<ProviderId>,
     events: UiEvents,
+    reduced_motion: bool,
 ) -> impl IntoElement {
     div()
         .flex()
@@ -92,7 +95,11 @@ pub fn render_compact(
                                         .text_color(p.text),
                                 ),
                         )
-                        .child(slot(five, "5h", true, p, now))
+                        .child(if id == ProviderId::Codex {
+                            unlimited_slot(p, reduced_motion).into_any_element()
+                        } else {
+                            slot(five, "5h", true, p, now).into_any_element()
+                        })
                         .child(slot(weekly, "7d", true, p, now))
                         .child(slot(fable, "fable", id == ProviderId::Claude, p, now)),
                 )
@@ -127,6 +134,88 @@ pub fn render_compact(
                         }),
                 )
         }))
+}
+
+// 사용자 확정 제품 규칙. snapshot의 미제공 값을 변조하지 않는다.
+fn unlimited_slot(p: Palette, reduced_motion: bool) -> impl IntoElement {
+    let light = p.background == gpui::rgb(0xf5f5f7);
+    let colors = [0xff595e, 0xffca3a, 0x8ac926, 0x1982c4, 0x6a4c93, 0xff595e];
+    let rainbow = div()
+        .absolute()
+        .top_0()
+        .h_full()
+        .w(px(288.))
+        .flex()
+        .children((0..15).map(move |index| {
+            div()
+                .w(px(19.2))
+                .h_full()
+                .flex_shrink_0()
+                .bg(gpui::linear_gradient(
+                    90.,
+                    gpui::linear_color_stop(gpui::rgb(colors[index % 5]), 0.),
+                    gpui::linear_color_stop(gpui::rgb(colors[index % 5 + 1]), 1.),
+                ))
+        }));
+    let rainbow = if reduced_motion {
+        rainbow.left(px(0.)).into_any_element()
+    } else {
+        rainbow
+            .with_animation(
+                "codex-unlimited-flow",
+                Animation::new(std::time::Duration::from_millis(3500)).repeat(),
+                |el, delta| el.left(px(-192. * delta)),
+            )
+            .into_any_element()
+    };
+    div()
+        .id("codex-unlimited")
+        .flex_1()
+        .min_w_0()
+        .flex()
+        .items_center()
+        .gap(px(4.))
+        .tooltip(move |_, cx| {
+            super::tooltip::tooltip("Codex has no 5h session limit (Unlimited)".into(), p, cx)
+        })
+        .child(
+            div()
+                .relative()
+                .w(px(48.))
+                .h(px(18.))
+                .flex_shrink_0()
+                .rounded(px(4.))
+                .overflow_hidden()
+                .child(rainbow)
+                .child(
+                    div()
+                        .relative()
+                        .size_full()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .text_size(px(10.208))
+                        .font_weight(gpui::FontWeight::BOLD)
+                        .text_color(gpui::rgb(if light { 0x18181b } else { 0x0f1412 }))
+                        .child("5H"),
+                ),
+        )
+        .child(
+            div()
+                .w(px(28.))
+                .flex_shrink_0()
+                .text_right()
+                .text_size(px(13.024))
+                .text_color(p.muted)
+                .child("--%"),
+        )
+        .child(
+            div()
+                .text_size(px(14.432))
+                .font_weight(gpui::FontWeight::BOLD)
+                .text_color(gpui::rgb(if light { 0x787880 } else { 0x9b9b9b }))
+                .child("∞"),
+        )
 }
 fn slot(
     w: Option<&QuotaWindow>,

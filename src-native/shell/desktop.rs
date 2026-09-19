@@ -6,6 +6,26 @@ use std::{
     process::{Command, Stdio},
 };
 
+pub fn prefers_reduced_motion() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::*;
+        let mut enabled: i32 = 1;
+        return unsafe {
+            SystemParametersInfoW(
+                SPI_GETCLIENTAREAANIMATION,
+                0,
+                Some((&mut enabled as *mut i32).cast()),
+                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
+            )
+        }
+        .is_err()
+            || enabled == 0;
+    }
+    #[cfg(not(target_os = "windows"))]
+    false
+}
+
 #[cfg(target_os = "windows")]
 pub fn set_position(window: &gpui::Window, x: f32, y: f32) -> Result<()> {
     use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::*};

@@ -67,6 +67,7 @@ pub fn render_quota_card(
         )
     });
     div()
+        .id(SharedString::from(format!("provider-{}", id.as_str())))
         .flex()
         .flex_col()
         .w_full()

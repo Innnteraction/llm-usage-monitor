@@ -15,7 +15,7 @@ use llm_usage_monitor_core::{
     ui::{
         compact::render_compact,
         icons::Icons,
-        presentation::{UiAction, UiEvents},
+        presentation::{action_button, UiAction, UiEvents},
         quota_card::render_quota_card,
         theme::ThemeMode,
         vendor_banner::render_vendor_health_banner,
@@ -51,8 +51,30 @@ struct AppState {
     dragging: bool,
     ui_error: Option<String>,
     demo: bool,
+    hidden_since: Option<Instant>,
+    scroll: gpui::ScrollHandle,
+    reduced_motion: bool,
 }
 impl AppState {
+    fn toggle_compact(&mut self) {
+        self.compact = !self.compact;
+        self.expanded.clear();
+        self.expanded_errors.clear();
+    }
+    fn restore_visible_session(&mut self) {
+        if self
+            .hidden_since
+            .take()
+            .is_some_and(|at| at.elapsed() >= Duration::from_secs(30))
+        {
+            self.compact = false;
+            self.theme = ThemeMode::System;
+            self.expanded.clear();
+            self.expanded_errors.clear();
+            self.ui_error = None;
+            self.scroll = gpui::ScrollHandle::new();
+        }
+    }
     fn save_preferences(&self) {
         let value = serde_json::json!({"pinned": self.pinned});
         let _ = std::fs::write(&self.preferences_path, value.to_string());
@@ -94,6 +116,35 @@ impl Render for PopoverView {
             let _ = weak.update(cx, |view, cx| {
                 let mut s = view.state.lock().unwrap();
                 match &action {
+                    UiAction::Refresh => {
+                        if !s.refreshing && s.snapshot.is_some() {
+                            s.refresh_requested = true;
+                        }
+                        cx.notify();
+                        return;
+                    }
+                    UiAction::Compact => {
+                        s.toggle_compact();
+                        cx.notify();
+                        return;
+                    }
+                    UiAction::Theme => {
+                        s.theme = s.theme.next(window.appearance());
+                        cx.notify();
+                        return;
+                    }
+                    UiAction::Pin => {
+                        if llm_usage_monitor_core::shell::desktop::set_topmost(window, !s.pinned)
+                            .is_ok()
+                        {
+                            s.pinned = !s.pinned;
+                            s.save_preferences();
+                        } else {
+                            s.ui_error = Some("Failed to change always-on-top state.".into());
+                        }
+                        cx.notify();
+                        return;
+                    }
                     UiAction::OpenUrl(url) => {
                         if !s.demo && llm_usage_monitor_core::shell::desktop::open_url(url).is_err()
                         {
@@ -132,6 +183,8 @@ impl Render for PopoverView {
             });
         });
         let measured_state = self.state.clone();
+        let scroll = self.state.lock().unwrap().scroll.clone();
+        let reduced_motion = self.state.lock().unwrap().reduced_motion;
         let title = if refreshing {
             let dots = self
                 .state
@@ -152,9 +205,15 @@ impl Render for PopoverView {
         div().id("app-shell").track_focus(&self.focus)
             .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, window, cx| {
                 let key = &event.keystroke;
+                if key.key == "tab" {
+                    if key.modifiers.shift {window.focus_prev();} else {window.focus_next();}
+                    cx.stop_propagation();
+                    return;
+                }
                 if key.key == "escape" {
                     if !this.state.lock().unwrap().pinned {
                         this.state.lock().unwrap().window_handle = None;
+                        this.state.lock().unwrap().hidden_since = Some(Instant::now());
                         window.remove_window();
                     }
                     return;
@@ -163,7 +222,7 @@ impl Render for PopoverView {
                 if modifier && key.modifiers.shift {
                     let mut s=this.state.lock().unwrap();
                     match key.key.to_lowercase().as_str() {
-                        "c" => s.compact = !s.compact,
+                        "c" => s.toggle_compact(),
                         "l" => s.theme = s.theme.next(window.appearance()),
                         "p" => { if llm_usage_monitor_core::shell::desktop::set_topmost(window,!s.pinned).is_ok() {s.pinned = !s.pinned; s.save_preferences();} else {s.ui_error=Some("Failed to change always-on-top state.".into());} },
                         _ => return,
@@ -177,26 +236,26 @@ impl Render for PopoverView {
             .child(div().flex().items_center().justify_between().gap(px(12.)).flex_shrink_0()
                 .on_mouse_down(gpui::MouseButton::Left, cx.listener(|this,_,window,_| {this.state.lock().unwrap().dragging=true; window.start_window_move();}))
                 .on_mouse_up(gpui::MouseButton::Left, cx.listener(|this,_,_,_| this.state.lock().unwrap().dragging=false))
-                .child(div().id("refresh").cursor_pointer().text_size(px(14.432)).font_weight(gpui::FontWeight::BOLD).text_color(palette.muted)
+                .child(action_button("refresh",UiAction::Refresh,events.clone()).text_size(px(14.432)).font_weight(gpui::FontWeight::BOLD).text_color(palette.muted)
                     .child(title)
                     .on_mouse_down(gpui::MouseButton::Left, |_,_,cx|cx.stop_propagation())
-                    .on_click(cx.listener(|this,_,_,cx| { let mut s=this.state.lock().unwrap(); if !s.refreshing && s.snapshot.is_some() {s.refresh_requested=true;} cx.notify(); })))
+                    )
                 .child(div().flex().items_center().gap(px(10.))
-                    .child(div().id("compact").cursor_pointer().size(px(16.)).child(gpui::svg().path(if compact {"AddSquare"} else {"MinusSquare"}).size_full().text_color(palette.muted))
+                    .child(action_button("compact",UiAction::Compact,events.clone()).size(px(16.)).child(gpui::svg().path(if compact {"AddSquare"} else {"MinusSquare"}).size_full().text_color(palette.muted))
                         .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
                         .tooltip(move |_,cx|llm_usage_monitor_core::ui::tooltip::tooltip(if compact {"Expand to detailed mode"} else {"Collapse to compact mode"}.into(),palette,cx))
-                        .on_click(cx.listener(|this,_,_,cx| {let mut s=this.state.lock().unwrap();s.compact=!s.compact;cx.notify();})))
-                    .child(div().id("theme").cursor_pointer().size(px(16.)).child(gpui::svg().path(if palette.background == gpui::rgb(0x101010) {"Moon-filled"} else {"Sun-filled"}).size_full().text_color(palette.muted))
+                    )
+                    .child(action_button("theme",UiAction::Theme,events.clone()).size(px(16.)).child(gpui::svg().path(if palette.background == gpui::rgb(0x101010) {"Moon-filled"} else {"Sun-filled"}).size_full().text_color(palette.muted))
                         .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
-                        .on_click(cx.listener(|this,_,window,cx| {let mut s=this.state.lock().unwrap();s.theme=s.theme.next(window.appearance());cx.notify();})))
-                    .child(div().id("pin").cursor_pointer().size(px(16.)).child(gpui::svg().path(if pinned {"Pin-filled"} else {"Pin"}).size_full().text_color(palette.muted))
+                    )
+                    .child(action_button("pin",UiAction::Pin,events.clone()).size(px(16.)).child(gpui::svg().path(if pinned {"Pin-filled"} else {"Pin"}).size_full().text_color(palette.muted))
                         .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
-                        .on_click(cx.listener(|this,_,window,cx| {let mut s=this.state.lock().unwrap();if llm_usage_monitor_core::shell::desktop::set_topmost(window,!s.pinned).is_ok() {s.pinned=!s.pinned;s.save_preferences();} else {s.ui_error=Some("Failed to change always-on-top state.".into());} cx.notify();})))
+                    )
                     .child(div().id("help").cursor_pointer().size(px(16.)).child(gpui::svg().path("Help").size_full().text_color(palette.muted))
                         .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
                         .tooltip(move |_,cx|llm_usage_monitor_core::ui::tooltip::tooltip("LLM Usage Monitor v0.12.0\nquota: account · tokens: this PC\nCtrl/⌘+Shift+C  Toggle compact mode\nCtrl/⌘+Shift+L  Toggle theme (dark/light)\nCtrl/⌘+Shift+P  Toggle pin (always on top)\nEsc  Close popover (stay in tray)".into(),palette,cx)))))
             .children(self.state.lock().unwrap().ui_error.clone().map(|message|div().text_size(px(11.968)).text_color(palette.high).child(message)))
-            .child(div().id("content").flex_1().min_h_0().overflow_y_scroll().mt(px(if compact {8.} else {12.}))
+            .child(div().id("content").flex_1().min_h_0().overflow_y_scroll().track_scroll(&scroll).mt(px(if compact {8.} else {12.}))
                 .child(div().flex().flex_col().gap(px(7.)).flex_shrink_0().w_full()
                     .on_children_prepainted(move |bounds,_,_| {
                         if let (Some(first),Some(last))=(bounds.first(),bounds.last()) {
@@ -206,7 +265,7 @@ impl Render for PopoverView {
                     .children(if let Some(snap)=snapshot {
                         let mut children=Vec::new();
                         if !compact && snap.providers.iter().any(|p| p.service_status.as_ref().is_some_and(|s| matches!(s.indicator, ServiceHealthIndicator::Minor | ServiceHealthIndicator::Major | ServiceHealthIndicator::Critical))) { children.push(render_vendor_health_banner(&snap.providers,palette,events.clone()).into_any_element()); }
-                        if compact { children.push(render_compact(&snap.providers,palette,now,&errors,events.clone()).into_any_element()); }
+                        if compact { children.push(render_compact(&snap.providers,palette,now,&errors,events.clone(),reduced_motion).into_any_element()); }
                         else { for (index,p) in snap.providers.iter().enumerate() {children.push(render_quota_card(p,index,palette,now,expanded.contains(&p.provider_id),events.clone()).into_any_element());} }
                         children
                     } else {vec![div().text_size(px(11.968)).child("Loading quota…").into_any_element()]})))
@@ -214,7 +273,11 @@ impl Render for PopoverView {
 }
 
 fn close_popover(state: &Arc<Mutex<AppState>>, cx: &mut App) {
-    let handle = state.lock().unwrap().window_handle.take();
+    let handle = {
+        let mut s = state.lock().unwrap();
+        s.hidden_since = Some(Instant::now());
+        s.window_handle.take()
+    };
     if let Some(handle) = handle {
         let _ = handle.update(cx, |_, window, _| window.remove_window());
     }
@@ -231,6 +294,7 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
         state.lock().unwrap().window_handle = None;
     }
     let displays = cx.displays();
+    state.lock().unwrap().restore_visible_session();
     #[cfg(target_os = "windows")]
     let tray_bounds = state.lock().unwrap().tray_bounds;
     #[cfg(target_os = "windows")]
@@ -321,6 +385,7 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
                 let mut s = this.state.lock().unwrap();
                 if !window.is_window_active() && !s.pinned {
                     s.window_handle = None;
+                    s.hidden_since = Some(Instant::now());
                     drop(s);
                     window.remove_window();
                 }
@@ -421,6 +486,8 @@ fn main() {
         .build()
         .expect("collector runtime");
     let runtime_handle = runtime.handle().clone();
+    let startup_failed = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let startup_status = startup_failed.clone();
     Application::new().with_assets(Icons).run(move |cx| {
         let data_dir = if demo {
             std::env::temp_dir().join(format!("llm-monitor-demo-{}", std::process::id()))
@@ -457,6 +524,9 @@ fn main() {
             dragging: false,
             ui_error: None,
             demo,
+            hidden_since: None,
+            scroll: gpui::ScrollHandle::new(),
+            reduced_motion: llm_usage_monitor_core::shell::desktop::prefers_reduced_motion(),
         }));
         let engine = Arc::new(UsageMonitorEngine::new(data_dir));
         let tray = match SystemTrayManager::new() {
@@ -495,7 +565,12 @@ fn main() {
         state.lock().unwrap().tray_bounds = tray.bounds();
         if !hidden {
             open_popover(state.clone(), cx);
+            if state.lock().unwrap().window_handle.is_none() {
+                cx.quit();
+                return;
+            }
         }
+        startup_status.store(false,std::sync::atomic::Ordering::Relaxed);
         let (tx, rx) = mpsc::channel();
         let (startup_tx,startup_rx)=mpsc::channel();
         let mut startup_pending=false;
@@ -643,6 +718,7 @@ fn main() {
                     }
                     let render_interval=if state.lock().unwrap().refreshing {Duration::from_millis(400)} else {Duration::from_secs(30)};
                     if last_render.elapsed() >= render_interval {
+                        state.lock().unwrap().reduced_motion=llm_usage_monitor_core::shell::desktop::prefers_reduced_motion();
                         if state.lock().unwrap().window_handle.is_some() {
                             let _ = async_cx.refresh();
                         }
@@ -654,4 +730,59 @@ fn main() {
             .detach();
     });
     runtime.shutdown_background();
+    if startup_failed.load(std::sync::atomic::Ordering::Relaxed) {
+        std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn hidden_session_preserves_state_before_idle_and_resets_after_idle() {
+        let mut state = AppState {
+            window_handle: None,
+            pinned: true,
+            compact: false,
+            theme: ThemeMode::System,
+            snapshot: Some(demo_snapshot()),
+            refreshing: false,
+            refresh_started: None,
+            refresh_requested: false,
+            preferences_path: PathBuf::new(),
+            tray_bounds: None,
+            fixed_now: None,
+            expanded: Default::default(),
+            expanded_errors: Default::default(),
+            desired_height: None,
+            max_height: 1000.,
+            work_area: WindowRect::new(0., 0., 1920., 1080.),
+            anchor: PosPoint::new(1780., 1080.),
+            custom_position: None,
+            dragging: false,
+            ui_error: None,
+            demo: true,
+            hidden_since: None,
+            scroll: gpui::ScrollHandle::new(),
+            reduced_motion: false,
+        };
+        state.compact = true;
+        state.theme = ThemeMode::Dark;
+        state.expanded.insert(ProviderId::Codex);
+        state.custom_position = Some(PosPoint::new(20., 30.));
+        state.hidden_since = Some(Instant::now() - Duration::from_secs(10));
+        state.restore_visible_session();
+        assert!(state.compact && state.expanded.contains(&ProviderId::Codex));
+        assert_eq!(state.theme, ThemeMode::Dark);
+        state.hidden_since = Some(Instant::now() - Duration::from_secs(31));
+        state.restore_visible_session();
+        assert!(!state.compact && state.expanded.is_empty());
+        assert_eq!(state.theme, ThemeMode::System);
+        assert!(state.pinned && state.snapshot.is_some());
+        assert_eq!(state.custom_position, Some(PosPoint::new(20., 30.)));
+        state.expanded.insert(ProviderId::Claude);
+        state.expanded_errors.insert(ProviderId::Codex);
+        state.toggle_compact();
+        assert!(state.expanded.is_empty() && state.expanded_errors.is_empty());
+    }
 }
