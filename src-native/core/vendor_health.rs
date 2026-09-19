@@ -84,7 +84,10 @@ fn combine_signals(
 }
 
 pub fn get_simulated_incident(provider_id: ProviderId) -> Option<VendorServiceStatus> {
-    let mock_target = env::var("LLM_USAGE_MONITOR_MOCK_INCIDENT").ok()?.trim().to_lowercase();
+    let mock_target = env::var("LLM_USAGE_MONITOR_MOCK_INCIDENT")
+        .ok()?
+        .trim()
+        .to_lowercase();
     if mock_target.is_empty() {
         return None;
     }
@@ -138,7 +141,8 @@ pub async fn fetch_claude_status(client: &reqwest::Client) -> VendorServiceStatu
         };
 
         if let Ok(data) = resp.json::<StatuspageSummary>().await {
-            let mut indicator = map_indicator(data.status.as_ref().and_then(|s| s.indicator.as_deref()));
+            let mut indicator =
+                map_indicator(data.status.as_ref().and_then(|s| s.indicator.as_deref()));
 
             if let Some(components) = data.components {
                 let relevant = components.into_iter().filter(|c| {
@@ -215,7 +219,8 @@ pub async fn fetch_codex_status(client: &reqwest::Client) -> VendorServiceStatus
     };
 
     if let Ok(data) = resp.json::<StatuspageSummary>().await {
-        let mut indicator = map_indicator(data.status.as_ref().and_then(|s| s.indicator.as_deref()));
+        let mut indicator =
+            map_indicator(data.status.as_ref().and_then(|s| s.indicator.as_deref()));
 
         if let Some(components) = data.components {
             let relevant = components.into_iter().filter(|c| {
@@ -272,7 +277,7 @@ pub async fn fetch_antigravity_status(client: &reqwest::Client) -> VendorService
         return simulated;
     }
 
-    let mut indicator = ServiceHealthIndicator::Operational;
+    let mut indicator = ServiceHealthIndicator::Unknown;
     let mut incident_title = None;
 
     if let Ok(resp) = client
@@ -283,6 +288,7 @@ pub async fn fetch_antigravity_status(client: &reqwest::Client) -> VendorService
     {
         if resp.status().is_success() {
             if let Ok(incidents) = resp.json::<Vec<GoogleIncident>>().await {
+                indicator = ServiceHealthIndicator::Operational;
                 let active_ai = incidents.into_iter().find(|inc| {
                     if inc.end.is_some() {
                         return false;
@@ -314,6 +320,8 @@ pub async fn fetch_antigravity_status(client: &reqwest::Client) -> VendorService
 
     let description = if indicator == ServiceHealthIndicator::Operational {
         "All Systems Operational".to_string()
+    } else if indicator == ServiceHealthIndicator::Unknown {
+        "Status page temporarily unreachable".to_string()
     } else {
         "Google Cloud AI incident reported".to_string()
     };

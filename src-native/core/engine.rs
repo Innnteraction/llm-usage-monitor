@@ -1,9 +1,10 @@
 use super::local_usage::{ClaudeLocalScanner, CodexLocalScanner, LocalUsageCheckpointStore};
-use super::types::{AppSnapshot, ProviderId};
+use super::types::{AppSnapshot, ProviderId, ProviderSnapshot, SnapshotStatus};
 use super::vendor_health::fetch_vendor_status;
 use crate::providers::{AntigravityProvider, ClaudeProvider, CodexProvider};
 use chrono::Utc;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 pub struct UsageMonitorEngine {
     codex_provider: CodexProvider,
@@ -12,14 +13,16 @@ pub struct UsageMonitorEngine {
     codex_local_scanner: CodexLocalScanner,
     claude_local_scanner: ClaudeLocalScanner,
     http_client: reqwest::Client,
+    last_success: Mutex<Vec<ProviderSnapshot>>,
 }
 
 impl UsageMonitorEngine {
     pub fn new(data_dir: PathBuf) -> Self {
-        let checkpoint_path = data_dir.join("local-usage-index-v1.json");
+        let checkpoint_path = data_dir.join("native-local-usage-index-v1.json");
         let checkpoint_store = LocalUsageCheckpointStore::new(checkpoint_path);
 
         Self {
+            last_success: Mutex::new(Vec::new()),
             codex_provider: CodexProvider::new(),
             claude_provider: ClaudeProvider::new(),
             antigravity_provider: AntigravityProvider::new(),
@@ -73,11 +76,86 @@ impl UsageMonitorEngine {
         let mut agy_snap = agy_res;
         agy_snap.service_status = Some(agy_health);
 
+        let mut providers = vec![codex_snap, claude_snap, agy_snap];
+        preserve_success(&mut providers, &mut self.last_success.lock().unwrap());
         AppSnapshot {
             schema_version: 1,
-            providers: vec![codex_snap, claude_snap, agy_snap],
+            providers,
             refreshing: Vec::new(),
             updated_at: Utc::now(),
         }
+    }
+}
+
+// quota만 보존한다. 로컬 토큰과 서버 상태는 이번 수집 결과를 사용한다.
+fn preserve_success(current: &mut [ProviderSnapshot], last: &mut Vec<ProviderSnapshot>) {
+    for snapshot in current {
+        if snapshot.status == SnapshotStatus::Fresh && snapshot.error.is_none() {
+            last.retain(|old| old.provider_id != snapshot.provider_id);
+            last.push(snapshot.clone());
+        } else if let Some(old) = last
+            .iter()
+            .find(|old| old.provider_id == snapshot.provider_id)
+        {
+            snapshot.status = SnapshotStatus::Stale;
+            snapshot.account_label = old.account_label.clone();
+            snapshot.auth_kind = old.auth_kind;
+            snapshot.last_successful_at = old.last_successful_at;
+            snapshot.quota_windows = old.quota_windows.clone();
+            for quota in &mut snapshot.quota_windows {
+                if quota.used_percent.is_some() {
+                    quota.status = SnapshotStatus::Stale;
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::*;
+    #[test]
+    fn failed_provider_keeps_quota_but_missing_quota_does_not_resurrect() {
+        let now = Utc::now();
+        let fresh = ProviderSnapshot {
+            provider_id: ProviderId::Codex,
+            account_label: None,
+            auth_kind: None,
+            status: SnapshotStatus::Fresh,
+            fetched_at: now,
+            last_successful_at: Some(now),
+            quota_windows: vec![QuotaWindow {
+                id: "test".into(),
+                kind: QuotaKind::FiveHour,
+                label: "5h".into(),
+                used_percent: Some(25.0),
+                resets_at: None,
+                source: ProviderSource::LocalFixture,
+                status: SnapshotStatus::Fresh,
+            }],
+            local_usage: None,
+            service_status: None,
+            error: None,
+        };
+        let mut last = vec![];
+        preserve_success(&mut [fresh.clone()], &mut last);
+        let mut failed = fresh.clone();
+        failed.status = SnapshotStatus::Unavailable;
+        failed.quota_windows.clear();
+        failed.error = Some(ProviderError {
+            code: "network".into(),
+            message: "retry".into(),
+            retry_at: None,
+        });
+        let mut current = vec![failed];
+        preserve_success(&mut current, &mut last);
+        assert_eq!(current[0].status, SnapshotStatus::Stale);
+        assert_eq!(current[0].quota_windows[0].used_percent, Some(25.0));
+        assert!(current[0].error.is_some());
+        let mut unavailable = fresh;
+        unavailable.quota_windows.clear();
+        preserve_success(&mut [unavailable], &mut last);
+        assert!(last[0].quota_windows.is_empty());
     }
 }

@@ -88,6 +88,7 @@ impl CodexProvider {
         // 1. Spawn codex app-server --stdio
         let mut child = match Command::new(&self.command_name)
             .args(["app-server", "--stdio"])
+            .kill_on_drop(true)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -100,11 +101,7 @@ impl CodexProvider {
                 } else {
                     "process_failed"
                 };
-                return failure_snapshot(
-                    fetched_at,
-                    code,
-                    "Install the Codex CLI to view quota.",
-                );
+                return failure_snapshot(fetched_at, code, "Install the Codex CLI to view quota.");
             }
         };
 
@@ -126,11 +123,7 @@ impl CodexProvider {
                 normalize_codex_snapshot(account, rate_limits, fetched_at)
             }
             Ok(Err((code, msg))) => failure_snapshot(fetched_at, &code, &msg),
-            Err(_) => failure_snapshot(
-                fetched_at,
-                "timeout",
-                "Codex quota refresh timed out.",
-            ),
+            Err(_) => failure_snapshot(fetched_at, "timeout", "Codex quota refresh timed out."),
         }
     }
 
@@ -173,17 +166,18 @@ impl CodexProvider {
         // Step 4: rateLimits/read
         let limits_req = json!({
             "id": 3,
-            "method": "rateLimits/read",
+            "method": "account/rateLimits/read",
             "params": {}
         });
         send_json(writer, &limits_req).await?;
         let limits_val = read_response_matching_id(reader, 3).await?;
-        let rate_limits: CodexRateLimitsResponse = serde_json::from_value(limits_val).map_err(|_| {
-            (
-                "unsupported_output".to_string(),
-                "The installed Codex CLI returned an unsupported response.".to_string(),
-            )
-        })?;
+        let rate_limits: CodexRateLimitsResponse =
+            serde_json::from_value(limits_val).map_err(|_| {
+                (
+                    "unsupported_output".to_string(),
+                    "The installed Codex CLI returned an unsupported response.".to_string(),
+                )
+            })?;
 
         Ok((account, rate_limits))
     }
@@ -191,14 +185,23 @@ impl CodexProvider {
 
 async fn send_json(writer: &mut ChildStdin, val: &Value) -> Result<(), (String, String)> {
     let mut line = serde_json::to_string(val).map_err(|_| {
-        ("unexpected".to_string(), "Failed to serialize JSON-RPC message".to_string())
+        (
+            "unexpected".to_string(),
+            "Failed to serialize JSON-RPC message".to_string(),
+        )
     })?;
     line.push('\n');
     writer.write_all(line.as_bytes()).await.map_err(|_| {
-        ("process_failed".to_string(), "Codex App Server stopped during quota refresh.".to_string())
+        (
+            "process_failed".to_string(),
+            "Codex App Server stopped during quota refresh.".to_string(),
+        )
     })?;
     writer.flush().await.map_err(|_| {
-        ("process_failed".to_string(), "Codex App Server stopped during quota refresh.".to_string())
+        (
+            "process_failed".to_string(),
+            "Codex App Server stopped during quota refresh.".to_string(),
+        )
     })?;
     Ok(())
 }
@@ -211,7 +214,10 @@ async fn read_response_matching_id(
     loop {
         line.clear();
         let bytes_read = reader.read_line(&mut line).await.map_err(|_| {
-            ("process_failed".to_string(), "Codex App Server stopped during quota refresh.".to_string())
+            (
+                "process_failed".to_string(),
+                "Codex App Server stopped during quota refresh.".to_string(),
+            )
         })?;
         if bytes_read == 0 {
             return Err((
@@ -271,6 +277,29 @@ fn normalize_codex_snapshot(
         };
     }
 
+    let valid_window = |w: &CodexRateLimitWindow| {
+        w.used_percent.is_finite()
+            && (0.0..=100.0).contains(&w.used_percent)
+            && w.resets_at
+                .is_none_or(|t| unix_secs_to_datetime(t).is_some())
+    };
+    let valid_snapshot = |s: &CodexRateLimitSnapshot| {
+        s.primary.as_ref().is_none_or(&valid_window)
+            && s.secondary.as_ref().is_none_or(&valid_window)
+    };
+    if !valid_snapshot(&rate_limits.rate_limits)
+        || rate_limits
+            .rate_limits_by_limit_id
+            .as_ref()
+            .is_some_and(|m| m.values().any(|s| !valid_snapshot(s)))
+    {
+        return failure_snapshot(
+            fetched_at,
+            "unsupported_output",
+            "Codex quota response has invalid values.",
+        );
+    }
+
     let account_label = account
         .account
         .as_ref()
@@ -299,9 +328,21 @@ fn normalize_rate_limits(response: &CodexRateLimitsResponse) -> Vec<QuotaWindow>
     if let Some(primary) = &response.rate_limits.primary {
         let is_5h = primary.window_duration_mins == FIVE_HOUR_MINUTES;
         windows.push(QuotaWindow {
-            id: if is_5h { "codex-five-hour".to_string() } else { "codex-base-primary".to_string() },
-            kind: if is_5h { QuotaKind::FiveHour } else { QuotaKind::Other },
-            label: if is_5h { "5h".to_string() } else { "Primary quota".to_string() },
+            id: if is_5h {
+                "codex-five-hour".to_string()
+            } else {
+                "codex-base-primary".to_string()
+            },
+            kind: if is_5h {
+                QuotaKind::FiveHour
+            } else {
+                QuotaKind::Other
+            },
+            label: if is_5h {
+                "5h".to_string()
+            } else {
+                "Primary quota".to_string()
+            },
             used_percent: Some(primary.used_percent),
             resets_at: primary.resets_at.and_then(unix_secs_to_datetime),
             source: ProviderSource::CodexAppServer,
@@ -323,9 +364,21 @@ fn normalize_rate_limits(response: &CodexRateLimitsResponse) -> Vec<QuotaWindow>
     if let Some(sec) = &response.rate_limits.secondary {
         let is_weekly = sec.window_duration_mins == WEEKLY_MINUTES;
         windows.push(QuotaWindow {
-            id: if is_weekly { "codex-weekly".to_string() } else { "codex-base-secondary".to_string() },
-            kind: if is_weekly { QuotaKind::Weekly } else { QuotaKind::Other },
-            label: if is_weekly { "Weekly".to_string() } else { "Secondary quota".to_string() },
+            id: if is_weekly {
+                "codex-weekly".to_string()
+            } else {
+                "codex-base-secondary".to_string()
+            },
+            kind: if is_weekly {
+                QuotaKind::Weekly
+            } else {
+                QuotaKind::Other
+            },
+            label: if is_weekly {
+                "Weekly".to_string()
+            } else {
+                "Secondary quota".to_string()
+            },
             used_percent: Some(sec.used_percent),
             resets_at: sec.resets_at.and_then(unix_secs_to_datetime),
             source: ProviderSource::CodexAppServer,
@@ -354,7 +407,11 @@ fn normalize_rate_limits(response: &CodexRateLimitsResponse) -> Vec<QuotaWindow>
                 if let Some(pri) = &snapshot.primary {
                     windows.push(QuotaWindow {
                         id: format!("codex-limit-{}-primary", key.to_lowercase()),
-                        kind: if pri.window_duration_mins == WEEKLY_MINUTES { QuotaKind::ModelWeekly } else { QuotaKind::Other },
+                        kind: if pri.window_duration_mins == WEEKLY_MINUTES {
+                            QuotaKind::ModelWeekly
+                        } else {
+                            QuotaKind::Other
+                        },
                         label: format!("{} Primary", label_prefix),
                         used_percent: Some(pri.used_percent),
                         resets_at: pri.resets_at.and_then(unix_secs_to_datetime),
@@ -365,7 +422,11 @@ fn normalize_rate_limits(response: &CodexRateLimitsResponse) -> Vec<QuotaWindow>
                 if let Some(sec) = &snapshot.secondary {
                     windows.push(QuotaWindow {
                         id: format!("codex-limit-{}-secondary", key.to_lowercase()),
-                        kind: if sec.window_duration_mins == WEEKLY_MINUTES { QuotaKind::ModelWeekly } else { QuotaKind::Other },
+                        kind: if sec.window_duration_mins == WEEKLY_MINUTES {
+                            QuotaKind::ModelWeekly
+                        } else {
+                            QuotaKind::Other
+                        },
                         label: format!("{} Weekly", label_prefix),
                         used_percent: Some(sec.used_percent),
                         resets_at: sec.resets_at.and_then(unix_secs_to_datetime),
@@ -423,5 +484,47 @@ fn failure_snapshot(fetched_at: DateTime<Utc>, code: &str, message: &str) -> Pro
             retry_at: None,
         }),
         service_status: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn quota_validation_and_missing_windows() {
+        let account = || CodexAccountResponse {
+            account: Some(CodexAccountInfo {
+                email: None,
+                plan_type: None,
+            }),
+            requires_openai_auth: false,
+        };
+        for percent in [0., 35., 100., -1., 101.] {
+            let limits: CodexRateLimitsResponse = serde_json::from_value(json!({"rateLimits":{"primary":{"usedPercent":percent,"windowDurationMins":300,"resetsAt":1900000000}}})).unwrap();
+            let s = normalize_codex_snapshot(account(), limits, Utc::now());
+            if (0.0..=100.0).contains(&percent) {
+                assert_eq!(s.quota_windows[0].used_percent, Some(percent));
+                assert_eq!(s.quota_windows[1].used_percent, None);
+            } else {
+                assert_eq!(s.error.unwrap().code, "unsupported_output");
+            }
+        }
+        let limits = serde_json::from_value(json!({"rateLimits":{}})).unwrap();
+        let s = normalize_codex_snapshot(
+            CodexAccountResponse {
+                account: None,
+                requires_openai_auth: true,
+            },
+            limits,
+            Utc::now(),
+        );
+        assert_eq!(s.error.unwrap().code, "not_authenticated");
+    }
+    #[tokio::test]
+    async fn missing_cli_is_unavailable() {
+        let s = CodexProvider::with_command("nonexistent-llm-monitor-fixture-command".into())
+            .fetch_quota()
+            .await;
+        assert_eq!(s.error.unwrap().code, "not_installed");
     }
 }

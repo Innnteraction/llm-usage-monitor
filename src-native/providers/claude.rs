@@ -164,14 +164,19 @@ impl ClaudeProvider {
     }
 
     async fn read_auth_status(&self) -> Option<ClaudeAuthStatusJson> {
-        let output = Command::new(&self.command_name)
-            .args(["auth", "status", "--json"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .output()
-            .await
-            .ok()?;
+        let output = tokio::time::timeout(
+            Duration::from_secs(5),
+            Command::new(&self.command_name)
+                .kill_on_drop(true)
+                .args(["auth", "status", "--json"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .output(),
+        )
+        .await
+        .ok()?
+        .ok()?;
 
         if output.status.success() {
             serde_json::from_slice(&output.stdout).ok()
@@ -245,7 +250,10 @@ fn run_claude_pty_probe(command_name: &str) -> (String, String) {
                     let mut guard = screen_text_clone.lock().unwrap();
                     guard.push_str(&chunk);
                     if guard.len() > MAX_CAPTURE_CHARS {
-                        let excess = guard.len() - MAX_CAPTURE_CHARS;
+                        let mut excess = guard.len() - MAX_CAPTURE_CHARS;
+                        while !guard.is_char_boundary(excess) {
+                            excess += 1;
+                        }
                         guard.drain(..excess);
                     }
                 }
@@ -302,7 +310,8 @@ fn run_claude_pty_probe(command_name: &str) -> (String, String) {
             }
         } else {
             // Check if /usage output has arrived
-            let has_5h = lower.contains("session") || lower.contains("5h") || lower.contains("5-hour");
+            let has_5h =
+                lower.contains("session") || lower.contains("5h") || lower.contains("5-hour");
             let has_week = lower.contains("week");
             let has_percent = current_text.contains('%');
             let is_refreshing = lower.contains("refreshing");
@@ -371,7 +380,8 @@ pub fn parse_claude_usage_screen(screen: &str, now: DateTime<Utc>) -> Vec<Claude
         }
     }
 
-    let mut unique: std::collections::HashMap<String, ClaudeParsedWindow> = std::collections::HashMap::new();
+    let mut unique: std::collections::HashMap<String, ClaudeParsedWindow> =
+        std::collections::HashMap::new();
     for window in parsed {
         let key = format!("{:?}:{}", window.kind, window.label);
         let replace = match unique.get(&key) {
@@ -390,7 +400,10 @@ pub fn parse_claude_usage_screen(screen: &str, now: DateTime<Utc>) -> Vec<Claude
 
 fn classify_header(line: &str) -> Option<(QuotaKind, String)> {
     let lower = line.to_lowercase();
-    let re_5h = Regex::new(r"(?i)\b(?:current\s+session|session\s+limit|5[\s-]*(?:h|hour)|five[\s-]*hour)\b").ok()?;
+    let re_5h = Regex::new(
+        r"(?i)\b(?:current\s+session|session\s+limit|5[\s-]*(?:h|hour)|five[\s-]*hour)\b",
+    )
+    .ok()?;
     if re_5h.is_match(&lower) {
         return Some((QuotaKind::FiveHour, "5h".to_string()));
     }
@@ -415,7 +428,10 @@ fn classify_header(line: &str) -> Option<(QuotaKind, String)> {
 }
 
 fn parse_percent(block: &[&str]) -> Option<f64> {
-    let re_explicit = Regex::new(r"(?i)(?:^|[^\d+])(\d+(?:\.\d+)?)\s*%(?:\s+\d+(?:\.\d+)?\s*%)?\s*(used|remaining|left)\b").ok()?;
+    let re_explicit = Regex::new(
+        r"(?i)(?:^|[^\d+])(\d+(?:\.\d+)?)\s*%(?:\s+\d+(?:\.\d+)?\s*%)?\s*(used|remaining|left)\b",
+    )
+    .ok()?;
     for line in block {
         if is_promo_line(line) {
             continue;
@@ -424,7 +440,10 @@ fn parse_percent(block: &[&str]) -> Option<f64> {
             if let Some(val_str) = cap.get(1) {
                 if let Ok(val) = val_str.as_str().parse::<f64>() {
                     if (0.0..=100.0).contains(&val) {
-                        let qualifier = cap.get(2).map(|m| m.as_str().to_lowercase()).unwrap_or_default();
+                        let qualifier = cap
+                            .get(2)
+                            .map(|m| m.as_str().to_lowercase())
+                            .unwrap_or_default();
                         return Some(if qualifier == "left" || qualifier == "remaining" {
                             100.0 - val
                         } else {
@@ -500,7 +519,10 @@ fn parse_reset(block: &[&str], now: DateTime<Utc>) -> Option<DateTime<Utc>> {
     let re_time = Regex::new(r"(?i)^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$").ok()?;
     if let Some(cap) = re_time.captures(&normalized) {
         let hour_raw: u32 = cap.get(1)?.as_str().parse().ok()?;
-        let min_raw: u32 = cap.get(2).map(|m| m.as_str().parse().unwrap_or(0)).unwrap_or(0);
+        let min_raw: u32 = cap
+            .get(2)
+            .map(|m| m.as_str().parse().unwrap_or(0))
+            .unwrap_or(0);
         let meridiem = cap.get(3)?.as_str().to_lowercase();
 
         let hour24 = if meridiem == "pm" && hour_raw < 12 {
@@ -522,18 +544,32 @@ fn parse_reset(block: &[&str], now: DateTime<Utc>) -> Option<DateTime<Utc>> {
     }
 
     // 3. Dated format (e.g. "Sep 5, 5pm", "Jan 2, 5pm")
-    let re_dated = Regex::new(r"(?i)^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)$").ok()?;
+    let re_dated =
+        Regex::new(r"(?i)^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)$")
+            .ok()?;
     if let Some(cap) = re_dated.captures(&normalized) {
         let month_str = cap.get(1)?.as_str();
         let day: u32 = cap.get(2)?.as_str().parse().ok()?;
         let hour_raw: u32 = cap.get(3)?.as_str().parse().ok()?;
-        let min_raw: u32 = cap.get(4).map(|m| m.as_str().parse().unwrap_or(0)).unwrap_or(0);
+        let min_raw: u32 = cap
+            .get(4)
+            .map(|m| m.as_str().parse().unwrap_or(0))
+            .unwrap_or(0);
         let meridiem = cap.get(5)?.as_str().to_lowercase();
 
         let month = match &month_str[..3].to_lowercase()[..] {
-            "jan" => 1, "feb" => 2, "mar" => 3, "apr" => 4,
-            "may" => 5, "jun" => 6, "jul" => 7, "aug" => 8,
-            "sep" => 9, "oct" => 10, "nov" => 11, "dec" => 12,
+            "jan" => 1,
+            "feb" => 2,
+            "mar" => 3,
+            "apr" => 4,
+            "may" => 5,
+            "jun" => 6,
+            "jul" => 7,
+            "aug" => 8,
+            "sep" => 9,
+            "oct" => 10,
+            "nov" => 11,
+            "dec" => 12,
             _ => return None,
         };
 
@@ -616,33 +652,50 @@ mod tests {
 
     #[test]
     fn test_parse_claude_usage_screen() {
-        let now = DateTime::parse_from_rfc3339("2026-09-01T03:00:00Z").unwrap().with_timezone(&Utc);
+        let now = DateTime::parse_from_rfc3339("2026-09-01T03:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
         let screen = "Current session\n23% used\nResets in 2 hr 30 min\nCurrent week (all models)\n41% used\nResets in 3 days\nCurrent week (Example model)\n60% remaining\nResets in 4 days";
         let windows = parse_claude_usage_screen(screen, now);
 
         assert_eq!(windows.len(), 3);
-        let five_hour = windows.iter().find(|w| w.kind == QuotaKind::FiveHour).unwrap();
+        let five_hour = windows
+            .iter()
+            .find(|w| w.kind == QuotaKind::FiveHour)
+            .unwrap();
         assert_eq!(five_hour.label, "5h");
         assert_eq!(five_hour.used_percent, 23.0);
         assert!(five_hour.resets_at.is_some());
 
-        let weekly = windows.iter().find(|w| w.kind == QuotaKind::Weekly).unwrap();
+        let weekly = windows
+            .iter()
+            .find(|w| w.kind == QuotaKind::Weekly)
+            .unwrap();
         assert_eq!(weekly.label, "Weekly");
         assert_eq!(weekly.used_percent, 41.0);
 
-        let model_weekly = windows.iter().find(|w| w.kind == QuotaKind::ModelWeekly).unwrap();
+        let model_weekly = windows
+            .iter()
+            .find(|w| w.kind == QuotaKind::ModelWeekly)
+            .unwrap();
         assert_eq!(model_weekly.label, "Example model Weekly");
         assert_eq!(model_weekly.used_percent, 40.0);
     }
 
     #[test]
     fn test_dated_reset_with_tz() {
-        let now = DateTime::parse_from_rfc3339("2026-09-01T03:00:00Z").unwrap().with_timezone(&Utc);
+        let now = DateTime::parse_from_rfc3339("2026-09-01T03:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
         let screen = "Current week (all models)\n41% used\nResets Sep 5, 5pm (Asia/Seoul)";
         let clean = strip_ansi_escapes::strip(screen.as_bytes());
         let text = String::from_utf8_lossy(&clean);
         let normalized = text.replace('\r', "\n");
-        let lines: Vec<&str> = normalized.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
+        let lines: Vec<&str> = normalized
+            .lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty())
+            .collect();
         println!("lines: {:?}", lines);
         for l in &lines {
             println!("header for '{}': {:?}", l, classify_header(l));
@@ -654,4 +707,3 @@ mod tests {
         assert!(windows[0].resets_at.is_some());
     }
 }
-

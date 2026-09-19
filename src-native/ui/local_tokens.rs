@@ -1,10 +1,12 @@
-use gpui::{
-    div, rgb, FontWeight, IntoElement, ParentElement, Styled,
-};
-use crate::core::types::{ProviderId, ProviderSnapshot};
 use super::format::format_token_count;
+use super::theme::Palette;
+use crate::core::types::{ProviderId, ProviderSnapshot};
+use gpui::{div, rgb, FontWeight, IntoElement, ParentElement, Styled};
 
-pub fn render_local_tokens_card(providers: &[ProviderSnapshot]) -> impl IntoElement {
+pub fn render_local_tokens_card(
+    providers: &[ProviderSnapshot],
+    palette: Palette,
+) -> impl IntoElement {
     let mut total_tokens = 0u64;
     let mut total_files = 0u64;
 
@@ -30,9 +32,9 @@ pub fn render_local_tokens_card(providers: &[ProviderSnapshot]) -> impl IntoElem
         .gap_2()
         .p_3()
         .rounded_lg()
-        .bg(rgb(0x27272a)) // zinc-800
+        .bg(palette.surface) // zinc-800
         .border_1()
-        .border_color(rgb(0x3f3f46)) // zinc-700
+        .border_color(palette.border) // zinc-700
         // Header
         .child(
             div()
@@ -41,20 +43,37 @@ pub fn render_local_tokens_card(providers: &[ProviderSnapshot]) -> impl IntoElem
                 .justify_between()
                 .pb_1()
                 .border_b_1()
-                .border_color(rgb(0x3f3f46))
+                .border_color(palette.border)
                 .child(
                     div()
                         .text_xs()
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(rgb(0xa1a1aa))
+                        .text_color(palette.muted)
                         .child("💻 로컬 토큰 집계 (Local Token Usage)"),
                 )
                 .child(
                     div()
                         .text_xs()
-                        .text_color(rgb(0x71717a))
+                        .text_color(palette.muted)
                         .child(format!("{}개 세션 파일 스캔됨", total_files)),
                 ),
+        )
+        .children(
+            providers
+                .iter()
+                .filter(|p| p.local_usage.as_ref().is_some_and(|u| u.partial))
+                .map(|p| {
+                    div()
+                        .text_xs()
+                        .text_color(palette.muted)
+                        .child(format!("{}: 일부 파일 집계 실패", p.provider_id.as_str()))
+                }),
+        )
+        .child(
+            div()
+                .text_xs()
+                .text_color(palette.muted)
+                .child("이 PC의 로그 합계 · 계정 쿼터와 별개"),
         )
         // Token Counts Grid
         .child(
@@ -70,7 +89,7 @@ pub fn render_local_tokens_card(providers: &[ProviderSnapshot]) -> impl IntoElem
                         .child(
                             div()
                                 .text_xs()
-                                .text_color(rgb(0x71717a))
+                                .text_color(palette.muted)
                                 .child("Claude 누적 토큰"),
                         )
                         .child(
@@ -88,7 +107,7 @@ pub fn render_local_tokens_card(providers: &[ProviderSnapshot]) -> impl IntoElem
                         .child(
                             div()
                                 .text_xs()
-                                .text_color(rgb(0x71717a))
+                                .text_color(palette.muted)
                                 .child("Codex 누적 토큰"),
                         )
                         .child(
@@ -107,7 +126,7 @@ pub fn render_local_tokens_card(providers: &[ProviderSnapshot]) -> impl IntoElem
                         .child(
                             div()
                                 .text_xs()
-                                .text_color(rgb(0x71717a))
+                                .text_color(palette.muted)
                                 .child("전체 누적 합계"),
                         )
                         .child(

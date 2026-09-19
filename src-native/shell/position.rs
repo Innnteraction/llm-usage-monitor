@@ -11,7 +11,12 @@ pub struct WindowRect {
 
 impl WindowRect {
     pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 }
 
@@ -71,7 +76,7 @@ pub fn clamp_popover_height(
         _ => minimum_height,
     };
 
-    natural_height.clamp(minimum_height, maximum_height)
+    natural_height.max(minimum_height).min(maximum_height)
 }
 
 pub fn select_popover_anchor(
@@ -130,13 +135,27 @@ pub fn calculate_popover_position(
     let raw = match edge {
         "top" => Point::new(centered_x, work_area.y),
         "left" => Point::new(work_area.x, centered_y),
-        "right" => Point::new(work_area.x + work_area.width - window_size.width, centered_y),
-        _ => Point::new(centered_x, work_area.y + work_area.height - window_size.height), // "bottom"
+        "right" => Point::new(
+            work_area.x + work_area.width - window_size.width,
+            centered_y,
+        ),
+        _ => Point::new(
+            centered_x,
+            work_area.y + work_area.height - window_size.height,
+        ), // "bottom"
     };
 
     Point::new(
-        clamp(raw.x, work_area.x, work_area.x + work_area.width - window_size.width),
-        clamp(raw.y, work_area.y, work_area.y + work_area.height - window_size.height),
+        clamp(
+            raw.x,
+            work_area.x,
+            work_area.x + work_area.width - window_size.width,
+        ),
+        clamp(
+            raw.y,
+            work_area.y,
+            work_area.y + work_area.height - window_size.height,
+        ),
     )
 }
 
@@ -145,8 +164,16 @@ pub fn clamp_window_position(
     window_size: WindowSize,
     work_area: WindowRect,
 ) -> Point {
-    let valid_x = if finite(position.x) { position.x } else { work_area.x };
-    let valid_y = if finite(position.y) { position.y } else { work_area.y };
+    let valid_x = if finite(position.x) {
+        position.x
+    } else {
+        work_area.x
+    };
+    let valid_y = if finite(position.y) {
+        position.y
+    } else {
+        work_area.y
+    };
     let max_x = work_area.x + work_area.width - window_size.width;
     let max_y = work_area.y + work_area.height - window_size.height;
 

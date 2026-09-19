@@ -1,384 +1,500 @@
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 use gpui::{
-    point, px, rgb, size, App, Application, Bounds, Context, FontWeight,
-    IntoElement, ParentElement, Render, SharedString, Window,
-    WindowBackgroundAppearance, WindowBounds, WindowHandle, WindowKind, WindowOptions, div,
-    prelude::*,
+    div, point, prelude::*, px, size, App, Application, Bounds, Context, IntoElement, Render,
+    Window, WindowBackgroundAppearance, WindowBounds, WindowHandle, WindowKind, WindowOptions,
 };
-use llm_usage_monitor_core::core::engine::UsageMonitorEngine;
-use llm_usage_monitor_core::core::types::AppSnapshot;
-use llm_usage_monitor_core::shell::position::{
-    calculate_popover_position, Point as PosPoint, WindowRect, WindowSize,
-};
-use llm_usage_monitor_core::shell::tray::SystemTrayManager;
-use llm_usage_monitor_core::ui::{
-    local_tokens::render_local_tokens_card,
-    quota_card::render_quota_card,
-    vendor_banner::render_vendor_health_banner,
+use llm_usage_monitor_core::{
+    core::{engine::UsageMonitorEngine, types::*},
+    shell::{
+        position::{calculate_popover_position, Point as PosPoint, WindowRect, WindowSize},
+        tray::SystemTrayManager,
+    },
+    ui::{
+        compact::render_compact, local_tokens::render_local_tokens_card,
+        quota_card::render_quota_card, theme::ThemeMode,
+        vendor_banner::render_vendor_health_banner,
+    },
 };
 use muda::MenuEvent;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::{
+    path::PathBuf,
+    sync::{mpsc, Arc, Mutex},
+    time::{Duration, Instant},
+};
 use tray_icon::TrayIconEvent;
-
-const WINDOW_WIDTH: f32 = 400.0;
-const WINDOW_HEIGHT: f32 = 640.0;
 
 struct AppState {
     window_handle: Option<WindowHandle<PopoverView>>,
     pinned: bool,
+    compact: bool,
+    theme: ThemeMode,
     snapshot: Option<AppSnapshot>,
     refreshing: bool,
+    refresh_requested: bool,
+    preferences_path: PathBuf,
 }
-
-struct PopoverView {
-    state: Arc<Mutex<AppState>>,
-    title: SharedString,
-}
-
-impl PopoverView {
-    pub fn new(state: Arc<Mutex<AppState>>) -> Self {
-        Self {
-            state,
-            title: "LLM Usage Monitor".into(),
-        }
+impl AppState {
+    fn save_preferences(&self) {
+        let theme = match self.theme {
+            ThemeMode::System => "system",
+            ThemeMode::Light => "light",
+            ThemeMode::Dark => "dark",
+        };
+        let value =
+            serde_json::json!({"compact": self.compact, "theme": theme, "pinned": self.pinned});
+        let _ = std::fs::write(&self.preferences_path, value.to_string());
     }
 }
-
+struct PopoverView {
+    state: Arc<Mutex<AppState>>,
+}
 impl Render for PopoverView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (is_pinned, snapshot, is_refreshing) = {
-            let guard = self.state.lock().unwrap();
-            (guard.pinned, guard.snapshot.clone(), guard.refreshing)
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let (pinned, compact, theme, snapshot, refreshing) = {
+            let s = self.state.lock().unwrap();
+            (
+                s.pinned,
+                s.compact,
+                s.theme,
+                s.snapshot.clone(),
+                s.refreshing,
+            )
         };
-
+        let palette = theme.palette(window.appearance());
         div()
             .flex()
             .flex_col()
             .size_full()
-            .bg(rgb(0x18181b)) // zinc-900
-            .text_color(rgb(0xf4f4f5)) // zinc-100
+            .bg(palette.background)
+            .text_color(palette.text)
             .rounded_xl()
             .border_1()
-            .border_color(rgb(0x27272a)) // zinc-800
-            .shadow_xl()
-            .p_4()
-            .gap_3()
-            // Header
+            .border_color(palette.border)
+            .p_3()
+            .gap_2()
             .child(
                 div()
                     .flex()
-                    .items_center()
                     .justify_between()
-                    .pb_2()
-                    .border_b_1()
-                    .border_color(rgb(0x27272a))
+                    .items_center()
+                    .child(div().text_sm().child("LLM Usage Monitor"))
                     .child(
                         div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(
-                                div()
-                                    .size_3()
-                                    .rounded_full()
-                                    .bg(if is_refreshing { rgb(0x38bdf8) } else { rgb(0x22c55e) }),
-                            )
-                            .child(
-                                div()
-                                    .text_sm()
-                                    .font_weight(FontWeight::BOLD)
-                                    .child(self.title.clone()),
-                            )
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .px_1()
-                                    .rounded_sm()
-                                    .bg(rgb(0x27272a))
-                                    .text_color(rgb(0xa1a1aa))
-                                    .child("GPUI Native"),
-                            ),
+                            .text_xs()
+                            .text_color(palette.muted)
+                            .child(if refreshing {
+                                "수집 중…"
+                            } else {
+                                "v0.12.0"
+                            }),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .gap_2()
+                    .text_xs()
+                    .child(
+                        div()
+                            .id("refresh")
+                            .px_2()
+                            .py_1()
+                            .bg(palette.surface)
+                            .rounded_md()
+                            .cursor_pointer()
+                            .child(if refreshing {
+                                "갱신 중…"
+                            } else {
+                                "새로고침"
+                            })
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                let mut s = this.state.lock().unwrap();
+                                if !s.refreshing {
+                                    s.refresh_requested = true;
+                                }
+                                cx.notify();
+                            })),
                     )
                     .child(
                         div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(
-                                div()
-                                    .id("pin-btn")
-                                    .px_2()
-                                    .py_1()
-                                    .rounded_md()
-                                    .text_xs()
-                                    .cursor_pointer()
-                                    .bg(if is_pinned { rgb(0x3f3f46) } else { rgb(0x27272a) })
-                                    .child(if is_pinned { "📌 Pinned" } else { "📍 Pin" })
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        let mut guard = this.state.lock().unwrap();
-                                        guard.pinned = !guard.pinned;
-                                        cx.notify();
-                                    })),
-                            )
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(rgb(0x71717a))
-                                    .child("v0.12.0"),
-                            ),
+                            .id("compact")
+                            .px_2()
+                            .py_1()
+                            .bg(palette.surface)
+                            .rounded_md()
+                            .cursor_pointer()
+                            .child(if compact {
+                                "카드 보기"
+                            } else {
+                                "간략 보기"
+                            })
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                let mut s = this.state.lock().unwrap();
+                                s.compact = !s.compact;
+                                s.save_preferences();
+                                cx.notify();
+                            })),
+                    )
+                    .child(
+                        div()
+                            .id("theme")
+                            .px_2()
+                            .py_1()
+                            .bg(palette.surface)
+                            .rounded_md()
+                            .cursor_pointer()
+                            .child(theme.label())
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                let mut s = this.state.lock().unwrap();
+                                s.theme = s.theme.next();
+                                s.save_preferences();
+                                cx.notify();
+                            })),
+                    )
+                    .child(
+                        div()
+                            .id("pin")
+                            .px_2()
+                            .py_1()
+                            .bg(palette.surface)
+                            .rounded_md()
+                            .cursor_pointer()
+                            .child(if pinned { "고정 해제" } else { "고정" })
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                let mut s = this.state.lock().unwrap();
+                                s.pinned = !s.pinned;
+                                s.save_preferences();
+                                cx.notify();
+                            })),
                     ),
             )
-            // Scrollable Content
             .child(
                 div()
-                    .id("popover-content-scroll")
+                    .id("content")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
                     .flex()
                     .flex_col()
-                    .gap_3()
-                    .overflow_y_scroll()
-                    .children(
-                        if let Some(snap) = snapshot {
-                            vec![
-                                // 1. Vendor Health Banner
-                                render_vendor_health_banner(&snap.providers).into_any_element(),
-                                // 2. Provider Quota Cards
+                    .gap_2()
+                    .children(if let Some(snap) = snapshot {
+                        vec![
+                            render_vendor_health_banner(&snap.providers, palette)
+                                .into_any_element(),
+                            if compact {
+                                render_compact(&snap.providers, palette).into_any_element()
+                            } else {
                                 div()
                                     .flex()
                                     .flex_col()
                                     .gap_2()
                                     .children(
-                                        snap.providers.iter().map(|provider| {
-                                            render_quota_card(provider).into_any_element()
-                                        })
+                                        snap.providers
+                                            .iter()
+                                            .map(|p| render_quota_card(p, palette)),
                                     )
-                                    .into_any_element(),
-                                // 3. Local Tokens Card
-                                render_local_tokens_card(&snap.providers).into_any_element(),
-                            ]
-                        } else {
-                            vec![
-                                div()
-                                    .flex()
-                                    .items_center()
-                                    .justify_center()
-                                    .p_8()
-                                    .text_sm()
-                                    .text_color(rgb(0xa1a1aa))
-                                    .child("⏳ 쿼터 및 사용량 데이터를 수집하고 있습니다...")
                                     .into_any_element()
-                            ]
-                        }
-                    ),
+                            },
+                            render_local_tokens_card(&snap.providers, palette).into_any_element(),
+                            div()
+                                .text_xs()
+                                .text_color(palette.muted)
+                                .child(format!(
+                                    "갱신 {} · 사용률·리셋에 마우스를 올리면 도움말",
+                                    snap.updated_at
+                                        .with_timezone(&chrono::Local)
+                                        .format("%H:%M:%S")
+                                ))
+                                .into_any_element(),
+                        ]
+                    } else {
+                        vec![div()
+                            .p_4()
+                            .text_sm()
+                            .child("쿼터와 로컬 사용량을 수집하고 있습니다…")
+                            .into_any_element()]
+                    }),
             )
     }
 }
 
-fn open_or_focus_popover(
-    state: Arc<Mutex<AppState>>,
-    cx: &mut App,
-) {
-    let mut guard = state.lock().unwrap();
-
-    // 1. 이미 열려 있으면 닫기 (토글)
-    if let Some(handle) = guard.window_handle {
-        handle.update(cx, |_, window, _| {
-            window.remove_window();
-        }).ok();
-        guard.window_handle = None;
-        return;
+fn close_popover(state: &Arc<Mutex<AppState>>, cx: &mut App) {
+    let handle = state.lock().unwrap().window_handle.take();
+    if let Some(handle) = handle {
+        let _ = handle.update(cx, |_, window, _| window.remove_window());
     }
-
-    // 2. 주 모니터 작업 영역 기반으로 트레이 위치 계산
-    let displays = cx.displays();
-    let primary_display = displays.first().cloned();
-
-    let (display_id, work_area) = if let Some(ref disp) = primary_display {
-        let b = disp.bounds();
-        (
-            Some(disp.id()),
+}
+fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
+    let existing = state.lock().unwrap().window_handle;
+    if let Some(handle) = existing {
+        if handle
+            .update(cx, |_, window, _| window.activate_window())
+            .is_ok()
+        {
+            return;
+        }
+        state.lock().unwrap().window_handle = None;
+    }
+    let display = cx.displays().first().cloned();
+    let area = display
+        .as_ref()
+        .map(|d| {
+            let b = d.bounds();
             WindowRect::new(
-                f32::from(b.origin.x),
-                f32::from(b.origin.y),
-                f32::from(b.size.width),
-                f32::from(b.size.height),
-            ),
-        )
-    } else {
-        (
-            None,
-            WindowRect::new(0.0, 0.0, 1920.0, 1080.0),
-        )
-    };
-
-    // 기본 앵커: 작업표시줄 하단 오른쪽 (Windows 기본 트레이 위치)
+                b.origin.x.into(),
+                b.origin.y.into(),
+                b.size.width.into(),
+                b.size.height.into(),
+            )
+        })
+        .unwrap_or(WindowRect::new(0., 0., 1920., 1080.));
+    // GPUI 0.2 exposes display bounds, not the OS usable work area. Keep this limitation explicit.
+    let width = 400_f32.min(area.width);
+    let height = 640_f32.min((area.height - 64.).max(100.));
     let anchor = PosPoint::new(
-        work_area.x + work_area.width - 140.0,
-        work_area.y + work_area.height,
+        area.x + area.width - 140.,
+        if cfg!(target_os = "macos") {
+            area.y
+        } else {
+            area.y + area.height
+        },
     );
-
-    let window_size = WindowSize::new(WINDOW_WIDTH, WINDOW_HEIGHT);
-    let target_pos = calculate_popover_position(anchor, work_area, window_size);
-
-    let window_bounds = Bounds {
-        origin: point(px(target_pos.x), px(target_pos.y)),
-        size: size(px(WINDOW_WIDTH), px(WINDOW_HEIGHT)),
-    };
-
-    let window_options = WindowOptions {
-        window_bounds: Some(WindowBounds::Windowed(window_bounds)),
-        display_id,
+    let pos = calculate_popover_position(anchor, area, WindowSize::new(width, height));
+    let options = WindowOptions {
+        window_bounds: Some(WindowBounds::Windowed(Bounds {
+            origin: point(px(pos.x), px(pos.y)),
+            size: size(px(width), px(height)),
+        })),
+        display_id: display.map(|d| d.id()),
         titlebar: None,
-        window_background: WindowBackgroundAppearance::Transparent,
+        window_background: WindowBackgroundAppearance::Opaque,
         focus: true,
         show: true,
         kind: WindowKind::PopUp,
         is_movable: false,
+        is_resizable: false,
         ..Default::default()
     };
-
-    let state_clone = Arc::clone(&state);
-    let state_blur = Arc::clone(&state);
-
-    let handle = cx.open_window(window_options, move |window, cx| {
+    let view_state = state.clone();
+    match cx.open_window(options, move |window, cx| {
         cx.new(|cx| {
-            // Blur(외부 클릭) 감지하여 닫기
-            cx.observe_window_activation(window, move |_, window, _| {
-                if !window.is_window_active() {
-                    let guard = state_blur.lock().unwrap();
-                    if !guard.pinned {
-                        window.remove_window();
-                    }
+            cx.observe_window_activation(window, |this: &mut PopoverView, window, _| {
+                let mut s = this.state.lock().unwrap();
+                if !window.is_window_active() && !s.pinned {
+                    s.window_handle = None;
+                    drop(s);
+                    window.remove_window();
                 }
-            }).detach();
-
-            PopoverView::new(state_clone)
+            })
+            .detach();
+            cx.observe_window_appearance(window, |_, _, cx| cx.notify())
+                .detach();
+            PopoverView { state: view_state }
         })
-    });
-
-    if let Ok(handle) = handle {
-        guard.window_handle = Some(handle);
+    }) {
+        Ok(handle) => state.lock().unwrap().window_handle = Some(handle),
+        Err(_) => eprintln!("네이티브 창을 열지 못했습니다."),
     }
 }
 
-async fn trigger_collection(
-    state: Arc<Mutex<AppState>>,
-    engine: Arc<UsageMonitorEngine>,
-    async_cx: &gpui::AsyncApp,
-) {
-    {
-        let mut guard = state.lock().unwrap();
-        guard.refreshing = true;
+fn demo_snapshot() -> AppSnapshot {
+    let now = chrono::Utc::now();
+    AppSnapshot {
+        schema_version: 1,
+        updated_at: now,
+        refreshing: vec![],
+        providers: [
+            ProviderId::Codex,
+            ProviderId::Claude,
+            ProviderId::Antigravity,
+        ]
+        .into_iter()
+        .map(|id| ProviderSnapshot {
+            provider_id: id,
+            account_label: Some("demo@example.invalid".into()),
+            auth_kind: None,
+            status: SnapshotStatus::Fresh,
+            fetched_at: now,
+            last_successful_at: Some(now),
+            quota_windows: vec![
+                QuotaWindow {
+                    id: format!("{}-5h", id.as_str()),
+                    kind: QuotaKind::FiveHour,
+                    label: "5시간".into(),
+                    used_percent: Some(35.),
+                    resets_at: Some(now + chrono::Duration::hours(2)),
+                    source: ProviderSource::LocalFixture,
+                    status: SnapshotStatus::Fresh,
+                },
+                QuotaWindow {
+                    id: format!("{}-weekly", id.as_str()),
+                    kind: QuotaKind::Weekly,
+                    label: "주간".into(),
+                    used_percent: None,
+                    resets_at: None,
+                    source: ProviderSource::LocalFixture,
+                    status: SnapshotStatus::Unavailable,
+                },
+            ],
+            local_usage: None,
+            error: None,
+            service_status: None,
+        })
+        .collect(),
     }
-    let _ = async_cx.refresh();
-
-    let snapshot = engine.fetch_all_snapshots().await;
-
-    {
-        let mut guard = state.lock().unwrap();
-        guard.snapshot = Some(snapshot);
-        guard.refreshing = false;
-    }
-    let _ = async_cx.refresh();
 }
-
 fn main() {
-    Application::new().run(|cx: &mut App| {
+    let args: Vec<String> = std::env::args().collect();
+    let demo = args.iter().any(|a| a == "--demo");
+    let hidden = args.iter().any(|a| a == "--start-hidden");
+    let quit_after = args.iter().find_map(|a| {
+        a.strip_prefix("--quit-after=")
+            .and_then(|v| v.parse::<u64>().ok())
+    });
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .expect("collector runtime");
+    let runtime_handle = runtime.handle().clone();
+    Application::new().run(move |cx| {
+        let data_dir = if demo {
+            std::env::temp_dir().join(format!("llm-monitor-demo-{}", std::process::id()))
+        } else {
+            dirs::data_local_dir()
+                .unwrap_or_else(std::env::temp_dir)
+                .join("llm-usage-monitor-native")
+        };
+        let _ = std::fs::create_dir_all(&data_dir);
+        let preferences_path = data_dir.join("preferences.json");
+        let preferences: serde_json::Value = std::fs::read(&preferences_path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
         let state = Arc::new(Mutex::new(AppState {
             window_handle: None,
-            pinned: false,
-            snapshot: None,
+            pinned: preferences["pinned"].as_bool().unwrap_or(demo),
+            compact: preferences["compact"].as_bool().unwrap_or(false),
+            theme: match preferences["theme"].as_str() {
+                Some("light") => ThemeMode::Light,
+                Some("dark") => ThemeMode::Dark,
+                _ => ThemeMode::System,
+            },
+            snapshot: demo.then(demo_snapshot),
             refreshing: false,
+            refresh_requested: !demo,
+            preferences_path,
         }));
-
-        // 데이터 디렉토리 및 수집 엔진 초기화
-        let data_dir = dirs::data_dir()
-            .unwrap_or_else(|| std::path::PathBuf::from("."))
-            .join("llm-usage-monitor");
-        let _ = std::fs::create_dir_all(&data_dir);
         let engine = Arc::new(UsageMonitorEngine::new(data_dir));
-
-        // 1. 시스템 트레이 초기화
-        let tray_manager = match SystemTrayManager::new() {
-            Ok(mgr) => mgr,
-            Err(e) => {
-                eprintln!("Failed to initialize system tray: {e:?}");
+        let tray = match SystemTrayManager::new() {
+            Ok(t) => t,
+            Err(_) => {
+                eprintln!("트레이 초기화에 실패했습니다.");
+                cx.quit();
                 return;
             }
         };
-
-        let open_id = tray_manager.open_id.clone();
-        let refresh_id = tray_manager.refresh_id.clone();
-        let reset_pos_id = tray_manager.reset_pos_id.clone();
-        let quit_id = tray_manager.quit_id.clone();
-
-        // 2. 초기 팝오버 표시
-        open_or_focus_popover(Arc::clone(&state), cx);
-
-        // 3. 비동기 백그라운드 수집 및 트레이 이벤트 루프
-        let state_events = Arc::clone(&state);
-        let engine_events = Arc::clone(&engine);
-        let async_cx = cx.to_async();
-
-        cx.foreground_executor().spawn(async move {
-            let state = state_events;
-            let engine = engine_events;
-            let tray_channel = TrayIconEvent::receiver();
-            let menu_channel = MenuEvent::receiver();
-
-            // 최초 1회 즉시 데이터 수집
-            trigger_collection(Arc::clone(&state), Arc::clone(&engine), &async_cx).await;
-
-            let mut last_poll = tokio::time::Instant::now();
-            let poll_interval = Duration::from_secs(60);
-
-            loop {
-                // 주기적 자동 수집 (60초 주기)
-                if last_poll.elapsed() >= poll_interval {
-                    trigger_collection(Arc::clone(&state), Arc::clone(&engine), &async_cx).await;
-                    last_poll = tokio::time::Instant::now();
-                }
-
-                // 트레이 클릭
-                if let Ok(event) = tray_channel.try_recv() {
-                    match event {
-                        TrayIconEvent::Click { button, button_state, .. } => {
-                            if button == tray_icon::MouseButton::Left
-                                && button_state == tray_icon::MouseButtonState::Up
-                            {
-                                let state_clone = Arc::clone(&state);
-                                let _ = async_cx.update(move |cx| {
-                                    open_or_focus_popover(state_clone, cx);
-                                });
+        if !hidden {
+            open_popover(state.clone(), cx);
+        }
+        let (tx, rx) = mpsc::channel();
+        let mut async_cx = cx.to_async();
+        let timer = cx.background_executor().clone();
+        cx.foreground_executor()
+            .spawn(async move {
+                let _tray_lifetime = &tray;
+                let start = Instant::now();
+                let mut last_poll = Instant::now();
+                let mut last_render = Instant::now();
+                loop {
+                    if quit_after.is_some_and(|seconds| start.elapsed().as_secs() >= seconds) {
+                        let _ = async_cx.update(|cx| cx.quit());
+                        break;
+                    }
+                    while let Ok(event) = TrayIconEvent::receiver().try_recv() {
+                        if let TrayIconEvent::Click {
+                            button: tray_icon::MouseButton::Left,
+                            button_state: tray_icon::MouseButtonState::Up,
+                            ..
+                        } = event
+                        {
+                            let state = state.clone();
+                            let _ = async_cx.update(move |cx| {
+                                let open = state.lock().unwrap().window_handle.is_some();
+                                if open {
+                                    close_popover(&state, cx);
+                                } else {
+                                    open_popover(state, cx);
+                                }
+                            });
+                        }
+                    }
+                    while let Ok(event) = MenuEvent::receiver().try_recv() {
+                        if event.id == tray.quit_id {
+                            let _ = async_cx.update(|cx| cx.quit());
+                            return;
+                        }
+                        if event.id == tray.refresh_id {
+                            let mut s = state.lock().unwrap();
+                            if !s.refreshing {
+                                s.refresh_requested = true;
                             }
                         }
-                        _ => {}
+                        if event.id == tray.open_id || event.id == tray.reset_pos_id {
+                            let state = state.clone();
+                            let reset = event.id == tray.reset_pos_id;
+                            let _ = async_cx.update(move |cx| {
+                                if reset {
+                                    close_popover(&state, cx);
+                                }
+                                open_popover(state, cx);
+                            });
+                        }
                     }
-                }
-
-                // 메뉴 클릭
-                if let Ok(event) = menu_channel.try_recv() {
-                    if event.id == quit_id {
-                        let _ = async_cx.update(|cx| {
-                            cx.quit();
-                        });
-                        break;
-                    } else if event.id == open_id {
-                        let state_clone = Arc::clone(&state);
-                        let _ = async_cx.update(move |cx| {
-                            open_or_focus_popover(state_clone, cx);
-                        });
-                    } else if event.id == refresh_id {
-                        trigger_collection(Arc::clone(&state), Arc::clone(&engine), &async_cx).await;
-                    } else if event.id == reset_pos_id {
-                        println!("Tray: Reset position requested");
+                    if let Ok(snapshot) = rx.try_recv() {
+                        let mut s = state.lock().unwrap();
+                        s.snapshot = Some(snapshot);
+                        s.refreshing = false;
+                        drop(s);
+                        last_poll = Instant::now();
+                        let _ = async_cx.refresh();
                     }
+                    let should_collect = {
+                        let mut s = state.lock().unwrap();
+                        if !s.refreshing
+                            && (s.refresh_requested
+                                || last_poll.elapsed() >= Duration::from_secs(60))
+                        {
+                            s.refresh_requested = false;
+                            s.refreshing = true;
+                            true
+                        } else {
+                            false
+                        }
+                    };
+                    if should_collect {
+                        let _ = async_cx.refresh();
+                        let tx = tx.clone();
+                        let engine = engine.clone();
+                        runtime_handle.spawn(async move {
+                            let snapshot = if demo {
+                                demo_snapshot()
+                            } else {
+                                engine.fetch_all_snapshots().await
+                            };
+                            let _ = tx.send(snapshot);
+                        });
+                    }
+                    if last_render.elapsed() >= Duration::from_secs(30) {
+                        if state.lock().unwrap().window_handle.is_some() {
+                            let _ = async_cx.refresh();
+                        }
+                        last_render = Instant::now();
+                    }
+                    timer.timer(Duration::from_millis(100)).await;
                 }
-
-                tokio::time::sleep(Duration::from_millis(50)).await;
-            }
-        }).detach();
-
-        // 트레이 인스턴스 영구 유지
-        let _ = Box::leak(Box::new(tray_manager));
+            })
+            .detach();
     });
+    runtime.shutdown_background();
 }

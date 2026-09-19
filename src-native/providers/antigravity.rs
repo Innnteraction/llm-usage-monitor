@@ -87,6 +87,7 @@ impl AntigravityProvider {
         let version_result = tokio::time::timeout(
             VERSION_TIMEOUT,
             Command::new(&self.command_name)
+                .kill_on_drop(true)
                 .arg("--version")
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
@@ -128,7 +129,15 @@ impl AntigravityProvider {
         let usage_result = tokio::time::timeout(
             USAGE_TIMEOUT,
             Command::new(&self.command_name)
-                .args(["--print", "/usage", "--output-format", "json", "--print-timeout", "20s"])
+                .kill_on_drop(true)
+                .args([
+                    "--print",
+                    "/usage",
+                    "--output-format",
+                    "json",
+                    "--print-timeout",
+                    "20s",
+                ])
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
@@ -203,6 +212,16 @@ impl AntigravityProvider {
                     _ => continue,
                 };
 
+                if bucket
+                    .remaining_fraction
+                    .is_some_and(|f| !f.is_finite() || !(0.0..=1.0).contains(&f))
+                {
+                    return failure_snapshot(
+                        fetched_at,
+                        "unsupported_output",
+                        "Antigravity quota response has invalid values.",
+                    );
+                }
                 let used_percent = bucket
                     .remaining_fraction
                     .map(|f| ((1.0 - f) * 100.0).round().clamp(0.0, 100.0));
@@ -272,10 +291,7 @@ fn classify_error(stderr: &str) -> (&'static str, &'static str) {
         || lower.contains("econnrefused")
         || lower.contains("unreachable")
     {
-        (
-            "network",
-            "Antigravity CLI could not reach its service.",
-        )
+        ("network", "Antigravity CLI could not reach its service.")
     } else {
         (
             "process_failed",
@@ -347,4 +363,29 @@ fn extract_account_from_log_file(path: &Path) -> Option<String> {
     }
 
     found
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn errors_are_classified_without_exposing_original_output() {
+        for (input, expected) in [
+            ("not logged in", "not_authenticated"),
+            ("too many requests", "rate_limited"),
+            ("network unreachable", "network"),
+            ("unexpected fixture", "process_failed"),
+        ] {
+            let (code, message) = classify_error(input);
+            assert_eq!(code, expected);
+            assert!(!message.contains("unexpected fixture"));
+        }
+    }
+    #[tokio::test]
+    async fn missing_cli_is_unavailable() {
+        let s = AntigravityProvider::with_command("nonexistent-llm-monitor-fixture-command".into())
+            .fetch_quota()
+            .await;
+        assert_eq!(s.error.unwrap().code, "not_installed");
+    }
 }

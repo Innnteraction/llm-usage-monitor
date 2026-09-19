@@ -14,15 +14,16 @@ async fn main() {
     let snapshot = engine.fetch_all_snapshots().await;
     let elapsed = start.elapsed();
 
-    println!("\n[OK] Fetched snapshot in {:.2?} (Updated at: {})", elapsed, snapshot.updated_at);
+    println!(
+        "\n[OK] Fetched snapshot in {:.2?} (Updated at: {})",
+        elapsed, snapshot.updated_at
+    );
     println!("------------------------------------------------------------");
 
     for p in snapshot.providers {
         println!("\nProvider: {:?}", p.provider_id);
         println!("  Status: {:?}", p.status);
-        if let Some(ref account) = p.account_label {
-            println!("  Account: {}", account);
-        }
+        println!("  Account label available: {}", p.account_label.is_some());
         if let Some(ref auth) = p.auth_kind {
             println!("  Auth Kind: {:?}", auth);
         }
@@ -42,7 +43,10 @@ async fn main() {
                     Some(r) => format!("resets at {}", r.to_rfc3339()),
                     None => "no reset time".to_string(),
                 };
-                println!("    - {:<18} {:<15} ({}) [{:?}]", w.label, used_str, resets_str, w.status);
+                println!(
+                    "    - {:<18} {:<15} ({}) [{:?}]",
+                    w.label, used_str, resets_str, w.status
+                );
             }
         } else {
             println!("  Quota Windows: (none)");
@@ -50,7 +54,10 @@ async fn main() {
 
         // Vendor Service Status
         if let Some(ref health) = p.service_status {
-            println!("  Vendor Health: [{:?}] {}", health.indicator, health.description);
+            println!(
+                "  Vendor Health: [{:?}] {}",
+                health.indicator, health.description
+            );
             if let Some(ref inc) = health.incident_title {
                 println!("    Incident: {}", inc);
             }
@@ -59,7 +66,10 @@ async fn main() {
         // Local Token Usage
         if let Some(ref tokens) = p.local_usage {
             println!("  Local Token Usage:");
-            println!("    Files Scanned: {} (Failed: {})", tokens.scanned_file_count, tokens.failed_file_count);
+            println!(
+                "    Files Scanned: {} (Failed: {})",
+                tokens.scanned_file_count, tokens.failed_file_count
+            );
             println!("    Input Tokens:  {}", format_number(tokens.input_tokens));
             println!("    Output Tokens: {}", format_number(tokens.output_tokens));
             if let Some(cr) = tokens.cache_read_tokens {

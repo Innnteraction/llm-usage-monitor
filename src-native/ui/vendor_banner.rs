@@ -1,9 +1,11 @@
-use gpui::{
-    div, rgb, FontWeight, IntoElement, ParentElement, Styled,
-};
+use super::theme::Palette;
 use crate::core::types::{ProviderSnapshot, ServiceHealthIndicator};
+use gpui::{div, rgb, FontWeight, IntoElement, ParentElement, Styled};
 
-pub fn render_vendor_health_banner(providers: &[ProviderSnapshot]) -> impl IntoElement {
+pub fn render_vendor_health_banner(
+    providers: &[ProviderSnapshot],
+    palette: Palette,
+) -> impl IntoElement {
     let mut incidents = Vec::new();
 
     for provider in providers {
@@ -14,6 +16,12 @@ pub fn render_vendor_health_banner(providers: &[ProviderSnapshot]) -> impl IntoE
         }
     }
 
+    let confirmed = providers.len() == 3
+        && providers.iter().all(|p| {
+            p.service_status
+                .as_ref()
+                .is_some_and(|s| s.indicator == ServiceHealthIndicator::Operational)
+        });
     if incidents.is_empty() {
         // All Systems Operational
         div()
@@ -23,20 +31,25 @@ pub fn render_vendor_health_banner(providers: &[ProviderSnapshot]) -> impl IntoE
             .py_1()
             .px_2()
             .rounded_md()
-            .bg(rgb(0x18181b))
+            .bg(palette.background)
             .border_1()
-            .border_color(rgb(0x27272a))
+            .border_color(palette.surface)
             .child(
-                div()
-                    .size_2()
-                    .rounded_full()
-                    .bg(rgb(0x22c55e)), // green-500
+                div().size_2().rounded_full().bg(if confirmed {
+                    rgb(0x22c55e)
+                } else {
+                    palette.muted
+                }), // green-500
             )
             .child(
                 div()
                     .text_xs()
-                    .text_color(rgb(0x71717a))
-                    .child("Anthropic, OpenAI, Google: All Systems Operational"),
+                    .text_color(palette.muted)
+                    .child(if confirmed {
+                        "모든 벤더 서비스 정상"
+                    } else {
+                        "벤더 서비스 상태 미확인"
+                    }),
             )
     } else {
         // Incident Warning Banner
@@ -61,12 +74,7 @@ pub fn render_vendor_health_banner(providers: &[ProviderSnapshot]) -> impl IntoE
                             .flex()
                             .items_center()
                             .gap_1()
-                            .child(
-                                div()
-                                    .size_2()
-                                    .rounded_full()
-                                    .bg(rgb(0xf59e0b)),
-                            )
+                            .child(div().size_2().rounded_full().bg(rgb(0xf59e0b)))
                             .child(
                                 div()
                                     .font_weight(FontWeight::SEMIBOLD)

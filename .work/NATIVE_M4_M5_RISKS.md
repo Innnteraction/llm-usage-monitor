@@ -51,3 +51,19 @@
 3. macOS 빌드·실기 검증을 구분해 기록. Windows에서 실행하지 않은 검증을 통과로 표시하지 않음.
 4. 기존 Electron과의 UI·기능 차이, 라이선스 감사 결과를 검토 가능한 상태로 남김.
 5. 원래 계획의 최종 사용자 검수 후 대체 조건을 충족할 때만 main 병합·배포 전환.
+
+
+## 구현 검증 1차
+
+사용자 승인 후 기존 15건(이전 11건 + 추가 4건)을 baseline으로 고정하고 정책을 활성화했다. Rust 변경 계획과 구현 후 verify가 통과했다.
+
+- 별도 Tokio runtime에서 수집하고 GPUI loop는 트레이 이벤트를 계속 처리한다. 수동·자동 갱신 중복 실행을 막는다.
+- blur 후 창 핸들을 정리하고 열기·토글·위치 초기화를 구분했다. macOS template icon, 좌클릭 메뉴 비활성화를 적용했다.
+- 카드/간략 보기, 시스템/라이트/다크 팔레트, hover 도움말, 수동 갱신 상태, 보기 설정 저장을 구현했다. 실제 클릭·표시 검증은 M5에서 별도로 기록한다.
+- provider별 마지막 정상 quota를 메모리에서 보존한다. 실패 시 오류와 stale 상태를 표시한다. 재실행을 넘는 quota 영구 보존은 아직 없다.
+- Codex RPC 메서드를 수정하고 범위 밖 quota를 거부한다. CLI timeout 취소 시 자식 프로세스 정리와 Claude auth status 시간 제한을 추가했다.
+- 로컬 캐시는 provider별로 lock 안에서 병합한다. 변경 파일은 안전한 offset에서 읽고, 미완성 UTF-8/JSON 행은 다음 수집에서 재시도한다. 최대 행 버퍼는 1 MiB이며 초과 행은 partial로 표시한다. 삭제·축소·경계 변경을 처리한다.
+- Claude 중복 메시지는 최신 usage로 대체한다. 파일 간 같은 메시지 중복, rename 시 세션 이동과 특수 파일 교체까지 완전한 패리티를 보장하지는 않는다.
+- Google 상태 요청 실패는 Unknown, 전체 상태 미확인은 정상과 구분한다. 로컬 partial과 stale 마지막 성공 시간을 UI에 노출한다.
+
+검증: `cargo test --locked --all-targets` 16개 통과, 아키텍처 verify 통과. 테스트는 허구 데이터와 존재하지 않는 CLI만 사용했다. 기존 unused field warning과 dependency `proc-macro-error2` future-incompatibility warning이 남는다.

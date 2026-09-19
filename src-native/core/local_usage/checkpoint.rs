@@ -26,18 +26,53 @@ impl LocalUsageCheckpointStore {
         }
     }
 
+    pub fn get_provider(&self, provider: &str) -> super::types::ProviderCheckpointSection {
+        self.state
+            .lock()
+            .unwrap()
+            .providers
+            .get(provider)
+            .cloned()
+            .unwrap_or_default()
+    }
+
     pub fn get_state(&self) -> LocalUsageCheckpointState {
         self.state.lock().unwrap().clone()
     }
 
-    pub fn save_state(&self, state: LocalUsageCheckpointState) {
+    pub fn save_provider(&self, provider: &str, section: super::types::ProviderCheckpointSection) {
+        let mut guard = self.state.lock().unwrap();
+        guard.providers.insert(provider.to_string(), section);
         if let Some(parent) = self.path.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        if let Ok(json) = serde_json::to_string_pretty(&state) {
+        if let Ok(json) = serde_json::to_string(&*guard) {
             let _ = fs::write(&self.path, json);
         }
-        let mut guard = self.state.lock().unwrap();
-        *guard = state;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::types::ProviderCheckpointSection;
+    use super::*;
+    #[test]
+    fn concurrent_provider_saves_preserve_both_sections() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cache.json");
+        let store = LocalUsageCheckpointStore::new(path.clone());
+        let second = store.clone();
+        let thread = std::thread::spawn(move || {
+            second.save_provider("claude", ProviderCheckpointSection::default())
+        });
+        store.save_provider("codex", ProviderCheckpointSection::default());
+        thread.join().unwrap();
+        assert_eq!(
+            LocalUsageCheckpointStore::new(path)
+                .get_state()
+                .providers
+                .len(),
+            2
+        );
     }
 }

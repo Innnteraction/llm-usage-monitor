@@ -12,8 +12,8 @@ pub struct SystemTrayManager {
 
 pub fn load_tray_icon() -> Result<Icon> {
     let png_bytes = include_bytes!("../../assets/icons/tray-icon.png");
-    let img = image::load_from_memory(png_bytes)
-        .context("Failed to decode embedded tray-icon.png")?;
+    let img =
+        image::load_from_memory(png_bytes).context("Failed to decode embedded tray-icon.png")?;
     let rgba = img.into_rgba8();
     let (width, height) = rgba.dimensions();
     Icon::from_rgba(rgba.into_raw(), width, height)
@@ -54,6 +54,8 @@ impl SystemTrayManager {
 
         let tray_icon = TrayIconBuilder::new()
             .with_menu(Box::new(tray_menu))
+            .with_menu_on_left_click(false)
+            .with_icon_as_template(cfg!(target_os = "macos"))
             .with_tooltip("LLM Usage Monitor")
             .with_icon(icon)
             .build()
