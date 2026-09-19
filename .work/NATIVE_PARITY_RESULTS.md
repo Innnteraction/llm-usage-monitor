@@ -75,3 +75,14 @@ P0 자동 검증: 아키텍처 verify와 Rust 17개 테스트 통과. `--snapsho
 - 위험: 텍스트 gradient를 물리 픽셀 mask로 그리므로 정적 텍스트보다 그리기 비용이 커진다. P5 성능 재측정 필요. macOS 빌드·모션 설정 및 Windows 다중 모니터/DPI 드래그는 미검증이다. 실화면 비교는 사용자 합의대로 수동 진행하며 캡처는 Git 제외다.
 
 - 성능 참고: 자동 실행 중 foreground/노출 상태를 보장하지 못해 CPU 표본은 P5 근거에서 제외했다. 정적 화면보다 비용이 낮다는 결론을 내리지 않는다.
+
+
+## 재검수 피드백 수정 — 2026-09-20
+
+- 사용자 확인: agy 터미널 문제 해결. 드래그는 미해결, 헤더 아이콘 소실 회귀, Codex 5h 무지개 모서리 누락 보고.
+- 원인: GPUI SVG paint는 SVG 자신의 style.text.color가 있어야 실행된다. 부모 색상 상속을 가정한 앞선 변경이 잘못이었다. SVG 본체·글로우에 색상을 명시하고 hover 색도 직접 설정했다.
+- Codex 무지개: 부모 overflow_hidden은 사각형으로 자르므로 둥근 외곽을 보장하지 못한다. 무지개 색을 4px 둥근 quad에 직접 칠해 움직이는 색상과 모서리를 함께 유지한다.
+- Windows 이동: 이전 hit-test 경로를 제거하고 GPUI가 잡은 capture를 해제한 뒤 WM_SYSCOMMAND/SC_MOVE를 게시한다. 비동기 게시로 GPUI input callback 안에서 OS 모달 이동 루프가 재진입하는 것을 피한다. 실제 이동 여부·다중 모니터 DPI·마우스 해제·위치 보존은 수동 재검수 대상이다.
+- 범위: 기존 native-app → native-shell과 native-ui 경계 유지. Cargo에는 기존 windows 의존성의 KeyboardAndMouse feature만 추가했다. architecture verify 및 Rust 26개 테스트 통과. 실화면 동일성 통과로 판정하지 않는다.
+
+- Windows release 빌드 통과. normal 합성 데모 `--quit-after=3` exit 0 / stderr 0 bytes. 화면·입력 검증은 사용자 수동 재검수로 남긴다.

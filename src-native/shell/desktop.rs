@@ -49,6 +49,35 @@ pub fn set_position(window: &gpui::Window, x: f32, y: f32) -> Result<()> {
     Ok(())
 }
 
+/// GPUI Windows의 기본 start_window_move는 no-op이다.
+/// 현재 이벤트가 끝난 뒤 OS 이동 루프에 진입해 GPUI callback 재진입을 피한다.
+pub fn start_window_move(window: &mut gpui::Window) -> Result<()> {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::{
+            Foundation::{HWND, LPARAM, WPARAM},
+            UI::{Input::KeyboardAndMouse::ReleaseCapture, WindowsAndMessaging::*},
+        };
+        let handle = HasWindowHandle::window_handle(window)
+            .map_err(|_| anyhow::anyhow!("window handle unavailable"))?;
+        let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+            bail!("unsupported window platform");
+        };
+        unsafe {
+            let _ = ReleaseCapture();
+            PostMessageW(
+                Some(HWND(handle.hwnd.get() as *mut _)),
+                WM_SYSCOMMAND,
+                WPARAM((SC_MOVE | HTCAPTION) as usize),
+                LPARAM(0),
+            )?;
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    window.start_window_move();
+    Ok(())
+}
+
 pub fn set_topmost(window: &gpui::Window, enabled: bool) -> Result<()> {
     let handle = HasWindowHandle::window_handle(window)
         .map_err(|_| anyhow::anyhow!("window handle unavailable"))?;

@@ -81,9 +81,9 @@ node scripts/create-parity-scenarios.mjs
 
 | ID | 보고된 문제 | 수정 및 재검수 기준 | 자동 검증 / 실기 |
 | --- | --- | --- | --- |
-| R-01 | agy 갱신마다 터미널 표시 | 백그라운드 CLI에 CREATE_NO_WINDOW. 실제 갱신을 반복해 창 미출현 확인 | 빌드 / 대기 |
+| R-01 | agy 갱신마다 터미널 표시 | 백그라운드 CLI에 CREATE_NO_WINDOW. 실제 갱신을 반복해 창 미출현 확인 | 사용자 해결 확인 (2026-09-20) |
 | R-02 | Codex 데이터 누락 | nullable/누락 기간 파싱, codex 계정 주간 quota 선택, RPC별 10초 제한. 실제 계정 fresh·주간 값 확인 | 합성 응답·실패 테스트 통과 / 대기 |
-| R-03 | 창 드래그 불가 | GPUI Windows hit-test의 Drag 영역 사용. 헤더 빈 공간으로 이동, 버튼 클릭·모드 전환·재열기·Reset Position 확인 | 빌드 / 대기 |
+| R-03 | 창 드래그 불가 | Windows capture 해제 후 SC_MOVE 명령 사용. 헤더 빈 공간으로 이동, 버튼 클릭·모드 전환·재열기·Reset Position 확인 | 빌드 / 대기 |
 | R-04 | 20% 게이지 구간 간격 불균일 | 전체 폭에서 동일 구간과 2px 간격 계산. 100/125/150/200% 배율 비교 | 분수 폭·사용률 경계 테스트 통과 / 대기 |
 | R-05 | Fable의 e 줄바꿈 | 고정 라벨 한 줄 유지. 상세 모드에서 확인 | 빌드 / 대기 |
 | R-06 | 갱신·남은 시간 애니메이션 없음 | shimmer와 남은 시간별 회색/황금/파스텔/강한 무지개 색 흐름. stale·미제공·만료·모션 감소에서는 정지 | 단계 경계 테스트·데모 실행 통과 / 대기 |
@@ -97,3 +97,11 @@ node scripts/create-parity-scenarios.mjs
 ```
 
 캡처·영상은 기존과 같이 `.work/parity-captures/`에만 보관하고 Git에 추가하지 않는다. Codex 5h의 의도된 무한대 표시는 유지한다.
+
+
+### 2026-09-20 재보고 반영
+
+- R-01: agy 터미널 문제는 사용자 해결 확인.
+- R-03: 이전 Drag hit-test 수정으로 해결되지 않음. Windows 마우스 capture 해제 후 비동기 SC_MOVE 명령으로 변경. 헤더 빈 공간 드래그, 버튼 클릭, 이동 후 접기/펼치기·재열기·Reset Position 재검수 필요.
+- R-07: 이전 글로우 변경에서 SVG 색상 지정 누락으로 아이콘 소실 회귀 발생. 본체와 글로우 SVG 각각 색상을 명시. 아이콘 표시·hover·활성 상태 재검수 필요.
+- R-08: Codex 5h 무지개에도 4px 둥근 quad를 적용. 모션 켜짐/감소, dark/light에서 네 모서리 확인 필요.

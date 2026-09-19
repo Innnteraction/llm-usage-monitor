@@ -146,32 +146,15 @@ pub fn render_compact(
 // 사용자 확정 제품 규칙. snapshot의 미제공 값을 변조하지 않는다.
 fn unlimited_slot(p: Palette, reduced_motion: bool) -> impl IntoElement {
     let light = p.background == gpui::rgb(0xf5f5f7);
-    let colors = [0xff595e, 0xffca3a, 0x8ac926, 0x1982c4, 0x6a4c93, 0xff595e];
-    let rainbow = div()
-        .absolute()
-        .top_0()
-        .h_full()
-        .w(px(288.))
-        .flex()
-        .children((0..15).map(move |index| {
-            div()
-                .w(px(19.2))
-                .h_full()
-                .flex_shrink_0()
-                .bg(gpui::linear_gradient(
-                    90.,
-                    gpui::linear_color_stop(gpui::rgb(colors[index % 5]), 0.),
-                    gpui::linear_color_stop(gpui::rgb(colors[index % 5 + 1]), 1.),
-                ))
-        }));
+    let rainbow = div().absolute().top_0().left_0().w(px(48.)).h(px(18.));
     let rainbow = if reduced_motion {
-        rainbow.left(px(0.)).into_any_element()
+        rainbow.child(rounded_rainbow(0.)).into_any_element()
     } else {
         rainbow
             .with_animation(
                 "codex-unlimited-flow",
                 Animation::new(std::time::Duration::from_millis(3500)).repeat(),
-                |el, delta| el.left(px(-192. * delta)),
+                |el, delta| el.child(rounded_rainbow(delta)),
             )
             .into_any_element()
     };
@@ -224,6 +207,45 @@ fn unlimited_slot(p: Palette, reduced_motion: bool) -> impl IntoElement {
                 .child("∞"),
         )
 }
+// overflow_hidden은 사각 마스크이므로 무지개 자체를 둥근 quad로 칠한다.
+fn rounded_rainbow(phase: f32) -> impl IntoElement {
+    gpui::canvas(
+        |_, _, _| (),
+        move |bounds, _, window, _| {
+            let colors = [0xff595e, 0xffca3a, 0x8ac926, 0x1982c4, 0x6a4c93, 0xff595e];
+            let step = 1. / window.scale_factor();
+            let width = f32::from(bounds.size.width);
+            let mut x = 0.;
+            while x < width {
+                let position = (x + step / 2. + 192. * phase) / 19.2;
+                let index = position.floor() as usize % 5;
+                let t = position.fract();
+                let a = gpui::rgb(colors[index]);
+                let b = gpui::rgb(colors[index + 1]);
+                let color = gpui::Rgba {
+                    r: a.r + (b.r - a.r) * t,
+                    g: a.g + (b.g - a.g) * t,
+                    b: a.b + (b.b - a.b) * t,
+                    a: 1.,
+                };
+                let mask = gpui::ContentMask {
+                    bounds: gpui::Bounds::new(
+                        bounds.origin + gpui::point(px(x), px(0.)),
+                        gpui::size(px(step.min(width - x)), bounds.size.height),
+                    ),
+                };
+                window.with_content_mask(Some(mask), |window| {
+                    let mut quad = gpui::fill(bounds, color);
+                    quad.corner_radii = px(4.).into();
+                    window.paint_quad(quad);
+                });
+                x += step;
+            }
+        },
+    )
+    .size_full()
+}
+
 fn slot(
     w: Option<&QuotaWindow>,
     label: &str,

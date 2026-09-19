@@ -234,9 +234,15 @@ impl Render for PopoverView {
             .font_family(font).text_size(px(17.6)).line_height(gpui::relative(1.2))
             .pt(px(if compact {10.} else {12.})).px(px(if compact {10.} else {18.})).pb(px(6.))
             .child(div().flex().items_center().justify_between().gap(px(12.)).flex_shrink_0()
-                .window_control_area(gpui::WindowControlArea::Drag)
-                .on_mouse_move(cx.listener(|this,_,_,_| this.state.lock().unwrap().dragging=true))
-                .on_mouse_down(gpui::MouseButton::Left, cx.listener(|this,_,window,_| {this.state.lock().unwrap().dragging=true; window.start_window_move();}))
+                .on_mouse_down(gpui::MouseButton::Left, cx.listener(|this,_,window,cx| {
+                    this.state.lock().unwrap().dragging=true;
+                    if llm_usage_monitor_core::shell::desktop::start_window_move(window).is_err() {
+                        let mut s=this.state.lock().unwrap();
+                        s.dragging=false;
+                        s.ui_error=Some("Failed to move window.".into());
+                        cx.notify();
+                    }
+                }))
                 .on_mouse_up(gpui::MouseButton::Left, cx.listener(|this,_,_,_| this.state.lock().unwrap().dragging=false))
                 .child(action_button("refresh",UiAction::Refresh,events.clone()).text_size(px(14.432)).font_weight(gpui::FontWeight::BOLD).text_color(palette.muted)
                     .occlude().child(llm_usage_monitor_core::ui::animated_text::refresh(title,palette,refreshing,reduced_motion))

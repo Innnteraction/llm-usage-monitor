@@ -81,6 +81,7 @@ pub fn header_icon(
             .map(move |(x, y)| {
                 svg()
                     .path(path)
+                    .text_color(p.text)
                     .absolute()
                     .left(px(x))
                     .top(px(y))
@@ -89,5 +90,12 @@ pub fn header_icon(
                     .group_hover("header-icon", |s| s.opacity(0.16))
             }),
         )
-        .child(svg().path(path).relative().size_full())
+        .child(
+            svg()
+                .path(path)
+                .text_color(if active { p.text } else { p.muted })
+                .group_hover("header-icon", move |s| s.text_color(p.text))
+                .relative()
+                .size_full(),
+        )
 }
