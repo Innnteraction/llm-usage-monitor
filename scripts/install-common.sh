@@ -18,6 +18,7 @@ inspect_environment() {
   if ! xcrun --find metal >/dev/null 2>&1; then rust_needs="$rust_needs Xcode + Metal toolchain (Apple)"; fi
   printf '%s\n' 'Node / Electron: simpler build preparation; bundles a web runtime.' 'Rust / GPUI: Rust + C++/SDK tools; larger initial build preparation.' 'Rust is expected to use less runtime memory; no verified comparative percentage is promised.' 'macOS live UI/login and complete visual parity still require manual verification.'
   printf 'Node missing: %s\nRust missing: %s\n' "${node_needs:-ready}" "${rust_needs:-ready}"
+  printf '%s\n' 'Reference only (Windows x64, 2026-09-20, synthetic expanded UI, five working-set samples): Node 314-318 MiB / Rust 55 MiB. Not a macOS measurement.'
 }
 install_dependencies() {
   if [ "$variant" = node ]; then

@@ -4,9 +4,15 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
+let pending: Promise<boolean> = Promise.resolve(false);
 
 /** Only a managed install may register login startup; development copies never steal it. */
-export async function launchAtLogin(action: 'query' | 'on' | 'off', executable = process.execPath): Promise<boolean> {
+export function launchAtLogin(action: 'query' | 'on' | 'off', executable = process.execPath): Promise<boolean> {
+  pending = pending.catch(() => false).then(() => executeLaunchAtLogin(action, executable));
+  return pending;
+}
+
+async function executeLaunchAtLogin(action: 'query' | 'on' | 'off', executable: string): Promise<boolean> {
   const windows = process.platform === 'win32';
   const directory = windows ? path.dirname(executable) : path.resolve(path.dirname(executable), '../Resources');
   try {

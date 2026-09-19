@@ -40,6 +40,8 @@ There are no prebuilt downloads in this installation flow. Use **Code → Downlo
 
 Simpler setup does not mean a smaller app package. No memory reduction percentage or build time is promised. Full UI parity and macOS live UI/login still require manual verification. The installer shows missing tools on this PC and asks you to choose; **there is no default variant**. Only one managed app is installed.
 
+Reference measurement: five samples of the same synthetic expanded view on Windows x64 gave a process-tree Working Set sum of 314–318MiB for Node and about 55MiB for Rust. This short sample includes shared-page double counting; see [conditions and limits](.work/SINGLE_INSTALL_RISKS.md#메모리-비교).
+
 ### 2. Check the environment, then install
 
 Windows x64, 64-bit PowerShell:
@@ -219,7 +221,7 @@ Read-only smoke tests targeting real vendor CLIs can be run separately via `pnpm
 
 `pnpm dev` uses the same Forge packaging as production and executes the compiled binary directly. To apply code modifications, exit the app via the tray context menu or `Ctrl+C`, then run the command again (closing the window minimizes it to the tray). If packaging fails, the previous build is never run.
 
-Both development commands isolate configuration, usage cache, and Chromium data under `appData/llm-usage-monitor-dev`, while the shared cache lock still prevents concurrent collectors using the same cache. Existing vendor CLI logins are reused without modifying installed folders, shortcuts, or autostart entries.
+Both development commands isolate configuration and Chromium data under `appData/llm-usage-monitor-dev`, while the shared cache lock still prevents concurrent collectors using the same cache. Existing vendor CLI logins are reused without modifying installed folders, shortcuts, or autostart entries.
 
 For diagnosis procedures regarding GPU unexpected termination and blank window issues, see the [Troubleshooting Guide](TROUBLESHOOTING.md) ([한국어](TROUBLESHOOTING.ko.md)).
 

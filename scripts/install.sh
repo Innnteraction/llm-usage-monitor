@@ -33,6 +33,8 @@ legacy_native="$install_parent/LLM Usage Monitor Native.app"
 label=com.innnteraction.llm-usage-monitor
 plist="$HOME/Library/LaunchAgents/$label.plist"
 old_enabled=false
+legacy_items="$(osascript "$script_dir/migrate-login-items.applescript" query)"
+[ -z "$legacy_items" ] || old_enabled=true
 if [ -f "$plist" ]; then
   old_target="$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments' "$plist")"
   case "$old_target" in *"$install_root"*|*"$legacy_native"*) old_enabled=true;; *) echo 'Unrecognized startup entry; refusing to overwrite.' >&2; exit 1;; esac
@@ -60,15 +62,29 @@ mkdir -p "$install_parent"
 transaction="$(mktemp -d "$install_parent/.llm-install.XXXXXX")"
 stage="$transaction/new.app"
 committed=false; replaced=false
+legacy_removed=false
 rollback() {
   result=$?
+  recovery_failed=false
   if [ "$committed" = false ] && [ "$replaced" = true ]; then
-    rm -rf "$install_root"
-    [ ! -d "$transaction/previous.app" ] || mv "$transaction/previous.app" "$install_root"
-    [ ! -d "$transaction/native.app" ] || mv "$transaction/native.app" "$legacy_native"
-    if [ -f "$transaction/startup.plist" ]; then mkdir -p "$(dirname "$plist")"; cp "$transaction/startup.plist" "$plist"; else rm -f "$plist"; fi
+    rm -rf "$install_root" || recovery_failed=true
+    if [ -d "$transaction/previous.app" ]; then mv "$transaction/previous.app" "$install_root" || recovery_failed=true; fi
+    if [ -d "$transaction/native.app" ]; then mv "$transaction/native.app" "$legacy_native" || recovery_failed=true; fi
+    if [ -f "$transaction/startup.plist" ]; then
+      mkdir -p "$(dirname "$plist")" && cp "$transaction/startup.plist" "$plist" || recovery_failed=true
+    else rm -f "$plist" || recovery_failed=true; fi
+    if [ "$legacy_removed" = true ]; then
+      while IFS="$(printf '\t')" read -r item_name item_path item_hidden; do
+        [ -z "$item_name" ] || osascript "$script_dir/migrate-login-items.applescript" restore "$item_name" "$item_path" "$item_hidden" || recovery_failed=true
+      done <<< "$legacy_items"
+    fi
   fi
-  rm -rf "$transaction"
+  if [ "$recovery_failed" = true ]; then
+    echo "Recovery incomplete. Preserve and inspect backup: $transaction" >&2
+    result=1
+  else
+    rm -rf "$transaction" || echo "Backup cleanup remains: $transaction" >&2
+  fi
   exit "$result"
 }
 trap rollback EXIT
@@ -103,6 +119,8 @@ done
 [ ! -d "$install_root" ] || mv "$install_root" "$transaction/previous.app"
 replaced=true
 [ ! -d "$legacy_native" ] || mv "$legacy_native" "$transaction/native.app"
+legacy_removed=true
+osascript "$script_dir/migrate-login-items.applescript" remove >/dev/null
 if [ "$uninstall" = true ]; then
   launchctl bootout "gui/$(id -u)/$label" >/dev/null 2>&1 || true
   rm -f "$plist"

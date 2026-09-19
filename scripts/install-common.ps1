@@ -22,7 +22,7 @@ function Get-InstallEnvironment([string]$PnpmVersion) {
     $rustup = Get-ToolVersion rustup
     $cargo = Get-ToolVersion cargo
     $nodeNeeds = @()
-    if ((Get-NodeMajor $node) -ne 24) { $nodeNeeds += 'Node.js 24 (nodejs.org / WinGet OpenJS.NodeJS.24)' }
+    if ((Get-NodeMajor $node) -ne 24) { $nodeNeeds += 'Node.js 24.19.0 (nodejs.org / WinGet OpenJS.NodeJS.LTS)' }
     if ($pnpm -ne $PnpmVersion) { $nodeNeeds += "pnpm $PnpmVersion (npm registry, project packageManager)" }
     $rustNeeds = @()
     if (-not $rustup) { $rustNeeds += 'rustup (rust-lang.org)' }
@@ -33,7 +33,8 @@ function Get-InstallEnvironment([string]$PnpmVersion) {
 function Show-InstallComparison($Environment) {
     Write-Host 'Node / Electron: 웹 UI, Node 24 + pnpm. 빌드 준비가 비교적 단순하지만 Electron 런타임을 포함합니다.'
     Write-Host 'Rust / GPUI: 네이티브 UI, Rust + C++/SDK 도구. 최초 준비·컴파일 부담이 더 큽니다.'
-    Write-Host '실행 메모리는 Rust가 작을 것으로 예상되나 동일 조건 측정 전에는 절감률을 보장하지 않습니다.'
+    Write-Host '실행 메모리는 환경에 따라 달라지며 아래 표본으로 일반적인 절감률을 보장하지 않습니다.'
+    Write-Host '참고 측정 (2026-09-20, Windows x64, 허구 데이터 펼침, 5회 Working Set 합계): Node 314-318 MiB / Rust 55 MiB. PC·드라이버·데이터에 따라 달라집니다.'
     Write-Host 'macOS 실화면·로그인 실행 및 UI 전체 동등성은 별도 검수가 필요합니다.'
     foreach ($kind in @('Node','Rust')) {
         $needs = @($Environment["${kind}Needs"])
@@ -74,7 +75,11 @@ function Switch-InstallDirectory([string]$Stage, [string]$Target, [scriptblock]$
         if ($hadPrevious) { Move-Item -LiteralPath $backup -Destination $Target }
         throw
     }
-    if ($hadPrevious) { Assert-InstallChild $backup $parent; Remove-Item -LiteralPath $backup -Recurse -Force }
+    if ($hadPrevious) {
+        Assert-InstallChild $backup $parent
+        try { Remove-Item -LiteralPath $backup -Recurse -Force }
+        catch { Write-Warning "설치는 완료됐지만 백업 정리가 남았습니다: $backup" }
+    }
 }
 function Assert-AppStopped([string]$Directory) {
     if (-not (Test-Path -LiteralPath $Directory)) { return }
@@ -99,7 +104,7 @@ function Install-SelectedDependencies([string]$Variant, [string]$PnpmVersion, [b
         }
         if (-not $environment.Node) {
             if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'WinGet이 없습니다. https://nodejs.org/en/download 에서 Node 24를 설치한 뒤 재실행하세요.' }
-            Invoke-Checked winget @('install','--id','OpenJS.NodeJS.24','--exact','--source','winget','--accept-source-agreements','--accept-package-agreements')
+            Invoke-Checked winget @('install','--id','OpenJS.NodeJS.LTS','--version','24.19.0','--exact','--source','winget','--accept-source-agreements','--accept-package-agreements')
             Update-InstallerPath
         }
         if ((Get-NodeMajor (Get-ToolVersion node)) -ne 24) { throw 'Node 24를 아직 찾지 못했습니다. 새 터미널에서 재실행하세요.' }
@@ -119,7 +124,9 @@ function Install-SelectedDependencies([string]$Variant, [string]$PnpmVersion, [b
             $download = Join-Path ([IO.Path]::GetTempPath()) ("llm-rustup-" + [guid]::NewGuid().ToString('N') + '.exe')
             try {
                 Invoke-WebRequest 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe' -OutFile $download -UseBasicParsing
-                if ((Get-AuthenticodeSignature -LiteralPath $download).Status -ne 'Valid') { throw 'rustup 설치 프로그램 서명 검증 실패. https://rustup.rs/ 에서 직접 설치하세요.' }
+                $checksumResponse = Invoke-WebRequest 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe.sha256' -UseBasicParsing
+                $checksumText = if ($checksumResponse.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($checksumResponse.Content) } else { [string]$checksumResponse.Content }
+                if ($checksumText -notmatch '^([a-fA-F0-9]{64})\b' -or (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash -ne $Matches[1]) { throw 'rustup 공식 SHA-256 검증 실패. 설치를 중단합니다.' }
                 Invoke-Checked $download @('-y','--default-toolchain','none','--no-modify-path')
             } finally { if (Test-Path -LiteralPath $download) { Remove-Item -LiteralPath $download -Force } }
             Update-InstallerPath

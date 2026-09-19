@@ -4,10 +4,12 @@ action="${1:-query}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 target="$root/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$root/Contents/Info.plist")"
 [ -f "$root/Contents/Resources/install-info.json" ] && [ -x "$target" ] || exit 2
+manifest="$root/Contents/Resources/install-info.json"
+[ "$(plutil -extract appId raw -o - "$manifest")" = llm-usage-monitor ] || exit 2
+[ "$(plutil -extract schemaVersion raw -o - "$manifest")" = 1 ] || exit 2
 [ -z "${2:-}" ] || [ "$2" = "$target" ] || exit 2
 label=com.innnteraction.llm-usage-monitor
 plist="$HOME/Library/LaunchAgents/$label.plist"
-domain="gui/$(id -u)"
 owned() { [ -f "$plist" ] && [ "$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' "$plist" 2>/dev/null || true)" = "$target" ]; }
 case "$action" in
   query) ;;

@@ -1,4 +1,4 @@
-# mac 소스 설치 가이드
+# macOS 소스 설치 가이드
 
 [English](deploy-mac.en.md) · [README](../README.ko.md)
 
@@ -60,3 +60,5 @@ bash scripts/install.sh --uninstall
 앱 사용자 폴더 설치와 도구 설치 권한은 별개입니다. macOS 실기 로그인·화면과 Windows 실제 재부팅 검수는 자동 테스트 결과에 포함되지 않습니다. [검증 기록](../.work/SINGLE_INSTALL_RISKS.md)을 확인하세요.
 
 Homebrew가 없으면 별도 동의를 받아 설치합니다. Rust 빌드에 필요한 Xcode/Metal이 없으면 Apple 설치 화면을 열고 중단합니다. Xcode 최초 실행·라이선스·toolchain 설치를 완료한 뒤 재실행하세요. ad-hoc 서명은 공증이 아니며 Gatekeeper를 자동 해제하지 않습니다. OS 보안 안내에 따라 신뢰한 자체 빌드만 실행하세요.
+
+기존 로그인 항목 이관 시 System Events Automation 권한을 요청할 수 있습니다.

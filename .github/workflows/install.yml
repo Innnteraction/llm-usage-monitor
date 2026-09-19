@@ -1,0 +1,38 @@
+name: Source installer validation
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/install*'
+      - 'scripts/startup*'
+      - 'scripts/migrate-login-items.applescript'
+      - 'scripts/test-install.ps1'
+      - '.github/workflows/install.yml'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Isolated installer scenarios (Windows PowerShell)
+        shell: powershell
+        run: ./scripts/test-install.ps1
+      - name: Read-only environment check
+        shell: powershell
+        run: ./scripts/install.ps1 -Check
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Syntax and read-only checks
+        run: |
+          bash -n scripts/install.sh
+          bash -n scripts/install-common.sh
+          bash -n scripts/startup.sh
+          osacompile -o "$RUNNER_TEMP/migrate-login-items.scpt" scripts/migrate-login-items.applescript
+          bash scripts/install.sh --check

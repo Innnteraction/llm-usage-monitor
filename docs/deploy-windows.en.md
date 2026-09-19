@@ -1,4 +1,4 @@
-# windows source installation
+# Windows source installation
 
 [한국어](deploy-windows.md) · [README](../README.md)
 

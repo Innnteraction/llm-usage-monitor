@@ -9,6 +9,30 @@ try {
     Assert ((Get-NodeMajor 'v24.1.0') -eq 24) 'Node major'
     Assert ((Get-NodeMajor 'v22.0.0') -eq 22) 'Conflicting Node'
     Must-Fail { Confirm-InstallAction 'No consent test' $false $true }
+    & {
+        # Dependency scenarios call the real orchestration with all installers replaced.
+        $global:installTestCalls = @()
+        function Get-ToolVersion([string]$Name) {
+            if ($Name -eq 'node') { return $global:installTestNode }
+            if ($Name -eq 'pnpm') { return $null }
+            return 'fake'
+        }
+        function Get-BuildToolsReady { return $true }
+        function Invoke-Checked([string]$File,[string[]]$Arguments) {
+            $global:installTestCalls += $File
+            throw 'Synthetic download/installer failure'
+        }
+        $global:installTestNode = 'v22.1.0'
+        Must-Fail { Install-SelectedDependencies node 9.15.9 $true $true }
+        Assert ($global:installTestCalls.Count -eq 0) 'Incompatible Node must not be replaced'
+        $global:installTestNode = 'v24.1.0'
+        Must-Fail { Install-SelectedDependencies node 9.15.9 $false $true }
+        Assert ($global:installTestCalls.Count -eq 0) 'No installer without dependency consent'
+        Must-Fail { Install-SelectedDependencies node 9.15.9 $true $true }
+        Assert ($global:installTestCalls -contains 'npm') 'Download failure reached fake installer'
+    }
+    Must-Fail { Invoke-Checked powershell.exe @('-NoProfile','-Command','exit 3010') }
+    Must-Fail { Invoke-Checked powershell.exe @('-NoProfile','-Command','exit 1') }
     Must-Fail { Assert-InstallChild (Split-Path -Parent $testRoot) $testRoot }
     $target = Join-Path $testRoot '설치 App'
     foreach ($variant in @('node','rust','node','node')) {
@@ -51,4 +75,5 @@ try {
 } finally {
     Assert-InstallChild $testRoot ([IO.Path]::GetTempPath())
     Remove-Item -LiteralPath $testRoot -Recurse -Force
+    Remove-Variable installTestRegistry,installTestCalls,installTestNode -Scope Global -ErrorAction SilentlyContinue
 }

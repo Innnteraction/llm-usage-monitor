@@ -111,7 +111,7 @@ try {
         if (Test-Path -LiteralPath $legacyBackup) { Move-Item -LiteralPath $legacyBackup -Destination $legacyNative }
         throw
     }
-    if (Test-Path -LiteralPath $legacyBackup) { Assert-InstallChild $legacyBackup $installParent; Remove-Item -LiteralPath $legacyBackup -Recurse -Force }
+    if (Test-Path -LiteralPath $legacyBackup) { Assert-InstallChild $legacyBackup $installParent; try { Remove-Item -LiteralPath $legacyBackup -Recurse -Force } catch { Write-Warning "기존 Native 백업 정리가 남았습니다: $legacyBackup" } }
     if ($Uninstall) { Remove-Item -LiteralPath $installRoot; Write-Host '앱 제거 완료. 공유 캐시·인증·개발 도구는 보존했습니다.' }
     else {
         Write-Host "설치 완료: $Variant $($package.version) ($revision) / $(Join-Path $installRoot $executable) / 자동 시작=$enableStartup"

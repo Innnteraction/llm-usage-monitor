@@ -1,4 +1,4 @@
-# mac source installation
+# macOS source installation
 
 [한국어](deploy-mac.md) · [README](../README.md)
 
@@ -60,3 +60,5 @@ Vendor CLIs and credentials are not installed/modified by this installer. Instal
 The app installs in user space; build tools may need admin access. Actual login/reboot and macOS live UI checks are manual, not implied by automatic tests. See the [verification record](../.work/SINGLE_INSTALL_RISKS.md).
 
 Missing Homebrew requires separate consent. Missing Xcode/Metal opens Apple setup and stops; complete first launch, licensing and the Metal toolchain, then rerun. Ad-hoc signing is not notarization and the installer does not disable Gatekeeper.
+
+Migration of old login items may require System Events Automation permission.

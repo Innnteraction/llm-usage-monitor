@@ -1,4 +1,4 @@
-# windows 소스 설치 가이드
+# Windows 소스 설치 가이드
 
 [English](deploy-windows.en.md) · [README](../README.ko.md)
 
