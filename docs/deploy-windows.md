@@ -1,93 +1,62 @@
-[English](deploy-windows.en.md) | **한국어**
+# windows 소스 설치 가이드
 
-# Windows 개발자용 원클릭 배포 및 설치 가이드
+[English](deploy-windows.en.md) · [README](../README.ko.md)
 
-이 문서는 개발자가 LLM Usage Monitor를 Windows 로컬 환경에서 한 번의 명령으로 빌드하고, 사용자 프로그램 폴더(`%LOCALAPPDATA%\Programs\llm-usage-monitor`)에 배포하여 트레이 상주 프로그램으로 사용하는 방법을 안내합니다.
+## 선택과 사전 조건
 
----
+Windows x64의 64-bit PowerShell 5.1 이상에서 실행합니다. Linux·Windows ARM64·WSL은 지원하지 않습니다. ZIP 압축을 푼 프로젝트 폴더에서 시작할 수 있고 Git은 필수가 아닙니다. 공개 빌드 패키지는 제공하지 않습니다.
 
-## 개발 실행과 설치 실행 (v0.9.2)
+Node는 웹 UI와 Electron 런타임을 포함하며 빌드 준비가 비교적 단순합니다. Rust는 네이티브 UI로 실행 메모리가 작을 것으로 예상되지만 최초 도구 설치와 컴파일 부담이 큽니다. 앱 용량·메모리 절감률을 보장하지 않습니다. 전체 UI 동등성과 macOS 실화면 검증은 진행 중입니다.
 
-`pnpm dev`는 현재 소스를 패키징한 뒤 `out/`의 실행 파일을 실행합니다. 개발 데이터는 `%APPDATA%\llm-usage-monitor-dev`에 분리하며 설치본이나 자동 시작 등록을 갱신하지 않습니다. 설치본을 업데이트하려면 `pnpm deploy:autostart`를 실행하세요. HMR이 필요한 경우 `pnpm dev:hmr`를 사용할 수 있지만, 이 PC에서 확인한 개발용 Electron 경로의 권한 문제는 [트러블슈팅](../TROUBLESHOOTING.md)을 참고하세요.
+필요한 도구는 Node 24·pnpm 또는 Rust stable MSVC·Visual Studio 2022 C++ Build Tools·Windows SDK입니다. 선택한 버전의 부족한 도구만 설치합니다. 기존 비호환 버전은 교체하지 않으며 적합한 버전을 PATH에서 선택한 뒤 재실행해야 합니다.
 
-설치 후 실행 파일의 버전은 다음 명령으로 확인할 수 있습니다. 시작 프로그램 바로가기는 위 설치 경로의 실행 파일을 가리켜야 합니다.
-
-```powershell
-(Get-Item "$env:LOCALAPPDATA\Programs\llm-usage-monitor\LLM Usage Monitor.exe").VersionInfo.ProductVersion
-```
-
-## 1. 빠른 시작 (Quick Start)
-
-### 기본 배포 및 앱 실행
-프로젝트 루트에서 다음 명령어 중 하나를 실행합니다:
+## 설치
 
 ```powershell
-# 최초 1회 또는 최신 브랜치 pull 후 의존성 동기화
-pnpm install
-
-# npm / pnpm 사용 시
-pnpm deploy
-
-# 또는 PowerShell 직접 실행 시
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy-windows.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Check
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
-- 앱이 패키징(빌드)됩니다.
-- 기존 실행 중인 인스턴스가 있다면 안전하게 종료합니다.
-- `%LOCALAPPDATA%\Programs\llm-usage-monitor` 디렉터리로 최신 파일이 배포됩니다.
-- Windows 시작 메뉴에 `LLM Usage Monitor` 바로가기가 등록됩니다.
-- 앱이 즉시 실행되어 시스템 트레이에 상주합니다.
 
----
-
-## 2. 부팅 시 자동 시작 (AutoStart) 옵션
-
-컴퓨터 부팅(Windows 로그인) 시 자동으로 백그라운드 트레이에 뜨도록 설정하려면 `-AutoStart` 옵션을 사용합니다:
+검사 명령은 도구·앱·자동 시작을 변경하지 않습니다. 설치 명령은 버전과 신규 자동 시작 여부를 묻고, 변경할 내용·설치 출처를 표시한 뒤 동의를 받습니다. 자동 시작을 지정하지 않은 업데이트는 기존 상태를 유지합니다.
 
 ```powershell
-# npm / pnpm 사용 시
-pnpm deploy:autostart
-
-# 또는 PowerShell 직접 실행 시
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy-windows.ps1 -AutoStart
+# Rust 선택 + 자동 시작; node로 바꾸면 Node 설치
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Variant rust -AutoStart on
+# 명시적 비대화형 동의: 도구 설치 및 앱 교체를 승인하는 옵션
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Variant rust -AutoStart off -NonInteractive -AcceptInstall -AcceptDependencies -NoStart
 ```
-- Windows 시작 프로그램 폴더(`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup`)에 바로가기가 등록됩니다.
-- Windows 작업 관리자 `시작 앱` 탭에서도 `LLM Usage Monitor` 항목의 활성화 상태를 언제든 확인하고 제어할 수 있습니다.
 
----
+비대화형은 버전·앱 변경 동의가 필수이며 도구 설치가 필요하면 도구 동의도 필수입니다. 신규 설치는 자동 시작 on/off를 명시해야 합니다. 운영체제의 관리자 권한·라이선스·재부팅 확인은 생략하지 않습니다. 누락 도구에 동의하지 않으면 멈추며 수동 준비 후 같은 명령으로 재개합니다.
 
-## 3. 재빌드 생략 초고속 배포 (`-SkipBuild`)
+## 실행·업데이트·전환
 
-이미 빌드된 `out/LLM Usage Monitor-win32-x64` 바이너리가 있고 파일 복사 및 바로가기 재설정만 빠르게 수행하려면 `-SkipBuild`를 지정합니다:
+설치 위치는 `%LOCALAPPDATA%\Programs\llm-usage-monitor`입니다. 설치 완료 메시지와 `install-info.json`에 버전 종류·버전·소스 revision·실행 파일을 남깁니다. macOS의 설치 정보는 `Contents/Resources/`에 있습니다. 시작 메뉴 또는 앱 번들에서 실행하고 트레이 아이콘으로 화면을 엽니다.
+
+앱은 하나만 관리합니다. 트레이 Quit으로 종료하고 새 소스에서 같은 명령을 실행하면 업데이트됩니다. 다른 버전을 선택하면 교체됩니다. 기존 앱을 강제로 종료하지 않습니다. 새 빌드 실패 시 기존 앱을 유지하며 교체·설정 실패는 이전 설치로 복구합니다. 알려진 별도 Native 설치 경로는 통합하고 임의 복사본은 삭제하지 않습니다.
+
+로그인 자동 시작은 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run → LLM Usage Monitor` 하나로 관리합니다. 양쪽 버전의 트레이 메뉴도 동일한 등록을 읽고 씁니다. 변경은 다음 로그인부터 적용되며 개발/preview 실행 파일에서는 등록할 수 없습니다. 버전 변경 시 기존 자동 시작 선택은 보존합니다. 공유 캐시는 유지하지만 버전별 UI 설정은 변환하지 않습니다.
+
+## 제거·복구
 
 ```powershell
-# npm / pnpm 사용 시
-pnpm deploy:quick
-
-# 또는 PowerShell 직접 실행 시
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy-windows.ps1 -SkipBuild
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Uninstall
 ```
 
----
+종료 후 실행하세요. 앱·앱 소유 바로가기·자동 시작을 정리하며 캐시, 벤더 인증, Node/Rust/C++ 도구는 삭제하지 않습니다. 사용자 지정 설치 위치는 지원하지 않습니다.
 
-## 4. 파라미터 전체 목록
+- 파일 사용 중: 트레이에서 종료하고 재실행합니다. 창을 닫는 것만으로는 종료되지 않습니다.
+- 다운로드·설치 실패: 표시된 공식 출처와 네트워크를 확인하고 다시 실행합니다. 기존 앱은 유지됩니다.
+- 설치 후 명령을 찾지 못함: 새 터미널을 열어 PATH를 반영하고 재실행합니다.
+- 기존 Node 버전 충돌: Node 24를 선택하여 시작합니다. 설치기는 기존 Node를 삭제하지 않습니다.
+- 로그인 뒤 화면이 없음: 트레이 상주가 기본입니다. 아이콘을 열고 앱 등록 경로를 확인합니다.
+- 이중 실행: 다른 개발·복사본을 종료합니다. 같은 공유 캐시를 쓰는 앱은 동시에 수집하지 못합니다.
 
-| 파라미터 | 기본값 | 설명 |
-|---|---|---|
-| `-AutoStart` | `$false` | Windows 로그인 시 자동 시작되도록 Startup 폴더에 바로가기 생성 |
-| `-SkipBuild` | `$false` | 빌드를 건너뛰고 기존 `out/` 폴더 산출물을 재활용하여 배포 |
-| `-NoStart` | `$false` | 배포 완료 후 앱을 자동으로 실행하지 않음 |
-| `-CreateDesktopShortcut` | `$false` | 바탕화면에 실행 바로가기 생성 |
-| `-InstallDir <Path>` | `%LOCALAPPDATA%\Programs\llm-usage-monitor` | 설치할 사용자 디렉터리 경로 (UAC 관리자 권한 불필요) |
-| `-Uninstall` | `$false` | 설치된 프로그램, 바로가기 및 시작 프로그램 등록 완전 제거 |
+기존 `pnpm deploy`, `deploy:autostart`, `deploy:quick`, `deploy:uninstall`은 Node 호환 진입점입니다. quick도 빌드를 검증하며 임의로 오래된 결과를 설치하지 않습니다. 기존 custom install-dir와 desktop-shortcut 옵션은 단일 관리 설치 정책상 지원하지 않습니다.
 
----
+## 벤더 설정과 검증 범위
 
-## 5. 언인스톨 (완전 제거)
+설치기는 벤더 CLI나 인증정보를 설치·변경하지 않습니다. 사용할 CLI만 공식 안내로 설치하고 직접 로그인하세요. Claude는 전용 폴더 신뢰 승인이 추가로 필요합니다. [초기 설정](../README.ko.md#프로바이더-초기-설정)을 따르세요.
 
-개발 테스트 종료 후 설치된 파일과 바로가기를 완전히 정리하려면 다음을 실행합니다:
+앱 사용자 폴더 설치와 도구 설치 권한은 별개입니다. macOS 실기 로그인·화면과 Windows 실제 재부팅 검수는 자동 테스트 결과에 포함되지 않습니다. [검증 기록](../.work/SINGLE_INSTALL_RISKS.md)을 확인하세요.
 
-```powershell
-pnpm deploy:uninstall
-# 또는
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy-windows.ps1 -Uninstall
-```
+도구 설치에는 기존 WinGet을 이용합니다. 없으면 공식 Node/Build Tools 설치 링크를 안내합니다. UAC와 재부팅 요청이 나올 수 있습니다. rustup 다운로드는 공식 HTTPS와 설치 프로그램 검증을 거칩니다.

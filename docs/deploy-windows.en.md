@@ -1,98 +1,62 @@
-**English** | [한국어](deploy-windows.md)
+# windows source installation
 
-# Windows Developer One-Click Deployment & Installation Guide
+[한국어](deploy-windows.md) · [README](../README.md)
 
-This document guides developers through building LLM Usage Monitor locally on Windows with a single command, deploying it to the user programs folder (`%LOCALAPPDATA%\Programs\llm-usage-monitor`), and running it as a system tray resident application.
+## Choose a variant
 
----
+Supported targets: Windows x64 with 64-bit PowerShell 5.1+, and macOS Apple Silicon/Intel with system Bash. Linux, Windows ARM64 and WSL are excluded. Extract the source ZIP or clone the repository, then open the project directory. Git is optional for ZIP installations. No prebuilt app download is provided.
 
-## Development Mode vs. Installed App (v0.9.2 Onwards)
+Node/Electron has simpler build preparation but bundles a web runtime. Rust/GPUI is expected to use less runtime memory, with more initial tooling and compilation work. No memory reduction percentage, installed size or build time is promised. Full UI parity and macOS live verification remain separate work.
 
-`pnpm dev` packages the current source code and runs the binary under `out/`. Development data is isolated in `%APPDATA%\llm-usage-monitor-dev` without overwriting the production installation or autostart shortcuts. To update your local installation, run `pnpm deploy:autostart`. For HMR development, use `pnpm dev:hmr` (refer to the [Troubleshooting Guide](../TROUBLESHOOTING.md) for permission notes regarding standalone Electron).
+This platform needs Node 24/pnpm or Rust stable MSVC/Visual Studio 2022 C++ Build Tools/Windows SDK, depending on your choice. Existing incompatible tools are preserved; select a compatible version in PATH and retry.
 
-After installation, verify the installed version with:
-
-```powershell
-(Get-Item "$env:LOCALAPPDATA\Programs\llm-usage-monitor\LLM Usage Monitor.exe").VersionInfo.ProductVersion
-```
-
----
-
-## 1. Quick Start
-
-### Standard Deployment and Launch
-From the project root, execute either of the following commands:
+## Install
 
 ```powershell
-# First time or after pulling latest changes to sync dependencies
-pnpm install
-
-# Using pnpm
-pnpm deploy
-
-# Or run the PowerShell script directly
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy-windows.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Check
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
 
-- The app is packaged (built).
-- Any currently running instance is safely terminated.
-- Fresh files are deployed to `%LOCALAPPDATA%\Programs\llm-usage-monitor`.
-- A Start Menu shortcut for `LLM Usage Monitor` is created.
-- The app launches immediately and docks in the system notification tray.
-
----
-
-## 2. Start with Windows (AutoStart) Option
-
-To configure the application to launch automatically in the background tray upon Windows user login, use the `-AutoStart` option:
+The check is read-only. Installation asks for a variant, new-install startup preference, and consent. Missing tools, sources and possible administrator/reboot requirements are shown before installation. Updates preserve startup unless explicitly changed.
 
 ```powershell
-# Using pnpm
-pnpm deploy:autostart
-
-# Or run the PowerShell script directly
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy-windows.ps1 -AutoStart
+# Choose Rust and login startup; use node to choose Node
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Variant rust -AutoStart on
+# Explicit unattended consent, no immediate app launch
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Variant rust -AutoStart off -NonInteractive -AcceptInstall -AcceptDependencies -NoStart
 ```
 
-- A shortcut is registered in the Windows Startup folder (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup`).
-- You can also view and toggle the autostart status at any time in the Task Manager under the `Startup apps` tab.
+Unattended mode requires variant and installation consent, plus dependency consent if tools are missing. New installs require an explicit on/off startup choice. OS permissions, licenses and reboots are not bypassed. Declining stops installation; prepare tools manually and rerun.
 
----
+## Run, update and switch
 
-## 3. Fast Redeploy Without Rebuilding (`-SkipBuild`)
+Install location: `%LOCALAPPDATA%\Programs\llm-usage-monitor`. Completion output and `install-info.json` identify the variant, version, source revision and executable (manifest is in `Contents/Resources/` on macOS). Launch from the Start menu or app bundle, then click the tray icon.
 
-If you already have a compiled binary in `out/LLM Usage Monitor-win32-x64` and want to copy files and recreate shortcuts quickly:
+Only one app is managed. Quit from the tray before installing new source. Choosing the same variant updates it; choosing the other replaces it. Failed builds preserve the current app; failed replacement/configuration restores it. No process is forcibly terminated. Known separate Native installs are consolidated; arbitrary copies are not deleted.
+
+Login startup uses one entry: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run → LLM Usage Monitor`. Both tray implementations use that same entry. Changes apply on next login; development/preview executables cannot register themselves. Shared caches survive switching; variant-specific UI preferences are not converted.
+
+## Remove and recover
 
 ```powershell
-# Using pnpm
-pnpm deploy:quick
-
-# Or run the PowerShell script directly
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy-windows.ps1 -SkipBuild
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Uninstall
 ```
 
----
+Quit first. Removal preserves shared caches, vendor credentials and build tools. Custom installation directories are not supported.
 
-## 4. Parameter Reference
+- Locked files: quit via the tray, not just the window close button, then retry.
+- Download/tool installation failure: check the official source/network and rerun. The old app remains installed.
+- New tool not found: reopen the terminal to refresh PATH.
+- Incompatible Node: select Node 24; the installer will not remove your existing version.
+- No visible window after login: the app starts in the tray; click its icon.
+- Another collector already running: quit other development/copied instances sharing the cache.
 
-| Parameter | Default | Description |
-|---|---|---|
-| `-AutoStart` | `$false` | Create a shortcut in the Startup folder to run on Windows login |
-| `-SkipBuild` | `$false` | Skip the build phase and reuse existing `out/` build artifacts |
-| `-NoStart` | `$false` | Do not automatically start the app after deployment |
-| `-CreateDesktopShortcut` | `$false` | Create a shortcut on the Desktop |
-| `-InstallDir <Path>` | `%LOCALAPPDATA%\Programs\llm-usage-monitor` | Target installation directory (no UAC / admin privileges needed) |
-| `-Uninstall` | `$false` | Completely remove installed files, Start Menu, and Startup shortcuts |
+Legacy `pnpm deploy*` commands enter the Node installer. Quick deployment still validates the build. Custom install-dir and desktop-shortcut flags are no longer supported by the single managed-install policy.
 
----
+## Provider setup and validation
 
-## 5. Uninstall (Complete Removal)
+Vendor CLIs and credentials are not installed/modified by this installer. Install the CLIs you use from their official sources and sign in yourself. Claude also requires folder trust. Follow [provider setup](../README.md#provider-setup).
 
-To clean up all installed files and shortcuts after testing:
+The app installs in user space; build tools may need admin access. Actual login/reboot and macOS live UI checks are manual, not implied by automatic tests. See the [verification record](../.work/SINGLE_INSTALL_RISKS.md).
 
-```powershell
-pnpm deploy:uninstall
-
-# Or run the PowerShell script directly
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy-windows.ps1 -Uninstall
-```
+Tool installation uses existing WinGet; if unavailable, official Node/Build Tools links are supplied. UAC/reboot may be required. Rustup is downloaded over official HTTPS and verified before execution.

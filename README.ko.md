@@ -1,6 +1,6 @@
 [English](README.md) | **한국어**
 
-# LLM Usage Monitor (v0.11.0)
+# LLM Usage Monitor (v0.12.0)
 
 Codex, Claude Code, Antigravity(`agy`)의 5시간·주간 사용량 쿼터(Quota)와 이 PC의 로컬 토큰 사용량을 한눈에 보여주는 macOS·Windows 트레이 앱입니다.
 
@@ -16,7 +16,7 @@ Codex, Claude Code, Antigravity(`agy`)의 5시간·주간 사용량 쿼터(Quota
 
 ## 요약
 
-이 앱은 Codex, Claude Code, Antigravity CLI에 이미 로그인한 개발자가 계정 쿼터와 이 PC의 토큰 사용량을 작업 흐름을 끊지 않고 확인하도록 돕습니다. macOS와 Windows를 지원하며, 관리자 권한 없이 명령 하나로 빌드·설치·자동 시작 등록까지 끝납니다.
+이 앱은 Codex, Claude Code, Antigravity CLI에 이미 로그인한 개발자가 계정 쿼터와 이 PC의 토큰 사용량을 작업 흐름을 끊지 않고 확인하도록 돕습니다. macOS와 Windows를 지원하며, 선택형 소스 설치기로 필요한 도구 확인부터 앱 실행까지 진행합니다. 빌드 도구 설치에는 관리자 권한이 필요할 수 있습니다.
 
 앱은 각 CLI가 가진 인증 소유권을 존중합니다. 토큰이나 자격증명 파일을 직접 읽거나 고치지 않고, 쿼터는 CLI가 보여주는 값만 사용합니다. 그래서 설치 뒤에 필요한 준비는 각 CLI에 로그인해 두는 것과, Claude Code에 한해 앱 전용 빈 폴더를 처음 한 번 신뢰(trust)해 주는 것뿐입니다.
 
@@ -26,42 +26,62 @@ Codex, Claude Code, Antigravity(`agy`)의 5시간·주간 사용량 쿼터(Quota
 
 ## 빠른 시작
 
-### 1. 사전 준비
+공개 빌드 패키지는 제공하지 않습니다. 저장소의 **Code → Download ZIP**으로 소스를 받아 압축을 풀거나 Git으로 내려받은 뒤 프로젝트 폴더에서 실행합니다. ZIP 설치에는 Git이 필요 없습니다. 설치기를 시작할 때 Node나 Rust가 없어도 됩니다.
 
-| 항목 | 요구 사항 |
-| --- | --- |
-| Node.js | 24.x |
-| pnpm | 9.15 이상 10 미만 (`packageManager` 필드로 고정) |
-| Codex | `codex` CLI 또는 Codex Desktop 앱 로그인 상태 |
-| Claude Code | `claude` CLI 설치 및 로그인 상태 |
-| Antigravity (선택) | `agy` 1.1.11 이상이 PATH에 있고 로그인 상태 |
+### 1. 버전 비교·선택
 
-- **Codex**: 별도 CLI를 설치하지 않아도 **Codex Desktop 앱**이 설치되어 로그인되어 있으면 바이너리와 세션 로그를 자동 감지해 즉시 연동됩니다.
-- **macOS**: GUI 앱으로 실행돼도 `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, `~/.cargo/bin`을 PATH에 자동 병합하므로 별도 설정 없이 CLI를 찾습니다.
+| 항목 | Node / Electron | Rust / GPUI |
+| --- | --- | --- |
+| UI | 기존 웹 UI | 네이티브 UI |
+| 빌드 도구 | Node 24, 프로젝트 지정 pnpm | Rust/Cargo, Windows MSVC·SDK 또는 macOS Xcode·Metal |
+| 최초 준비 | 상대적으로 단순 | 빌드 도구와 컴파일 부담이 큼 |
+| 실행 메모리 | Electron으로 상대적으로 클 것으로 예상 | 상대적으로 작을 것으로 예상 |
+| 앱 구성 | Electron 런타임을 포함한 여러 파일 | 네이티브 실행 파일과 리소스 |
 
-### 2. 설치
+설치 준비가 단순하다는 것이 앱 크기가 작다는 뜻은 아닙니다. 절감률·빌드 시간은 보장하지 않습니다. 전체 UI 동등성과 macOS 실화면·로그인 실행은 별도 검수가 필요합니다. 설치기가 현재 PC에서 부족한 도구를 표시하며 **기본 버전은 자동 선택하지 않습니다.** 관리되는 앱은 하나만 설치됩니다.
 
-```bash
-pnpm install
+### 2. 환경 확인 → 설치
 
-# 빌드 → 사용자 폴더에 설치 → 즉시 실행 (OS 자동 감지)
-pnpm run deploy
+Windows x64, 64-bit PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Check
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
 
-| 명령 | 동작 |
-| --- | --- |
-| `pnpm run deploy` | 빌드 후 설치하고 실행 |
-| `pnpm deploy:autostart` | 위와 같고, 로그인 시 자동 시작까지 등록 |
-| `pnpm deploy:quick` | 기존 빌드 산출물을 재사용해 재설치 |
-| `pnpm deploy:uninstall` | 설치본과 자동 시작 등록을 모두 제거 |
+macOS Apple Silicon / Intel:
 
-설치 위치는 macOS `~/Applications/LLM Usage Monitor.app`, Windows `%LOCALAPPDATA%\Programs\llm-usage-monitor`입니다. 관리자 권한(`sudo` / UAC)은 필요 없습니다. 플랫폼별 옵션은 [macOS 배포 가이드](docs/deploy-mac.md)와 [Windows 배포 가이드](docs/deploy-windows.md)를 참고하세요.
+```bash
+bash scripts/install.sh --check
+bash scripts/install.sh
+```
 
-### 3. 열기
+`node` 또는 `rust`와 자동 시작 여부를 선택합니다. 필요한 도구와 설치 출처를 확인하고 동의하면 빌드·설치·실행합니다. 앱은 사용자 폴더에 설치하지만 빌드 도구에는 관리자 권한·라이선스 승인·재부팅이 필요할 수 있습니다. 기존 도구를 임의 삭제하거나 다른 버전으로 바꾸지 않습니다.
 
-- macOS: 메뉴 막대의 아이콘을 클릭하면 팝오버가 열립니다. Dock에는 표시되지 않습니다.
-- Windows: 작업 표시줄 트레이 아이콘을 좌클릭하면 열립니다.
-- 두 OS 모두 아이콘 우클릭 메뉴에서 `열기`, `새로고침`, `기본 위치로 재설정`, `로그인 시 시작`(Windows: `Windows 로그인 시 시작`), `종료`를 사용할 수 있습니다.
+### 3. 앱 열기·초기 설정
+
+Windows 시작 메뉴의 **LLM Usage Monitor**, macOS `~/Applications/LLM Usage Monitor.app`에서 실행합니다. 기본적으로 트레이에 상주하며 아이콘을 클릭하면 열립니다. 사용하려는 벤더 CLI에 로그인하고 아래 설정을 완료하세요. 일부 CLI가 없어도 다른 벤더는 사용할 수 있습니다.
+
+자동 시작은 두 버전 모두 트레이 메뉴에서 변경할 수 있습니다. 개발 폴더의 실행 파일은 자동 시작을 등록할 수 없으며 설치본을 사용해야 합니다.
+
+### 4. 업데이트·버전 변경·제거
+
+앱을 트레이에서 종료하고 새 소스에서 설치기를 다시 실행합니다. 같은 버전은 업데이트, 다른 버전은 교체합니다. 새 빌드가 실패하면 기존 앱을 보존하고, 설치 교체 실패 시 이전 설치본을 복구합니다. 공유 캐시는 유지하고 버전별 UI 설정은 변환하지 않습니다.
+
+```powershell
+# Windows: Rust로 변경 (Node는 -Variant node)
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Variant rust
+# 제거: 캐시·인증·개발 도구 보존
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Uninstall
+```
+
+```bash
+# macOS: Node로 변경 (Rust는 --variant rust)
+bash scripts/install.sh --variant node
+bash scripts/install.sh --uninstall
+```
+
+기존 `pnpm deploy*`는 Node 설치 진입점으로 유지됩니다. `deploy:quick`도 오래된 산출물을 쓰지 않도록 빌드를 다시 검증합니다. 상세 옵션·복구 절차: [Windows](docs/deploy-windows.md) · [macOS](docs/deploy-mac.md).
 
 ---
 

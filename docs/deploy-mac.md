@@ -1,101 +1,62 @@
-[English](deploy-mac.en.md) | **한국어**
+# mac 소스 설치 가이드
 
-# macOS 개발자용 원클릭 배포 및 설치 가이드
+[English](deploy-mac.en.md) · [README](../README.ko.md)
 
-이 문서는 개발자가 LLM Usage Monitor를 macOS 로컬 환경에서 한 번의 명령으로 빌드하고, 사용자 애플리케이션 폴더(`~/Applications/LLM Usage Monitor.app`)에 배포하여 상단 메뉴바 트레이 상주 프로그램으로 사용하는 방법을 안내합니다.
+## 선택과 사전 조건
 
----
+macOS Apple Silicon·Intel의 시스템 Bash에서 실행합니다. Linux·Windows ARM64·WSL은 지원하지 않습니다. ZIP 압축을 푼 프로젝트 폴더에서 시작할 수 있고 Git은 필수가 아닙니다. 공개 빌드 패키지는 제공하지 않습니다.
 
-## 개발 실행과 설치 실행 (v0.9.2)
+Node는 웹 UI와 Electron 런타임을 포함하며 빌드 준비가 비교적 단순합니다. Rust는 네이티브 UI로 실행 메모리가 작을 것으로 예상되지만 최초 도구 설치와 컴파일 부담이 큽니다. 앱 용량·메모리 절감률을 보장하지 않습니다. 전체 UI 동등성과 macOS 실화면 검증은 진행 중입니다.
 
-`pnpm dev`는 현재 소스를 패키징한 뒤 `out/`의 앱을 실행하며, 개발 데이터는 `~/Library/Application Support/llm-usage-monitor-dev`에 분리합니다. 설치 앱과 로그인 시 자동 시작 등록은 `pnpm deploy:autostart`로 업데이트합니다. HMR 개발 명령은 `pnpm dev:hmr`입니다. 이번 개발 실행 변경의 실제 런타임 검증은 Windows에서 수행했으며 macOS 실기기 검증은 아직 수행하지 않았습니다.
+필요한 도구는 Node 24·pnpm 또는 Rust stable·Xcode·Metal toolchain입니다. 선택한 버전의 부족한 도구만 설치합니다. 기존 비호환 버전은 교체하지 않으며 적합한 버전을 PATH에서 선택한 뒤 재실행해야 합니다.
 
-## 1. 빠른 시작 (Quick Start)
-
-### 기본 배포 및 앱 실행
-프로젝트 루트에서 다음 명령어 중 하나를 실행합니다:
+## 설치
 
 ```bash
-# npm / pnpm 사용 시 (OS 자동 감지)
-pnpm run deploy
-
-# 또는 macOS 전용 스크립트 직접 실행 시
-./scripts/deploy-mac.sh
+bash scripts/install.sh --check
+bash scripts/install.sh
 ```
 
-- 앱이 패키징(빌드)되어 `out/LLM Usage Monitor-darwin-*/LLM Usage Monitor.app` 번들이 생성됩니다.
-- 기존 실행 중인 인스턴스가 있다면 안전하게 종료합니다.
-- `~/Applications/LLM Usage Monitor.app` 디렉터리로 최신 번들이 설치됩니다.
-- macOS 격리 속성(`xattr -cr`) 제거 및 ad-hoc 코드 서명이 자동 적용됩니다.
-- 앱이 즉시 실행되어 화면 상단 메뉴바(트레이)에 상주합니다.
-
----
-
-## 2. 로그인 시 자동 시작 (AutoStart) 옵션
-
-컴퓨터 부팅 및 사용자 로그인 시 자동으로 백그라운드 메뉴바에 상주하도록 설정하려면 `--autostart` 옵션을 사용합니다:
+검사 명령은 도구·앱·자동 시작을 변경하지 않습니다. 설치 명령은 버전과 신규 자동 시작 여부를 묻고, 변경할 내용·설치 출처를 표시한 뒤 동의를 받습니다. 자동 시작을 지정하지 않은 업데이트는 기존 상태를 유지합니다.
 
 ```bash
-# npm / pnpm 사용 시
-pnpm deploy:autostart
-
-# 또는 스크립트 직접 실행 시
-./scripts/deploy-mac.sh --autostart
+# Rust 선택 + 자동 시작; node로 바꾸면 Node 설치
+bash scripts/install.sh --variant rust --autostart on
+# 명시적 비대화형 동의: 도구 설치 및 앱 교체를 승인하는 옵션
+bash scripts/install.sh --variant rust --autostart off --non-interactive --accept-install --accept-dependencies --no-start
 ```
 
-- `~/Library/LaunchAgents/com.innnteraction.llm-usage-monitor.plist`가 등록되고 활성화됩니다.
-- 앱 내 트레이 우클릭 메뉴의 `로그인 시 시작` 체크박스를 통해서도 언제든 활성화/비활성화할 수 있습니다.
+비대화형은 버전·앱 변경 동의가 필수이며 도구 설치가 필요하면 도구 동의도 필수입니다. 신규 설치는 자동 시작 on/off를 명시해야 합니다. 운영체제의 관리자 권한·라이선스·재부팅 확인은 생략하지 않습니다. 누락 도구에 동의하지 않으면 멈추며 수동 준비 후 같은 명령으로 재개합니다.
 
----
+## 실행·업데이트·전환
 
-## 3. 재빌드 생략 초고속 재배포 (`--skip-build`)
+설치 위치는 `~/Applications/LLM Usage Monitor.app`입니다. 설치 완료 메시지와 `install-info.json`에 버전 종류·버전·소스 revision·실행 파일을 남깁니다. macOS의 설치 정보는 `Contents/Resources/`에 있습니다. 시작 메뉴 또는 앱 번들에서 실행하고 트레이 아이콘으로 화면을 엽니다.
 
-이미 빌드된 `out/` 폴더의 산출물이 있고, 파일 복사 및 권한 재설정만 빠르게 수행하려면 `--skip-build`를 지정합니다:
+앱은 하나만 관리합니다. 트레이 Quit으로 종료하고 새 소스에서 같은 명령을 실행하면 업데이트됩니다. 다른 버전을 선택하면 교체됩니다. 기존 앱을 강제로 종료하지 않습니다. 새 빌드 실패 시 기존 앱을 유지하며 교체·설정 실패는 이전 설치로 복구합니다. 알려진 별도 Native 설치 경로는 통합하고 임의 복사본은 삭제하지 않습니다.
+
+로그인 자동 시작은 `~/Library/LaunchAgents/com.innnteraction.llm-usage-monitor.plist` 하나로 관리합니다. 양쪽 버전의 트레이 메뉴도 동일한 등록을 읽고 씁니다. 변경은 다음 로그인부터 적용되며 개발/preview 실행 파일에서는 등록할 수 없습니다. 버전 변경 시 기존 자동 시작 선택은 보존합니다. 공유 캐시는 유지하지만 버전별 UI 설정은 변환하지 않습니다.
+
+## 제거·복구
 
 ```bash
-# npm / pnpm 사용 시
-pnpm deploy:quick
-
-# 또는 스크립트 직접 실행 시
-./scripts/deploy-mac.sh --skip-build
+bash scripts/install.sh --uninstall
 ```
 
----
+종료 후 실행하세요. 앱·앱 소유 바로가기·자동 시작을 정리하며 캐시, 벤더 인증, Node/Rust/C++ 도구는 삭제하지 않습니다. 사용자 지정 설치 위치는 지원하지 않습니다.
 
-## 4. 파라미터 전체 목록
+- 파일 사용 중: 트레이에서 종료하고 재실행합니다. 창을 닫는 것만으로는 종료되지 않습니다.
+- 다운로드·설치 실패: 표시된 공식 출처와 네트워크를 확인하고 다시 실행합니다. 기존 앱은 유지됩니다.
+- 설치 후 명령을 찾지 못함: 새 터미널을 열어 PATH를 반영하고 재실행합니다.
+- 기존 Node 버전 충돌: Node 24를 선택하여 시작합니다. 설치기는 기존 Node를 삭제하지 않습니다.
+- 로그인 뒤 화면이 없음: 트레이 상주가 기본입니다. 아이콘을 열고 앱 등록 경로를 확인합니다.
+- 이중 실행: 다른 개발·복사본을 종료합니다. 같은 공유 캐시를 쓰는 앱은 동시에 수집하지 못합니다.
 
-| 파라미터 | 기본값 | 설명 |
-|---|---|---|
-| `--autostart` | `false` | macOS 로그인 시 자동 시작되도록 LaunchAgent 등록 |
-| `--skip-build` | `false` | 빌드를 건너뛰고 기존 `out/` 폴더 번들을 재활용하여 배포 |
-| `--no-start` | `false` | 배포 완료 후 앱을 자동으로 실행하지 않음 |
-| `--install-dir <경로>` | `~/Applications` | 설치할 사용자 디렉터리 경로 (관리자 권한 불필요) |
-| `--uninstall` | `false` | 설치된 앱, LaunchAgent 등록 완전 제거 |
+기존 `pnpm deploy`, `deploy:autostart`, `deploy:quick`, `deploy:uninstall`은 Node 호환 진입점입니다. quick도 빌드를 검증하며 임의로 오래된 결과를 설치하지 않습니다. 기존 custom install-dir와 desktop-shortcut 옵션은 단일 관리 설치 정책상 지원하지 않습니다.
 
-> [!TIP]
-> 시스템 전역 설치를 원할 경우 `--install-dir /Applications`를 지정하여 `/Applications`에 설치할 수 있습니다 (사용자 계정에 쓰기 권한이 필요할 수 있습니다).
+## 벤더 설정과 검증 범위
 
----
+설치기는 벤더 CLI나 인증정보를 설치·변경하지 않습니다. 사용할 CLI만 공식 안내로 설치하고 직접 로그인하세요. Claude는 전용 폴더 신뢰 승인이 추가로 필요합니다. [초기 설정](../README.ko.md#프로바이더-초기-설정)을 따르세요.
 
-## 5. 언인스톨 (완전 제거)
+앱 사용자 폴더 설치와 도구 설치 권한은 별개입니다. macOS 실기 로그인·화면과 Windows 실제 재부팅 검수는 자동 테스트 결과에 포함되지 않습니다. [검증 기록](../.work/SINGLE_INSTALL_RISKS.md)을 확인하세요.
 
-개발 테스트 종료 후 설치된 앱과 자동 시작 설정을 완전히 정리하려면 다음을 실행합니다:
-
-```bash
-pnpm deploy:uninstall
-
-# 또는 스크립트 직접 실행 시
-./scripts/deploy-mac.sh --uninstall
-```
-
----
-
-## 6. 문제 해결 및 참고 사항
-
-### Claude Code CLI 최초 1회 폴더 신뢰 승인
-- Claude Code는 작업 디렉터리마다 1회 신뢰 확인("Do you trust this folder?")을 거칩니다.
-- LLM Usage Monitor는 영구 디렉터리(`~/Library/Application Support/LLM Usage Monitor/claude-probe`)를 프로브 디렉터리로 사용합니다.
-- 앱 팝오버에 `prepare folder` 안내가 뜰 경우 클릭하여 터미널을 열고, 1회 승인을 완료하면 이후 영구적으로 유지됩니다.
-
-### PATH 환경 변수 인식
-- GUI 앱으로 실행될 때도 `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, `~/.cargo/bin` 경로를 자동 감지하여 PATH에 병합하므로 `claude`, `codex`, `agy` CLI를 안정적으로 호출합니다.
+Homebrew가 없으면 별도 동의를 받아 설치합니다. Rust 빌드에 필요한 Xcode/Metal이 없으면 Apple 설치 화면을 열고 중단합니다. Xcode 최초 실행·라이선스·toolchain 설치를 완료한 뒤 재실행하세요. ad-hoc 서명은 공증이 아니며 Gatekeeper를 자동 해제하지 않습니다. OS 보안 안내에 따라 신뢰한 자체 빌드만 실행하세요.

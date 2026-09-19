@@ -1,104 +1,62 @@
-**English** | [한국어](deploy-mac.md)
+# mac source installation
 
-# macOS Developer One-Click Deployment & Installation Guide
+[한국어](deploy-mac.md) · [README](../README.md)
 
-This document guides developers through building LLM Usage Monitor locally on macOS with a single command, deploying it to the user applications folder (`~/Applications/LLM Usage Monitor.app`), and running it as a menu bar tray resident application.
+## Choose a variant
 
----
+Supported targets: Windows x64 with 64-bit PowerShell 5.1+, and macOS Apple Silicon/Intel with system Bash. Linux, Windows ARM64 and WSL are excluded. Extract the source ZIP or clone the repository, then open the project directory. Git is optional for ZIP installations. No prebuilt app download is provided.
 
-## Development Mode vs. Installed App (v0.9.2 Onwards)
+Node/Electron has simpler build preparation but bundles a web runtime. Rust/GPUI is expected to use less runtime memory, with more initial tooling and compilation work. No memory reduction percentage, installed size or build time is promised. Full UI parity and macOS live verification remain separate work.
 
-`pnpm dev` packages the current source code and runs the binary under `out/`, isolating development data in `~/Library/Application Support/llm-usage-monitor-dev`. To update the installed application and login autostart registration, run `pnpm deploy:autostart`. For Hot Module Replacement during renderer development, use `pnpm dev:hmr`.
+This platform needs Node 24/pnpm or Rust stable/Xcode/Metal toolchain, depending on your choice. Existing incompatible tools are preserved; select a compatible version in PATH and retry.
 
----
-
-## 1. Quick Start
-
-### Standard Deployment and Launch
-From the project root, execute either of the following commands:
+## Install
 
 ```bash
-# Using pnpm (auto-detects OS)
-pnpm run deploy
-
-# Or run the macOS script directly
-./scripts/deploy-mac.sh
+bash scripts/install.sh --check
+bash scripts/install.sh
 ```
 
-- The app is packaged (built), generating the `out/LLM Usage Monitor-darwin-*/LLM Usage Monitor.app` bundle.
-- Any currently running instance of the app is safely terminated.
-- The fresh bundle is deployed to `~/Applications/LLM Usage Monitor.app`.
-- macOS quarantine flags (`xattr -cr`) are stripped and ad-hoc code signing is applied automatically.
-- The app launches immediately and resides in the macOS menu bar.
-
----
-
-## 2. Start at Login (AutoStart) Option
-
-To configure the application to launch automatically in the background menu bar upon macOS user login, use the `--autostart` option:
+The check is read-only. Installation asks for a variant, new-install startup preference, and consent. Missing tools, sources and possible administrator/reboot requirements are shown before installation. Updates preserve startup unless explicitly changed.
 
 ```bash
-# Using pnpm
-pnpm deploy:autostart
-
-# Or run the script directly
-./scripts/deploy-mac.sh --autostart
+# Choose Rust and login startup; use node to choose Node
+bash scripts/install.sh --variant rust --autostart on
+# Explicit unattended consent, no immediate app launch
+bash scripts/install.sh --variant rust --autostart off --non-interactive --accept-install --accept-dependencies --no-start
 ```
 
-- Registers and loads `~/Library/LaunchAgents/com.innnteraction.llm-usage-monitor.plist`.
-- You can also toggle this setting anytime via the `Start at Login` checkbox in the tray icon context menu.
+Unattended mode requires variant and installation consent, plus dependency consent if tools are missing. New installs require an explicit on/off startup choice. OS permissions, licenses and reboots are not bypassed. Declining stops installation; prepare tools manually and rerun.
 
----
+## Run, update and switch
 
-## 3. Fast Redeploy Without Rebuilding (`--skip-build`)
+Install location: `~/Applications/LLM Usage Monitor.app`. Completion output and `install-info.json` identify the variant, version, source revision and executable (manifest is in `Contents/Resources/` on macOS). Launch from the Start menu or app bundle, then click the tray icon.
 
-If you already have a compiled bundle in the `out/` directory and want to quickly re-copy files and re-apply permissions:
+Only one app is managed. Quit from the tray before installing new source. Choosing the same variant updates it; choosing the other replaces it. Failed builds preserve the current app; failed replacement/configuration restores it. No process is forcibly terminated. Known separate Native installs are consolidated; arbitrary copies are not deleted.
+
+Login startup uses one entry: `~/Library/LaunchAgents/com.innnteraction.llm-usage-monitor.plist`. Both tray implementations use that same entry. Changes apply on next login; development/preview executables cannot register themselves. Shared caches survive switching; variant-specific UI preferences are not converted.
+
+## Remove and recover
 
 ```bash
-# Using pnpm
-pnpm deploy:quick
-
-# Or run the script directly
-./scripts/deploy-mac.sh --skip-build
+bash scripts/install.sh --uninstall
 ```
 
----
+Quit first. Removal preserves shared caches, vendor credentials and build tools. Custom installation directories are not supported.
 
-## 4. Parameter Reference
+- Locked files: quit via the tray, not just the window close button, then retry.
+- Download/tool installation failure: check the official source/network and rerun. The old app remains installed.
+- New tool not found: reopen the terminal to refresh PATH.
+- Incompatible Node: select Node 24; the installer will not remove your existing version.
+- No visible window after login: the app starts in the tray; click its icon.
+- Another collector already running: quit other development/copied instances sharing the cache.
 
-| Parameter | Default | Description |
-|---|---|---|
-| `--autostart` | `false` | Register LaunchAgent to start on macOS user login |
-| `--skip-build` | `false` | Skip the build phase and reuse existing `out/` bundle |
-| `--no-start` | `false` | Do not automatically start the app after deployment |
-| `--install-dir <path>` | `~/Applications` | Target installation directory (no root/sudo needed) |
-| `--uninstall` | `false` | Completely remove installed app and LaunchAgent |
+Legacy `pnpm deploy*` commands enter the Node installer. Quick deployment still validates the build. Custom install-dir and desktop-shortcut flags are no longer supported by the single managed-install policy.
 
-> [!TIP]
-> To install system-wide, pass `--install-dir /Applications` (write permissions to `/Applications` may be required).
+## Provider setup and validation
 
----
+Vendor CLIs and credentials are not installed/modified by this installer. Install the CLIs you use from their official sources and sign in yourself. Claude also requires folder trust. Follow [provider setup](../README.md#provider-setup).
 
-## 5. Uninstall (Complete Removal)
+The app installs in user space; build tools may need admin access. Actual login/reboot and macOS live UI checks are manual, not implied by automatic tests. See the [verification record](../.work/SINGLE_INSTALL_RISKS.md).
 
-To remove the installed application and disable login autostart:
-
-```bash
-# Using pnpm
-pnpm deploy:uninstall
-
-# Or run the script directly
-./scripts/deploy-mac.sh --uninstall
-```
-
----
-
-## 6. Troubleshooting & Operational Notes
-
-### Claude Code CLI: One-Time Folder Trust Approval
-- Claude Code prompts for confirmation ("Do you trust this folder?") for each new working directory.
-- LLM Usage Monitor uses a dedicated persistent directory (`~/Library/Application Support/LLM Usage Monitor/claude-probe`) as its probe folder.
-- If the popover displays `prepare folder`, click it to open a terminal and complete the one-time trust approval. This persists across reboots.
-
-### `PATH` Environment Variable Resolution
-- Even when launched as a standalone GUI application, paths including `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, and `~/.cargo/bin` are automatically detected and merged into `process.env.PATH`, ensuring reliable execution of `claude`, `codex`, and `agy` CLIs.
+Missing Homebrew requires separate consent. Missing Xcode/Metal opens Apple setup and stops; complete first launch, licensing and the Metal toolchain, then rerun. Ad-hoc signing is not notarization and the installer does not disable Gatekeeper.

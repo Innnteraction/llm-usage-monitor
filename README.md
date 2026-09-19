@@ -1,6 +1,6 @@
 **English** | [한국어](README.ko.md)
 
-# LLM Usage Monitor (v0.11.0)
+# LLM Usage Monitor (v0.12.0)
 
 A system tray application for macOS and Windows that monitors 5-hour and weekly quota usage alongside local token consumption for Codex, Claude Code, and Antigravity (`agy`) at a glance.
 
@@ -16,7 +16,7 @@ A system tray application for macOS and Windows that monitors 5-hour and weekly 
 
 ## Overview
 
-This app helps developers actively using Codex, Claude Code, and Antigravity CLIs check their account quotas and local token consumption without disrupting their workflow. It supports both macOS and Windows, requiring no administrator privileges—a single command handles building, local deployment, and autostart registration.
+This app helps developers actively using Codex, Claude Code, and Antigravity CLIs check their account quotas and local token consumption without disrupting their workflow. It supports both macOS and Windows, with a source installer that checks dependencies and installs your selected variant. Build tools may require administrator privileges.
 
 The application respects the credential ownership of each vendor CLI. It never directly reads, caches, or modifies auth tokens or credential files; quotas reflect only what the CLIs report. After installation, all that is required is being signed in to each CLI and granting one-time workspace folder trust for Claude Code in an isolated probe directory.
 
@@ -26,42 +26,62 @@ Follow the quick start guide below to install, and once all cards show the `fres
 
 ## Quick Start
 
-### 1. Prerequisites
+There are no prebuilt downloads in this installation flow. Use **Code → Download ZIP** and extract the source, or clone the repository. Run the following commands in the project directory. ZIP installation does not require Git. Neither Node nor Rust is required to start the installer.
 
-| Item | Requirement |
-| --- | --- |
-| Node.js | 24.x |
-| pnpm | 9.15 or later, below 10 (pinned via `packageManager` field) |
-| Codex | `codex` CLI or Codex Desktop app signed in |
-| Claude Code | `claude` CLI installed and signed in |
-| Antigravity (Optional) | `agy` 1.1.11 or later in `PATH` and signed in |
+### 1. Compare and choose
 
-- **Codex**: Even without the standalone CLI installed, if the **Codex Desktop app** is installed and signed in, the binary and session logs are automatically detected and linked immediately.
-- **macOS**: When launched as a GUI app, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, and `~/.cargo/bin` are automatically merged into `PATH`, so CLIs are discovered without manual environment configuration.
+| Item | Node / Electron | Rust / GPUI |
+| --- | --- | --- |
+| UI | Existing web UI | Native UI |
+| Build tools | Node 24 and project-pinned pnpm | Rust/Cargo; MSVC/SDK on Windows or Xcode/Metal on macOS |
+| Initial setup | Relatively simple | More tooling and compilation work |
+| Runtime memory | Expected to be higher with Electron | Expected to be lower |
+| Installed files | Bundled Electron runtime and resources | Native executable and resources |
 
-### 2. Installation
+Simpler setup does not mean a smaller app package. No memory reduction percentage or build time is promised. Full UI parity and macOS live UI/login still require manual verification. The installer shows missing tools on this PC and asks you to choose; **there is no default variant**. Only one managed app is installed.
 
-```bash
-pnpm install
+### 2. Check the environment, then install
 
-# Build → Install into user directory → Launch immediately (auto-detects OS)
-pnpm run deploy
+Windows x64, 64-bit PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Check
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
 
-| Command | Description |
-| --- | --- |
-| `pnpm run deploy` | Build, install to user space, and launch |
-| `pnpm deploy:autostart` | Same as above, and register autostart on system login |
-| `pnpm deploy:quick` | Reinstall quickly by reusing existing build artifacts |
-| `pnpm deploy:uninstall` | Remove the installed app and deregister autostart |
+macOS Apple Silicon / Intel:
 
-The installation targets are `~/Applications/LLM Usage Monitor.app` on macOS and `%LOCALAPPDATA%\Programs\llm-usage-monitor` on Windows. Administrator privileges (`sudo` / UAC) are not required. For platform-specific details, refer to the [macOS Deployment Guide](docs/deploy-mac.md) ([English](docs/deploy-mac.en.md)) and [Windows Deployment Guide](docs/deploy-windows.md) ([English](docs/deploy-windows.en.md)).
+```bash
+bash scripts/install.sh --check
+bash scripts/install.sh
+```
 
-### 3. Opening the App
+Choose `node` or `rust` and whether to start at login. Review tool sources and consent before installation. The app installs in user space, but build tools may require administrator access, license acceptance or a reboot. Existing incompatible tools are not silently replaced.
 
-- **macOS**: Click the icon in the menu bar to open the popover. It does not occupy a space in the Dock.
-- **Windows**: Left-click the tray icon in the system notification area.
-- On both operating systems, right-clicking the tray icon opens a context menu with `Open`, `Refresh`, `Reset to default position`, `Start at Login` (Windows: `Start with Windows`), and `Quit`.
+### 3. Open and configure
+
+Launch **LLM Usage Monitor** from the Windows Start menu or `~/Applications/LLM Usage Monitor.app` on macOS. It normally runs in the tray; click the icon to open it. Sign in to the vendor CLIs you use and follow the provider setup below. Missing CLIs do not prevent using other providers.
+
+Both variants support the tray login-startup setting. Development executables cannot register startup; use the managed installation.
+
+### 4. Update, switch or uninstall
+
+Quit through the tray menu and rerun the installer from the new source. Selecting the same variant updates it; selecting the other replaces it. Failed builds preserve the installed app, and failed replacements restore it. Shared caches are retained; variant-specific UI preferences are not converted.
+
+```powershell
+# Windows: switch to Rust (use -Variant node for Node)
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Variant rust
+# Remove app only; retain cache, credentials and build tools
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Uninstall
+```
+
+```bash
+# macOS: switch to Node (use --variant rust for Rust)
+bash scripts/install.sh --variant node
+bash scripts/install.sh --uninstall
+```
+
+Legacy `pnpm deploy*` commands enter the Node installer. `deploy:quick` also revalidates the build rather than trusting stale artifacts. Options and recovery: [Windows](docs/deploy-windows.en.md) · [macOS](docs/deploy-mac.en.md).
 
 ---
 
@@ -199,7 +219,7 @@ Read-only smoke tests targeting real vendor CLIs can be run separately via `pnpm
 
 `pnpm dev` uses the same Forge packaging as production and executes the compiled binary directly. To apply code modifications, exit the app via the tray context menu or `Ctrl+C`, then run the command again (closing the window minimizes it to the tray). If packaging fails, the previous build is never run.
 
-Both development commands isolate configuration, usage cache, and Chromium data under `appData/llm-usage-monitor-dev`, allowing side-by-side execution with the installed production app. Existing vendor CLI logins are reused without modifying installed folders, shortcuts, or autostart entries.
+Both development commands isolate configuration, usage cache, and Chromium data under `appData/llm-usage-monitor-dev`, while the shared cache lock still prevents concurrent collectors using the same cache. Existing vendor CLI logins are reused without modifying installed folders, shortcuts, or autostart entries.
 
 For diagnosis procedures regarding GPU unexpected termination and blank window issues, see the [Troubleshooting Guide](TROUBLESHOOTING.md) ([한국어](TROUBLESHOOTING.ko.md)).
 
