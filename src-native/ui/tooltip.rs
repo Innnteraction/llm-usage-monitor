@@ -125,7 +125,7 @@ impl Render for ProviderHelp {
                                 .border_color(gpui::rgba(0xd2a95fa6))
                                 .text_color(gpui::rgb(0xffffff))
                         })
-                        .child("상태 확인 [Status ↗]"),
+                        .child("Status ↗"),
                     )
             }))
             .children(provider.account_label.as_ref().map(|account| {

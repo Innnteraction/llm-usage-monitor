@@ -337,7 +337,7 @@ export const CompactQuotaTable = ({
                             }}
                             title={incident.statusPageUrl}
                           >
-                            상태 확인 [Status ↗]
+                            Status ↗
                           </button>
                         </div>
                       ) : null}

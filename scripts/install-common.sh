@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 # Sourced by install.sh; Bash 3.2 compatible (macOS system Bash).
 tool_version() { command -v "$1" >/dev/null 2>&1 && "$1" --version 2>/dev/null | head -n 1 || true; }
+resolve_variant() {
+  case "$1" in
+    n|N|[Nn][Oo][Dd][Ee]) printf node;;
+    r|R|[Rr][Uu][Ss][Tt]) printf rust;;
+    *) echo 'Choose node (n) or rust (r).' >&2; return 2;;
+  esac
+}
 confirm_action() {
   printf '%s\n' "$1"
   [ "$2" = true ] && return 0

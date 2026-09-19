@@ -7,7 +7,7 @@ variant=''; check=false; non_interactive=false; accept_install=false; accept_dep
 autostart=preserve; no_start=false; uninstall=false
 while [ $# -gt 0 ]; do
   case "$1" in
-    --variant) variant="${2:?node or rust required}"; shift;;
+    --variant) variant="${2:?node (n) or rust (r) required}"; shift;;
     --check) check=true;; --non-interactive) non_interactive=true;;
     --accept-install) accept_install=true;; --accept-dependencies) accept_dependencies=true;;
     --autostart) autostart="${2:?on, off or preserve required}"; shift;;
@@ -24,9 +24,9 @@ inspect_environment
 [ "$check" = true ] && exit 0
 if [ -z "$variant" ] && [ "$uninstall" = false ]; then
   if [ "$non_interactive" = true ] || [ ! -t 0 ]; then echo '--variant is required.' >&2; exit 2; fi
-  printf 'Choose node / rust (no default): '; IFS= read -r variant
+  printf 'Choose node (n) / rust (r), no default: '; IFS= read -r variant
 fi
-case "$variant" in node|rust) ;; '') [ "$uninstall" = true ] || exit 2;; *) exit 2;; esac
+if [ -n "$variant" ]; then variant="$(resolve_variant "$variant")"; else [ "$uninstall" = true ] || exit 2; fi
 install_parent="$HOME/Applications"
 install_root="$install_parent/LLM Usage Monitor.app"
 legacy_native="$install_parent/LLM Usage Monitor Native.app"

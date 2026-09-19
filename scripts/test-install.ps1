@@ -6,6 +6,10 @@ function Must-Fail([scriptblock]$Operation) { $failed=$false; try { & $Operation
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('llm-install-test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 try {
+    foreach ($value in @('n','N','node','NODE',' node ')) { Assert ((Resolve-InstallVariant $value) -eq 'node') 'Node aliases' }
+    foreach ($value in @('r','R','rust','RUST',' rust ')) { Assert ((Resolve-InstallVariant $value) -eq 'rust') 'Rust aliases' }
+    Must-Fail { Resolve-InstallVariant '' }
+    Must-Fail { Resolve-InstallVariant 'other' }
     Assert ((Get-NodeMajor 'v24.1.0') -eq 24) 'Node major'
     Assert ((Get-NodeMajor 'v22.0.0') -eq 22) 'Conflicting Node'
     Must-Fail { Confirm-InstallAction 'No consent test' $false $true }

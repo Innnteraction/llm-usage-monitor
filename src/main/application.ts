@@ -309,7 +309,7 @@ export const startApplication = (): void => {
         const sharedLock = await acquireSharedLock(sharedCacheDirectory());
         app.once("will-quit", () => sharedLock.close());
       } catch {
-        dialog.showErrorBox("LLM Usage Monitor", "다른 버전이 실행 중이거나 공통 실행 잠금을 사용할 수 없습니다.");
+        dialog.showErrorBox("LLM Usage Monitor", "Another version is running or the shared instance lock is unavailable. Quit the running app and try again.");
         app.quit();
         return;
       }

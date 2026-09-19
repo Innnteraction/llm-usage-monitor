@@ -26,9 +26,9 @@ impl ThemeMode {
     }
     pub fn label(self) -> &'static str {
         match self {
-            Self::System => "시스템",
-            Self::Light => "라이트",
-            Self::Dark => "다크",
+            Self::System => "System",
+            Self::Light => "Light",
+            Self::Dark => "Dark",
         }
     }
     pub fn palette(self, appearance: WindowAppearance) -> Palette {

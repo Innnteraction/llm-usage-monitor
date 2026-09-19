@@ -439,7 +439,7 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
         })
     }) {
         Ok(handle) => state.lock().unwrap().window_handle = Some(handle),
-        Err(_) => eprintln!("네이티브 창을 열지 못했습니다."),
+        Err(_) => eprintln!("Could not open the native window."),
     }
     startup_mark("popover-created");
 }
@@ -467,7 +467,7 @@ fn demo_snapshot() -> AppSnapshot {
                 QuotaWindow {
                     id: format!("{}-5h", id.as_str()),
                     kind: QuotaKind::FiveHour,
-                    label: "5시간".into(),
+                    label: "5h".into(),
                     used_percent: Some(35.),
                     resets_at: Some(now + chrono::Duration::hours(2)),
                     source: ProviderSource::LocalFixture,
@@ -476,7 +476,7 @@ fn demo_snapshot() -> AppSnapshot {
                 QuotaWindow {
                     id: format!("{}-weekly", id.as_str()),
                     kind: QuotaKind::Weekly,
-                    label: "주간".into(),
+                    label: "7d".into(),
                     used_percent: None,
                     resets_at: None,
                     source: ProviderSource::LocalFixture,
@@ -519,7 +519,7 @@ fn main() {
                 #[cfg(windows)]
                 unsafe {
                     use windows::{core::w, Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK, MB_ICONINFORMATION}};
-                    MessageBoxW(None, w!("다른 버전이 실행 중이거나 공통 실행 잠금을 사용할 수 없습니다. 실행 중인 앱을 종료한 뒤 다시 시도해 주세요."), w!("LLM Usage Monitor"), MB_OK | MB_ICONINFORMATION);
+                    MessageBoxW(None, w!("Another version is running or the shared instance lock is unavailable. Quit the running app and try again."), w!("LLM Usage Monitor"), MB_OK | MB_ICONINFORMATION);
                 }
                 #[cfg(not(windows))]
                 { let _ = std::process::Command::new("osascript").args(["-e", "display alert \"LLM Usage Monitor\" message \"Another version is running or the shared lock is unavailable.\""]).status(); }
@@ -598,7 +598,7 @@ fn main() {
         let tray = match SystemTrayManager::new() {
             Ok(t) => t,
             Err(_) => {
-                eprintln!("트레이 초기화에 실패했습니다.");
+                eprintln!("Could not initialize the tray.");
                 cx.quit();
                 return;
             }
@@ -623,7 +623,7 @@ fn main() {
             )
             .is_err()
         {
-            eprintln!("트레이 유지 창 초기화에 실패했습니다.");
+            eprintln!("Could not initialize the tray host window.");
             cx.quit();
             return;
         }

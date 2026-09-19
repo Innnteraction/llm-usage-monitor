@@ -1,6 +1,14 @@
 ﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Resolve-InstallVariant([string]$Value) {
+    switch ($Value.Trim().ToLowerInvariant()) {
+        { $_ -in @('n','node') } { return 'node' }
+        { $_ -in @('r','rust') } { return 'rust' }
+        default { throw 'Choose node (n) or rust (r).' }
+    }
+}
+
 function Get-ToolVersion([string]$Name) {
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) { return $null }
     try { return ((& $Name --version 2>$null) | Select-Object -First 1) } catch { return $null }
@@ -31,27 +39,27 @@ function Get-InstallEnvironment([string]$PnpmVersion) {
     return @{ Node = $node; Pnpm = $pnpm; NodeNeeds = $nodeNeeds; RustNeeds = $rustNeeds }
 }
 function Show-InstallComparison($Environment) {
-    Write-Host 'Node / Electron: 웹 UI, Node 24 + pnpm. 빌드 준비가 비교적 단순하지만 Electron 런타임을 포함합니다.'
-    Write-Host 'Rust / GPUI: 네이티브 UI, Rust + C++/SDK 도구. 최초 준비·컴파일 부담이 더 큽니다.'
-    Write-Host '실행 메모리는 환경에 따라 달라지며 아래 표본으로 일반적인 절감률을 보장하지 않습니다.'
-    Write-Host '참고 측정 (2026-09-20, Windows x64, 허구 데이터 펼침, 5회 Working Set 합계): Node 314-318 MiB / Rust 55 MiB. PC·드라이버·데이터에 따라 달라집니다.'
-    Write-Host 'macOS 실화면·로그인 실행 및 UI 전체 동등성은 별도 검수가 필요합니다.'
+    Write-Host 'Node / Electron: web UI, Node 24 + pnpm. Simpler build preparation; includes the Electron runtime.'
+    Write-Host 'Rust / GPUI: native UI, Rust + C++/SDK tools. More initial setup and compilation work.'
+    Write-Host 'Memory usage varies by environment. The sample below does not guarantee a reduction.'
+    Write-Host 'Reference (2026-09-20, Windows x64, synthetic expanded UI, five Working Set samples): Node 314-318 MiB / Rust 55 MiB. Results vary by PC, driver and data.'
+    Write-Host 'macOS live UI, login startup and full UI parity still require manual verification.'
     foreach ($kind in @('Node','Rust')) {
         $needs = @($Environment["${kind}Needs"])
-        Write-Host "$kind 필요 도구: $(if ($needs.Count) { $needs -join '; ' } else { '준비됨' })"
+        Write-Host "$kind required tools: $(if ($needs.Count) { $needs -join '; ' } else { 'ready' })"
     }
 }
 function Confirm-InstallAction([string]$Message, [bool]$Accepted, [bool]$NonInteractive) {
     Write-Host $Message
     if ($Accepted) { return }
-    if ($NonInteractive -or [Console]::IsInputRedirected) { throw '명시적 동의가 필요합니다. -AcceptInstall / -AcceptDependencies를 확인하세요.' }
-    if ((Read-Host '동의하면 yes 입력') -cne 'yes') { throw '사용자가 취소했습니다. 변경하지 않습니다.' }
+    if ($NonInteractive -or [Console]::IsInputRedirected) { throw 'Explicit consent is required. Check -AcceptInstall / -AcceptDependencies.' }
+    if ((Read-Host 'Type yes to agree') -cne 'yes') { throw 'Cancelled by user.' }
 }
 
 function Invoke-Checked([string]$File, [string[]]$Arguments) {
     & $File @Arguments | Out-Host
-    if ($LASTEXITCODE -in @(3010,1641)) { throw '도구 설치 후 재부팅이 필요합니다. 재부팅 후 같은 명령을 실행하세요.' }
-    if ($LASTEXITCODE -ne 0) { throw "$File 실패 (exit $LASTEXITCODE). 기존 앱은 유지됩니다. 같은 명령으로 재개하세요." }
+    if ($LASTEXITCODE -in @(3010,1641)) { throw 'A restart is required after tool installation. Restart Windows and run the same command.' }
+    if ($LASTEXITCODE -ne 0) { throw "$File failed (exit $LASTEXITCODE). The existing app is preserved. Rerun the same command to resume." }
 }
 
 function Assert-InstallChild([string]$Path, [string]$Parent) {
@@ -78,7 +86,7 @@ function Switch-InstallDirectory([string]$Stage, [string]$Target, [scriptblock]$
     if ($hadPrevious) {
         Assert-InstallChild $backup $parent
         try { Remove-Item -LiteralPath $backup -Recurse -Force }
-        catch { Write-Warning "설치는 완료됐지만 백업 정리가 남았습니다: $backup" }
+        catch { Write-Warning "Installation completed, but backup cleanup remains: $backup" }
     }
 }
 function Assert-AppStopped([string]$Directory) {
@@ -86,7 +94,7 @@ function Assert-AppStopped([string]$Directory) {
     # A process can conceal its image path; testing executable sharing catches locked binaries too.
     foreach ($exe in Get-ChildItem -LiteralPath $Directory -Filter '*.exe' -Recurse -File) {
         try { $stream = [IO.File]::Open($exe.FullName,'Open','ReadWrite','Read'); $stream.Dispose() }
-        catch { throw '앱 또는 설치 파일이 사용 중입니다. 트레이 Quit으로 종료한 뒤 재실행하세요. 강제 종료하지 않습니다.' }
+        catch { throw 'The app or installation files are in use. Choose Quit in the tray menu and retry. The installer will not force quit the app.' }
     }
 }
 function Update-InstallerPath {
@@ -96,28 +104,28 @@ function Install-SelectedDependencies([string]$Variant, [string]$PnpmVersion, [b
     $environment = Get-InstallEnvironment $PnpmVersion
     $needs = @($environment["${Variant}Needs"])
     if ($needs.Count) {
-        Confirm-InstallAction ("필요 도구: " + ($needs -join '; ') + '. 관리자 권한/UAC 및 재부팅이 필요할 수 있습니다.') $AcceptDependencies $NonInteractive
+        Confirm-InstallAction ("Required tools: " + ($needs -join '; ') + '. Administrator permission/UAC and a restart may be required.') $AcceptDependencies $NonInteractive
     }
     if ($Variant -eq 'node') {
         if ($environment.Node -and (Get-NodeMajor $environment.Node) -ne 24) {
-            throw '기존 Node는 변경하지 않습니다. Node.js 24를 별도로 준비하여 PATH에서 선택한 뒤 재실행하세요: https://nodejs.org/en/download'
+            throw 'Existing Node will not be changed. Install Node.js 24 separately, select it in PATH, then retry: https://nodejs.org/en/download'
         }
         if (-not $environment.Node) {
-            if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'WinGet이 없습니다. https://nodejs.org/en/download 에서 Node 24를 설치한 뒤 재실행하세요.' }
+            if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'WinGet is unavailable. Install Node 24 from https://nodejs.org/en/download and retry.' }
             Invoke-Checked winget @('install','--id','OpenJS.NodeJS.LTS','--version','24.19.0','--exact','--source','winget','--accept-source-agreements','--accept-package-agreements')
             Update-InstallerPath
         }
-        if ((Get-NodeMajor (Get-ToolVersion node)) -ne 24) { throw 'Node 24를 아직 찾지 못했습니다. 새 터미널에서 재실행하세요.' }
+        if ((Get-NodeMajor (Get-ToolVersion node)) -ne 24) { throw 'Node 24 was not found. Retry in a new terminal.' }
         if ((Get-ToolVersion pnpm) -ne $PnpmVersion) {
             # Keep other projects' global pnpm untouched.
             $toolsDir = Join-Path $env:LOCALAPPDATA "llm-usage-monitor/build-tools/pnpm-$PnpmVersion"
             Invoke-Checked npm @('install','--prefix',$toolsDir,'--no-audit','--no-fund',"pnpm@$PnpmVersion")
             $env:PATH = (Join-Path $toolsDir 'node_modules/.bin') + ';' + $env:PATH
         }
-        if ((Get-ToolVersion pnpm) -ne $PnpmVersion) { throw 'pnpm 버전 검증 실패.' }
+        if ((Get-ToolVersion pnpm) -ne $PnpmVersion) { throw 'pnpm version validation failed.' }
     } else {
         if (-not (Get-BuildToolsReady)) {
-            if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'WinGet 또는 Microsoft C++ Build Tools 설치가 필요합니다: https://visualstudio.microsoft.com/visual-cpp-build-tools/' }
+            if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'Install WinGet or Microsoft C++ Build Tools: https://visualstudio.microsoft.com/visual-cpp-build-tools/' }
             Invoke-Checked winget @('install','--id','Microsoft.VisualStudio.2022.BuildTools','--exact','--source','winget','--accept-source-agreements','--accept-package-agreements','--override','--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended')
         }
         if (-not (Get-ToolVersion rustup)) {
@@ -126,17 +134,17 @@ function Install-SelectedDependencies([string]$Variant, [string]$PnpmVersion, [b
                 Invoke-WebRequest 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe' -OutFile $download -UseBasicParsing
                 $checksumResponse = Invoke-WebRequest 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe.sha256' -UseBasicParsing
                 $checksumText = if ($checksumResponse.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($checksumResponse.Content) } else { [string]$checksumResponse.Content }
-                if ($checksumText -notmatch '^([a-fA-F0-9]{64})\b' -or (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash -ne $Matches[1]) { throw 'rustup 공식 SHA-256 검증 실패. 설치를 중단합니다.' }
+                if ($checksumText -notmatch '^([a-fA-F0-9]{64})\b' -or (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash -ne $Matches[1]) { throw 'rustup official SHA-256 validation failed. Installation stopped.' }
                 Invoke-Checked $download @('-y','--default-toolchain','none','--no-modify-path')
             } finally { if (Test-Path -LiteralPath $download) { Remove-Item -LiteralPath $download -Force } }
             Update-InstallerPath
         }
         $stable = & rustup toolchain list
         if (-not ($stable -match '^stable-x86_64-pc-windows-msvc')) {
-            Confirm-InstallAction 'Rust stable MSVC를 설치합니다. 기존 전역 기본 toolchain은 유지합니다.' $AcceptDependencies $NonInteractive
+            Confirm-InstallAction 'Install Rust stable MSVC. The existing global default toolchain will be preserved.' $AcceptDependencies $NonInteractive
             Invoke-Checked rustup @('toolchain','install','stable-x86_64-pc-windows-msvc','--profile','minimal')
         }
-        if (-not (Get-BuildToolsReady)) { throw 'C++ Build Tools/Windows SDK 검증 실패. 설치 완료·재부팅 후 다시 실행하세요.' }
+        if (-not (Get-BuildToolsReady)) { throw 'C++ Build Tools/Windows SDK validation failed. Complete setup, restart if required, and retry.' }
         Invoke-Checked rustup @('run','stable-x86_64-pc-windows-msvc','cargo','--version')
     }
 }

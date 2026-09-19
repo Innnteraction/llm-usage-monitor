@@ -58,7 +58,7 @@ bash scripts/install.sh --check
 bash scripts/install.sh
 ```
 
-Choose `node` or `rust` and whether to start at login. Review tool sources and consent before installation. The app installs in user space, but build tools may require administrator access, license acceptance or a reboot. Existing incompatible tools are not silently replaced.
+Installer prompts and application UI are in English. Choose `node` (`n`) or `rust` (`r`) and whether to start at login. The same aliases work with `-Variant` / `--variant`. Review tool sources and consent before installation. The app installs in user space, but build tools may require administrator access, license acceptance or a reboot. Existing incompatible tools are not silently replaced.
 
 ### 3. Open and configure
 

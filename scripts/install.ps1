@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-    [ValidateSet('node','rust')][string]$Variant,
+    [ValidateSet('node','rust','n','r')][string]$Variant,
     [switch]$Check,
     [switch]$NonInteractive,
     [switch]$AcceptInstall,
@@ -12,7 +12,7 @@ param(
 . (Join-Path $PSScriptRoot 'install-common.ps1')
 $projectRoot = Split-Path -Parent $PSScriptRoot
 if ($env:OS -ne 'Windows_NT' -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64' -or $env:PROCESSOR_ARCHITEW6432) {
-    throw 'Windows x64의 64-bit PowerShell에서 실행하세요. Windows ARM64/WSL은 지원하지 않습니다.'
+    throw 'Run in 64-bit PowerShell on Windows x64. Windows ARM64 and WSL are not supported.'
 }
 $package = Get-Content -LiteralPath (Join-Path $projectRoot 'package.json') -Raw | ConvertFrom-Json
 $pnpmVersion = $package.packageManager -replace '^pnpm@',''
@@ -20,10 +20,10 @@ $environment = Get-InstallEnvironment $pnpmVersion
 Show-InstallComparison $environment
 if ($Check) { return }
 if (-not $Variant -and -not $Uninstall) {
-    if ($NonInteractive -or [Console]::IsInputRedirected) { throw '-Variant node 또는 rust를 명시하세요.' }
-    $Variant = Read-Host '설치할 버전을 입력하세요: node / rust (기본 선택 없음)'
-    if ($Variant -notin @('node','rust')) { throw 'node 또는 rust를 선택하세요.' }
+    if ($NonInteractive -or [Console]::IsInputRedirected) { throw 'Specify -Variant node (n) or rust (r).' }
+    $Variant = Read-Host 'Choose a version: node (n) / rust (r), no default'
 }
+if ($Variant) { $Variant = Resolve-InstallVariant $Variant }
 $installParent = Join-Path $env:LOCALAPPDATA 'Programs'
 $installRoot = Join-Path $installParent 'llm-usage-monitor'
 $legacyNative = Join-Path $installParent 'llm-usage-monitor-native'
@@ -35,7 +35,7 @@ foreach ($name in @($startupName,'LLM Usage Monitor Native','llm-usage-monitor',
     $property = if ($null -ne $runProperties) { $runProperties.PSObject.Properties[$name] } else { $null }
     $value = if ($null -ne $property) { $property.Value } else { $null }
     if ($value -and ($value.Contains($installRoot) -or $value.Contains($legacyNative) -or ($name -eq 'LLM Usage Monitor Native' -and $value -match 'llm-usage-monitor\.exe"? --start-hidden$'))) { $oldRun[$name] = $value }
-    elseif ($value -and $name -eq $startupName) { throw '공통 자동 시작 이름에 다른 대상이 등록되어 있습니다. 기존 설정을 확인하세요.' }
+    elseif ($value -and $name -eq $startupName) { throw 'The shared startup entry belongs to another application. Check the existing registration.' }
 }
 $shell = New-Object -ComObject WScript.Shell
 $links = @(
@@ -51,23 +51,23 @@ foreach ($link in $links) {
         if ($destination.StartsWith($installRoot + '\',[StringComparison]::OrdinalIgnoreCase) -or $destination.StartsWith($legacyNative + '\',[StringComparison]::OrdinalIgnoreCase)) {
             $ownedLinks[$link] = [IO.File]::ReadAllBytes($link)
             if ($link -eq $links[2]) { $oldEnabled = $true }
-        } elseif ($link -eq $links[0]) { throw '다른 대상의 동일 이름 시작 메뉴 바로가기가 있습니다. 기존 바로가기를 확인하세요.' }
+        } elseif ($link -eq $links[0]) { throw 'A Start menu shortcut with this name points elsewhere. Check the existing shortcut.' }
     }
 }
 if ($AutoStart -eq 'preserve' -and -not (Test-Path -LiteralPath $installRoot) -and -not (Test-Path -LiteralPath $legacyNative) -and -not $Uninstall) {
-    if ($NonInteractive -or [Console]::IsInputRedirected) { throw '신규 설치는 -AutoStart on 또는 off를 명시하세요.' }
-    $AutoStart = Read-Host '로그인 시 자동 시작: on / off'
-    if ($AutoStart -notin @('on','off')) { throw 'on 또는 off를 선택하세요.' }
+    if ($NonInteractive -or [Console]::IsInputRedirected) { throw 'New installations require -AutoStart on or off.' }
+    $AutoStart = Read-Host 'Start at login: on / off'
+    if ($AutoStart -notin @('on','off')) { throw 'Choose on or off.' }
 }
 $enableStartup = if ($AutoStart -eq 'preserve') { $oldEnabled } else { $AutoStart -eq 'on' }
-Confirm-InstallAction "관리 설치본: $installRoot / 작업: $(if ($Uninstall) { '제거' } else { $Variant + ' 설치·교체' }). 이전 버전의 개별 UI 설정은 변환하지 않습니다. 알려진 Native 별도 설치본도 통합합니다." $AcceptInstall $NonInteractive
+Confirm-InstallAction "Managed installation: $installRoot / action: $(if ($Uninstall) { 'uninstall' } else { $Variant + ' install/replace' }). Previous per-version UI preferences are not converted. Known separate Native installations will be consolidated." $AcceptInstall $NonInteractive
 Assert-InstallChild $installRoot $installParent
 Assert-InstallChild $legacyNative $installParent
 Assert-AppStopped $installRoot
 Assert-AppStopped $legacyNative
 # Only migrate a known native app directory, never arbitrary similarly named user data.
-if ((Test-Path -LiteralPath $legacyNative) -and -not (Test-Path -LiteralPath (Join-Path $legacyNative 'llm-usage-monitor.exe'))) { throw '별도 Native 설치 경로의 소유권을 확인할 수 없습니다.' }
-if ((Test-Path -LiteralPath $installRoot) -and -not (Test-Path -LiteralPath (Join-Path $installRoot 'install-info.json')) -and -not (Test-Path -LiteralPath (Join-Path $installRoot 'LLM Usage Monitor.exe'))) { throw '기존 설치 경로의 앱 소유권을 확인할 수 없습니다.' }
+if ((Test-Path -LiteralPath $legacyNative) -and -not (Test-Path -LiteralPath (Join-Path $legacyNative 'llm-usage-monitor.exe'))) { throw 'Cannot verify ownership of the separate Native installation.' }
+if ((Test-Path -LiteralPath $installRoot) -and -not (Test-Path -LiteralPath (Join-Path $installRoot 'install-info.json')) -and -not (Test-Path -LiteralPath (Join-Path $installRoot 'LLM Usage Monitor.exe'))) { throw 'Cannot verify ownership of the existing installation.' }
 $restoreRegistration = {
     foreach ($name in @($startupName) + @($oldRun.Keys)) { Remove-ItemProperty -LiteralPath $runKey -Name $name -ErrorAction SilentlyContinue }
     foreach ($name in $oldRun.Keys) { New-ItemProperty -LiteralPath $runKey -Name $name -Value $oldRun[$name] -PropertyType String -Force | Out-Null }
@@ -86,7 +86,7 @@ try {
     if (-not $Uninstall) {
         if ($Variant -eq 'node') { Copy-Item -Path (Join-Path $artifact '*') -Destination $stage -Recurse; $executable = 'LLM Usage Monitor.exe' }
         else { Copy-Item -LiteralPath $artifact -Destination (Join-Path $stage 'llm-usage-monitor.exe'); $executable = 'llm-usage-monitor.exe' }
-        if (-not (Test-Path -LiteralPath (Join-Path $stage $executable))) { throw '실행 산출물 검증 실패.' }
+        if (-not (Test-Path -LiteralPath (Join-Path $stage $executable))) { throw 'Built application validation failed.' }
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'startup.ps1') -Destination $stage
         $revision = 'source-zip'
         if (Get-Command git -ErrorAction SilentlyContinue) { $candidate = & git -C $projectRoot rev-parse --short HEAD 2>$null; if ($LASTEXITCODE -eq 0) { $revision = $candidate } }
@@ -113,10 +113,10 @@ try {
         if (Test-Path -LiteralPath $legacyBackup) { Move-Item -LiteralPath $legacyBackup -Destination $legacyNative }
         throw
     }
-    if (Test-Path -LiteralPath $legacyBackup) { Assert-InstallChild $legacyBackup $installParent; try { Remove-Item -LiteralPath $legacyBackup -Recurse -Force } catch { Write-Warning "기존 Native 백업 정리가 남았습니다: $legacyBackup" } }
-    if ($Uninstall) { Remove-Item -LiteralPath $installRoot; Write-Host '앱 제거 완료. 공유 캐시·인증·개발 도구는 보존했습니다.' }
+    if (Test-Path -LiteralPath $legacyBackup) { Assert-InstallChild $legacyBackup $installParent; try { Remove-Item -LiteralPath $legacyBackup -Recurse -Force } catch { Write-Warning "Previous Native backup cleanup remains: $legacyBackup" } }
+    if ($Uninstall) { Remove-Item -LiteralPath $installRoot; Write-Host 'App removed. Shared cache, credentials and development tools were preserved.' }
     else {
-        Write-Host "설치 완료: $Variant $($package.version) ($revision) / $(Join-Path $installRoot $executable) / 자동 시작=$enableStartup"
+        Write-Host "Installation complete: $Variant $($package.version) ($revision) / $(Join-Path $installRoot $executable) / start at login=$enableStartup"
         if (-not $NoStart) { Start-Process -FilePath (Join-Path $installRoot $executable) -WorkingDirectory $installRoot -WindowStyle Hidden }
     }
 } finally {
