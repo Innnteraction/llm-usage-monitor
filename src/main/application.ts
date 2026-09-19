@@ -9,6 +9,7 @@ import {
 } from "electron";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { launchAtLogin } from "./launchAtLogin";
 import { UsageMonitorCore } from "../core/index";
 import { acquireSharedLock, sharedCacheDirectory } from "./snapshotCache";
 import type { AppSnapshot, ProviderId } from "../shared/index";
@@ -130,6 +131,8 @@ const loadRenderer = async (window: BrowserWindow): Promise<void> => {
 export const startApplication = (): void => {
   process.env.PATH = ensurePlatformPath();
   let isQuitting = false;
+  let loginStartup = false;
+  let loginStartupPending = false;
   let shutdown: (() => Promise<void>) | undefined;
   let beforeQuit: ((event: { preventDefault(): void }) => void) | undefined;
   let mainWindow: BrowserWindow | undefined;
@@ -341,19 +344,19 @@ export const startApplication = (): void => {
         await refreshUsage(providerId);
       },
       getPreferences: async () => ({
-        launchAtLogin: app.getLoginItemSettings().openAtLogin,
+        launchAtLogin: loginStartup,
         alwaysOnTop: isAlwaysOnTop,
       }),
       setLaunchAtLogin: async (enabled) => {
         if (isQuitting) {
           return {
-            launchAtLogin: app.getLoginItemSettings().openAtLogin,
+            launchAtLogin: loginStartup,
             alwaysOnTop: isAlwaysOnTop,
           };
         }
-        app.setLoginItemSettings({ openAtLogin: enabled });
+        loginStartup = await launchAtLogin(enabled ? "on" : "off");
         return {
-          launchAtLogin: app.getLoginItemSettings().openAtLogin,
+          launchAtLogin: loginStartup,
           alwaysOnTop: isAlwaysOnTop,
         };
       },
@@ -439,9 +442,13 @@ export const startApplication = (): void => {
       if (isQuitting) return;
       void refreshUsage().catch(() => undefined);
     };
-    const updateLaunchAtLogin = (enabled: boolean): void => {
-      if (isQuitting) return;
-      app.setLoginItemSettings({ openAtLogin: enabled });
+    void launchAtLogin("query").then(value => { loginStartup = value; }).catch(() => undefined);
+    const updateLaunchAtLogin = async (enabled: boolean): Promise<void> => {
+      if (isQuitting || loginStartupPending) return;
+      loginStartupPending = true;
+      try { loginStartup = await launchAtLogin(enabled ? "on" : "off"); }
+      catch { await dialog.showMessageBox({ type: "error", message: "Failed to change login startup. Use the managed installation from scripts/install." }); }
+      finally { loginStartupPending = false; }
     };
 
     tray = new Tray(createTrayIcon());
@@ -452,7 +459,7 @@ export const startApplication = (): void => {
     const buildTrayMenu = () =>
       Menu.buildFromTemplate(
         createTrayMenuTemplate(
-          () => app.getLoginItemSettings().openAtLogin,
+          () => loginStartup,
           {
             open: () => { void showWindow(keepVisibleForTest); },
             refresh: refreshAll,
@@ -486,6 +493,7 @@ export const startApplication = (): void => {
     });
 
     const isAutostart =
+      process.argv.includes("--start-hidden") ||
       process.argv.includes("--hidden") ||
       process.argv.includes("--autostart");
     const shouldShowInitially =

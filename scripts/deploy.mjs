@@ -27,7 +27,7 @@ if (platform === "darwin") {
     if (arg === "--no-start") return "-NoStart";
     if (arg === "--uninstall") return "-Uninstall";
     if (arg.startsWith("--install-dir=")) {
-      return `-InstallDir "${arg.slice("--install-dir=".length)}"`;
+      throw new Error("Custom install paths are no longer supported; use scripts/install.");
     }
     return arg;
   });

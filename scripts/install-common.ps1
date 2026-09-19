@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 function Get-ToolVersion([string]$Name) {
@@ -48,9 +48,41 @@ function Confirm-InstallAction([string]$Message, [bool]$Accepted, [bool]$NonInte
 }
 
 function Invoke-Checked([string]$File, [string[]]$Arguments) {
-    & $File @Arguments
+    & $File @Arguments | Out-Host
     if ($LASTEXITCODE -in @(3010,1641)) { throw '도구 설치 후 재부팅이 필요합니다. 재부팅 후 같은 명령을 실행하세요.' }
     if ($LASTEXITCODE -ne 0) { throw "$File 실패 (exit $LASTEXITCODE). 기존 앱은 유지됩니다. 같은 명령으로 재개하세요." }
+}
+
+function Assert-InstallChild([string]$Path, [string]$Parent) {
+    $full = [IO.Path]::GetFullPath($Path).TrimEnd('\','/')
+    $base = [IO.Path]::GetFullPath($Parent).TrimEnd('\','/') + [IO.Path]::DirectorySeparatorChar
+    if (-not $full.StartsWith($base,[StringComparison]::OrdinalIgnoreCase)) { throw "Unsafe install path: $Path" }
+    if ((Test-Path -LiteralPath $full) -and ((Get-Item -LiteralPath $full).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "Linked install directory rejected: $full" }
+}
+function Switch-InstallDirectory([string]$Stage, [string]$Target, [scriptblock]$Configure) {
+    $parent = Split-Path -Parent $Target
+    Assert-InstallChild $Stage $parent
+    Assert-InstallChild $Target $parent
+    $backup = "$Target.backup-$([guid]::NewGuid().ToString('N'))"
+    $hadPrevious = Test-Path -LiteralPath $Target
+    if ($hadPrevious) { Move-Item -LiteralPath $Target -Destination $backup }
+    try {
+        Move-Item -LiteralPath $Stage -Destination $Target
+        & $Configure
+    } catch {
+        if (Test-Path -LiteralPath $Target) { Assert-InstallChild $Target $parent; Remove-Item -LiteralPath $Target -Recurse -Force }
+        if ($hadPrevious) { Move-Item -LiteralPath $backup -Destination $Target }
+        throw
+    }
+    if ($hadPrevious) { Assert-InstallChild $backup $parent; Remove-Item -LiteralPath $backup -Recurse -Force }
+}
+function Assert-AppStopped([string]$Directory) {
+    if (-not (Test-Path -LiteralPath $Directory)) { return }
+    # A process can conceal its image path; testing executable sharing catches locked binaries too.
+    foreach ($exe in Get-ChildItem -LiteralPath $Directory -Filter '*.exe' -Recurse -File) {
+        try { $stream = [IO.File]::Open($exe.FullName,'Open','ReadWrite','Read'); $stream.Dispose() }
+        catch { throw '앱 또는 설치 파일이 사용 중입니다. 트레이 Quit으로 종료한 뒤 재실행하세요. 강제 종료하지 않습니다.' }
+    }
 }
 function Update-InstallerPath {
     $env:PATH = "$env:USERPROFILE/.cargo/bin;" + [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User') + ';' + $env:PATH

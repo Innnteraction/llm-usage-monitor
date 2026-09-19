@@ -285,91 +285,74 @@ mod tests {
     }
 }
 
-#[cfg(target_os = "windows")]
-fn registry_command() -> Command {
-    use std::os::windows::process::CommandExt;
-    let mut command = Command::new("reg.exe");
-    command.creation_flags(0x08000000);
-    command
-}
-#[cfg(target_os = "windows")]
-const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
-const STARTUP_NAME: &str = "LLM Usage Monitor Native";
-pub fn launch_at_login() -> Result<bool> {
-    #[cfg(target_os = "windows")]
-    {
-        let output = registry_command()
-            .args(["query", RUN_KEY, "/v", STARTUP_NAME])
-            .output()?;
-        return Ok(output.status.success());
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let output = Command::new("osascript")
-            .args([
-                "-e",
-                &format!(
-                    "tell application \"System Events\" to exists login item \"{STARTUP_NAME}\""
-                ),
-            ])
-            .output()?;
-        if !output.status.success() {
-            bail!("login item read failed");
+fn managed_startup(action: &str) -> Result<bool> {
+    let executable = std::env::current_exe()?;
+    let parent = executable
+        .parent()
+        .context("executable directory unavailable")?;
+    let directory = if cfg!(target_os = "macos") {
+        parent.join("../Resources")
+    } else {
+        parent.to_path_buf()
+    };
+    let manifest_path = directory.join("install-info.json");
+    if !manifest_path.exists() {
+        if action == "query" {
+            return Ok(false);
         }
-        return Ok(String::from_utf8_lossy(&output.stdout).trim() == "true");
+        bail!("Install the app with scripts/install before enabling login startup.");
     }
-    #[allow(unreachable_code)]
-    Err(anyhow::anyhow!("unsupported platform"))
+    let data = std::fs::read_to_string(manifest_path)?;
+    let manifest: serde_json::Value = serde_json::from_str(data.trim_start_matches('\u{feff}'))?;
+    if manifest["schemaVersion"] != 1
+        || manifest["appId"] != "llm-usage-monitor"
+        || manifest["variant"] != "rust"
+        || manifest["executable"].as_str() != executable.file_name().and_then(|n| n.to_str())
+    {
+        bail!("Managed installation identity mismatch.");
+    }
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        use std::os::windows::process::CommandExt;
+        let mut c = Command::new("powershell.exe");
+        c.creation_flags(0x08000000);
+        c.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+        ])
+        .arg(directory.join("startup.ps1"))
+        .args(["-Action", action, "-Executable"])
+        .arg(&executable);
+        c
+    };
+    #[cfg(not(target_os = "windows"))]
+    let mut command = {
+        let mut c = Command::new("/bin/bash");
+        c.arg(directory.join("startup.sh"))
+            .arg(action)
+            .arg(&executable);
+        c
+    };
+    let output = command.stdin(Stdio::null()).output()?;
+    if !output.status.success() {
+        bail!("Login startup operation failed.");
+    }
+    match String::from_utf8_lossy(&output.stdout).trim() {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        _ => bail!("Invalid login startup response."),
+    }
+}
+pub fn launch_at_login() -> Result<bool> {
+    managed_startup("query")
 }
 pub fn set_launch_at_login(enabled: bool) -> Result<bool> {
-    let executable = std::env::current_exe()?;
-    #[cfg(target_os = "windows")]
-    {
-        let mut command = registry_command();
-        if enabled {
-            command
-                .args(["add", RUN_KEY, "/v", STARTUP_NAME, "/t", "REG_SZ", "/d"])
-                .arg(format!("\"{}\" --start-hidden", executable.display()))
-                .arg("/f");
-        } else {
-            if !launch_at_login()? {
-                return Ok(false);
-            }
-            command.args(["delete", RUN_KEY, "/v", STARTUP_NAME, "/f"]);
-        }
-        if !command
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()?
-            .success()
-        {
-            bail!("login item update failed");
-        }
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let path = executable
-            .to_string_lossy()
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"");
-        let script = if enabled {
-            format!("tell application \"System Events\" to if not (exists login item \"{STARTUP_NAME}\") then make login item at end with properties {{name:\"{STARTUP_NAME}\",path:\"{path}\",hidden:true}}")
-        } else {
-            format!("tell application \"System Events\" to if exists login item \"{STARTUP_NAME}\" then delete login item \"{STARTUP_NAME}\"")
-        };
-        if !Command::new("osascript")
-            .args(["-e", &script])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()?
-            .success()
-        {
-            bail!("login item update failed");
-        }
-    }
-    let actual = launch_at_login()?;
+    let actual = managed_startup(if enabled { "on" } else { "off" })?;
     if actual != enabled {
-        bail!("login item verification failed");
+        bail!("Login startup verification failed.");
     }
     Ok(actual)
 }
