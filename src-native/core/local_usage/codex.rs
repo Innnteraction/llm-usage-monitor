@@ -46,11 +46,17 @@ fn parse(value: Value, cp: &mut LocalUsageFileCheckpoint) -> Result<(), ()> {
     let current = TokenContribution {
         input_tokens: usage["input_tokens"].as_u64().ok_or(())?,
         output_tokens: usage["output_tokens"].as_u64().ok_or(())?,
-        cache_read_tokens: usage["cached_input_tokens"].as_u64().unwrap_or(0),
+        cache_read_tokens: usage["cached_input_tokens"].as_u64().ok_or(())?,
         cache_write_tokens: 0,
     };
+    if !current.valid()
+        || usage["total_tokens"].as_u64() != Some(current.input_tokens + current.output_tokens)
+    {
+        return Err(());
+    }
     let previous = cp.last_cumulative.unwrap_or_default();
-    cp.contribution.add(&TokenContribution {
+    let mut contribution = cp.contribution;
+    contribution.add(&TokenContribution {
         input_tokens: current.input_tokens.saturating_sub(previous.input_tokens),
         output_tokens: current.output_tokens.saturating_sub(previous.output_tokens),
         cache_read_tokens: current
@@ -58,6 +64,11 @@ fn parse(value: Value, cp: &mut LocalUsageFileCheckpoint) -> Result<(), ()> {
             .saturating_sub(previous.cache_read_tokens),
         cache_write_tokens: 0,
     });
+    if !contribution.valid() {
+        return Err(());
+    }
+    cp.contribution = contribution;
     cp.last_cumulative = Some(current);
+    super::observe(&value, cp);
     Ok(())
 }

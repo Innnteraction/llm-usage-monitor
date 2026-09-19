@@ -58,27 +58,21 @@ fn parse(value: Value, cp: &mut LocalUsageFileCheckpoint) -> Result<(), ()> {
         cache_read_tokens: read,
         cache_write_tokens: write,
     };
+    if !current.valid() {
+        return Err(());
+    }
     let messages = cp.messages.get_or_insert_with(Default::default);
-    let previous = messages.insert(id.to_string(), current).unwrap_or_default();
-    cp.contribution.input_tokens = cp
-        .contribution
-        .input_tokens
-        .saturating_sub(previous.input_tokens)
-        .saturating_add(current.input_tokens);
-    cp.contribution.output_tokens = cp
-        .contribution
-        .output_tokens
-        .saturating_sub(previous.output_tokens)
-        .saturating_add(current.output_tokens);
-    cp.contribution.cache_read_tokens = cp
-        .contribution
-        .cache_read_tokens
-        .saturating_sub(previous.cache_read_tokens)
-        .saturating_add(read);
-    cp.contribution.cache_write_tokens = cp
-        .contribution
-        .cache_write_tokens
-        .saturating_sub(previous.cache_write_tokens)
-        .saturating_add(write);
+    let key = super::hash(id);
+    let mut merged = messages.get(&key).copied().unwrap_or_default();
+    merged.merge_message(&current);
+    if !merged.valid() {
+        return Err(());
+    }
+    messages.insert(key, merged);
+    cp.contribution = TokenContribution::default();
+    for v in messages.values() {
+        cp.contribution.add(v);
+    }
+    super::observe(&value, cp);
     Ok(())
 }

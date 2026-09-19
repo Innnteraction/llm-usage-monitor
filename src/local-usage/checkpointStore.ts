@@ -1,5 +1,7 @@
-import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, open, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
+import { localTokenUsageSchema } from "../shared/index";
 import { z } from "zod";
 import type {
   LocalUsageCheckpointState,
@@ -7,7 +9,7 @@ import type {
   ProviderCheckpointSection,
 } from "./types";
 
-export const LOCAL_USAGE_INDEX_FILENAME = "local-usage-index-v1.json";
+export const LOCAL_USAGE_INDEX_FILENAME = "local-usage-index-v2.json";
 
 const safeIntegerSchema = z.number().int().nonnegative().safe();
 const timestampSchema = z.string().datetime({ offset: true });
@@ -21,27 +23,27 @@ const contributionSchema = z
   .strict();
 const fileCheckpointSchema = z
   .object({
-    fileKey: z.string().min(1).max(128),
-    identity: z.string().min(1).max(256),
+    fileKey: z.string().regex(/^[a-f0-9]{64}$/),
+    identity: z.string().regex(/^[a-f0-9]{64}$/),
     size: safeIntegerSchema,
     mtimeMs: safeIntegerSchema,
     offset: safeIntegerSchema,
-    boundaryHash: z.string().min(1).max(128),
+    boundaryHash: z.string().regex(/^[a-f0-9]{64}$/),
     errorCount: safeIntegerSchema.optional(),
     observedFrom: timestampSchema.optional(),
     contribution: contributionSchema,
     lastCumulative: contributionSchema.optional(),
     messages: z
-      .record(z.string().min(1).max(128), contributionSchema)
+      .record(z.string().regex(/^[a-f0-9]{64}$/), contributionSchema)
       .optional(),
   })
   .strict();
 const sectionSchema = z
-  .object({ files: z.record(z.string().min(1).max(128), fileCheckpointSchema) })
+  .object({ files: z.record(z.string().regex(/^[a-f0-9]{64}$/), fileCheckpointSchema), rootKey: z.string().regex(/^[a-f0-9]{64}$/).optional(), summary: localTokenUsageSchema.optional() })
   .strict();
 const checkpointStateSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     providers: z
       .object({ codex: sectionSchema, claude: sectionSchema })
       .strict(),
@@ -50,7 +52,7 @@ const checkpointStateSchema = z
 
 const emptySection = (): ProviderCheckpointSection => ({ files: {} });
 export const emptyCheckpointState = (): LocalUsageCheckpointState => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   providers: { codex: emptySection(), claude: emptySection() },
 });
 
@@ -85,8 +87,8 @@ export class LocalUsageCheckpointStore {
         providers: { ...current.providers, [providerId]: nextSection },
       } as LocalUsageCheckpointState;
       const parsed = checkpointStateSchema.parse(next) as LocalUsageCheckpointState;
-      await this.writeState(parsed);
       this.state = parsed;
+      await this.writeState(parsed).catch(() => undefined);
     });
     this.writeQueue = pending.catch(() => undefined);
     await pending;
@@ -117,3 +119,26 @@ export class LocalUsageCheckpointStore {
     }
   }
 }
+
+export const checkpointHash = (value: string | Buffer): string => createHash("sha256").update(value).digest("hex");
+export const rootKey = async (root: string): Promise<string> => {
+  let resolved = (await realpath(root).catch(() => path.resolve(root))).replaceAll("\\", "/").replace(/^\/\/\?\//, "");
+  if (process.platform === "win32") resolved = resolved.replace(/[A-Z]/g, c => c.toLowerCase());
+  return checkpointHash(resolved);
+};
+export const checkpointFileKey = (root: string, relative: string): string => checkpointHash(root + "\0" + relative.replaceAll("\\", "/"));
+export const checkpointIdentity = (birthtimeMs: number): string => checkpointHash(String(Math.trunc(birthtimeMs)));
+export const checkpointBoundary = async (filePath: string, offset: number): Promise<string> => {
+  const file = await open(filePath, "r");
+  try {
+    const hash = createHash("sha256");
+    for (const start of [0, Math.max(0, offset - 4096)]) {
+      const length = Math.min(4096, offset - start);
+      const bytes = Buffer.alloc(length);
+      const result = await file.read(bytes, 0, length, start);
+      if (result.bytesRead !== length) throw new Error("Checkpoint boundary changed");
+      hash.update(bytes);
+    }
+    return hash.digest("hex");
+  } finally { await file.close(); }
+};

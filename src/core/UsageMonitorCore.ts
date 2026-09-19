@@ -133,7 +133,7 @@ export class UsageMonitorCore {
     const checkpointStore = useFake
       ? undefined
       : new LocalUsageCheckpointStore(
-          path.join(options.userDataDir, "local-usage-index-v1.json"),
+          path.join(options.sharedDataDir ?? sharedCacheDirectory(), "local-usage-index-v2.json"),
         );
 
     const localUsageCoordinator = useFake

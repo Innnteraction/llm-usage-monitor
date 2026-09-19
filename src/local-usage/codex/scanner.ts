@@ -1,24 +1,21 @@
-import { createHash } from "node:crypto";
 import { watch as createWatcher } from "node:fs";
 import type { FSWatcher } from "node:fs";
-import { open, readdir, stat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { LocalTokenUsage } from "../../shared/index";
-import { LocalUsageCheckpointStore } from "../checkpointStore";
+import { LocalUsageCheckpointStore, rootKey, checkpointFileKey, checkpointIdentity, checkpointBoundary } from "../checkpointStore";
 import { streamJsonl } from "../streamJsonl";
 import type { LocalUsageFileCheckpoint, TokenContribution } from "../types";
 import { parseCodexTokenLine } from "./parser";
 
-const BOUNDARY_BYTES = 4096;
 const zero = (): Required<TokenContribution> => ({
   inputTokens: 0,
   outputTokens: 0,
   cacheReadTokens: 0,
   cacheWriteTokens: 0,
 });
-const hash = (value: string | Buffer): string =>
-  createHash("sha256").update(value).digest("hex");
+
 const add = (left: number, right: number): number => {
   const result = left + right;
   if (!Number.isSafeInteger(result) || result < 0)
@@ -62,26 +59,9 @@ const positiveDelta = (
     : next;
 const isCandidate = (line: Buffer): boolean =>
   line.includes("token_count") && line.includes("total_token_usage");
-const identity = (details: {
-  dev: number;
-  ino: number;
-  birthtimeMs: number;
-}): string =>
-  hash(`${details.dev}:${details.ino}:${Math.trunc(details.birthtimeMs)}`);
 
-const boundaryHash = async (filePath: string, end: number): Promise<string> => {
-  const start = Math.max(0, end - BOUNDARY_BYTES);
-  const length = end - start;
-  if (length === 0) return hash("");
-  const file = await open(filePath, "r");
-  try {
-    const buffer = Buffer.allocUnsafe(length);
-    const { bytesRead } = await file.read(buffer, 0, length, start);
-    return hash(buffer.subarray(0, bytesRead));
-  } finally {
-    await file.close();
-  }
-};
+
+const boundaryHash = checkpointBoundary;
 const findFiles = async (rootPath: string): Promise<string[]> => {
   const files: string[] = [];
   const visit = async (directory: string): Promise<void> => {
@@ -113,7 +93,7 @@ export class CodexLocalUsageScanner {
   private readonly clock: () => Date;
   public constructor(options: CodexLocalUsageScannerOptions) {
     this.rootPath =
-      options.rootPath ?? path.join(homedir(), ".codex", "sessions");
+      options.rootPath ?? path.join(process.env.CODEX_HOME ?? path.join(homedir(), ".codex"), "sessions");
     this.checkpointStore = options.checkpointStore;
     this.clock = options.clock ?? (() => new Date());
   }
@@ -121,17 +101,19 @@ export class CodexLocalUsageScanner {
   public async scan(signal: AbortSignal): Promise<LocalTokenUsage> {
     if (signal.aborted)
       throw new DOMException("The scan was aborted", "AbortError");
+    const root = await rootKey(this.rootPath);
     let filePaths: string[];
     let enumerationFailed = false;
     try {
       filePaths = await findFiles(this.rootPath);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT")
-        return this.result([], 0, false);
-      filePaths = [];
-      enumerationFailed = true;
+        filePaths = [];
+      else { filePaths = []; enumerationFailed = true; }
+
     }
-    const oldFiles = (await this.checkpointStore.load()).providers.codex.files;
+    const oldSection = (await this.checkpointStore.load()).providers.codex;
+    const oldFiles = oldSection.rootKey === root ? oldSection.files : {};
     const nextFiles: Record<string, LocalUsageFileCheckpoint> =
       enumerationFailed ? structuredClone(oldFiles) : {};
     const failedReadKeys = new Set<string>();
@@ -139,9 +121,7 @@ export class CodexLocalUsageScanner {
     for (const filePath of filePaths) {
       if (signal.aborted)
         throw new DOMException("The scan was aborted", "AbortError");
-      const fileKey = hash(
-        path.relative(this.rootPath, filePath).replaceAll("\\", "/"),
-      );
+      const fileKey = checkpointFileKey(root, path.relative(this.rootPath, filePath));
       seen.add(fileKey);
       const scanned = await this.scanFile(
         filePath,
@@ -157,11 +137,7 @@ export class CodexLocalUsageScanner {
     if (!enumerationFailed)
       for (const fileKey of Object.keys(oldFiles))
         if (!seen.has(fileKey)) delete nextFiles[fileKey];
-    const persisted = await this.checkpointStore.updateProvider(
-      "codex",
-      () => ({ files: nextFiles }),
-    );
-    const files = Object.values(persisted.providers.codex.files);
+    const files = Object.values(nextFiles);
     const failedKeys = new Set(
       files
         .filter((file) => (file.errorCount ?? 0) > 0)
@@ -169,11 +145,13 @@ export class CodexLocalUsageScanner {
     );
     for (const key of failedReadKeys) failedKeys.add(key);
     const failedFileCount = failedKeys.size + (enumerationFailed ? 1 : 0);
-    return this.result(
+    const summary = this.result(
       files,
       failedFileCount,
       enumerationFailed || failedFileCount > 0,
     );
+    await this.checkpointStore.updateProvider("codex", () => ({ files: nextFiles, rootKey: root, summary }));
+    return summary;
   }
 
   public watch(onDirty: () => void): () => void {
@@ -206,7 +184,7 @@ export class CodexLocalUsageScanner {
         mtimeMs < 0
       )
         return { failed: true };
-      const fileId = identity(details);
+      const fileId = checkpointIdentity(details.birthtimeMs);
       const previousOffset = previous?.offset ?? 0;
       const canAppend =
         previous !== undefined &&

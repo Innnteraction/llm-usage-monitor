@@ -19,14 +19,14 @@ use std::{
 };
 
 // 최대 한 줄만 버퍼링하고 미완성 UTF-8/JSON 행은 다음 스캔에서 재시도한다.
-const MAX_LINE_BYTES: u64 = 1024 * 1024;
+const MAX_LINE_BYTES: u64 = 16 * 1024 * 1024;
 type ParseLine = fn(serde_json::Value, &mut LocalUsageFileCheckpoint) -> Result<(), ()>;
 
 fn boundary(file: &mut File, offset: u64) -> std::io::Result<String> {
     let mut hash = Sha256::new();
-    for start in [0, offset.saturating_sub(256)] {
+    for start in [0, offset.saturating_sub(4096)] {
         file.seek(SeekFrom::Start(start))?;
-        let mut bytes = vec![0; (offset - start).min(256) as usize];
+        let mut bytes = vec![0; (offset - start).min(4096) as usize];
         file.read_exact(&mut bytes)?;
         hash.update(bytes);
     }
@@ -34,6 +34,7 @@ fn boundary(file: &mut File, offset: u64) -> std::io::Result<String> {
 }
 fn scan_file(
     path: &Path,
+    file_key: &str,
     previous: Option<&LocalUsageFileCheckpoint>,
     parse: ParseLine,
 ) -> std::io::Result<LocalUsageFileCheckpoint> {
@@ -43,24 +44,24 @@ fn scan_file(
         .modified()?
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
-        .as_secs_f64()
-        * 1000.;
+        .as_millis() as f64;
     let identity = metadata
         .created()
         .ok()
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|d| d.as_nanos().to_string())
+        .map(|d| hash(&d.as_millis().to_string()))
         .unwrap_or_default();
+    let mut file = File::open(path)?;
     if let Some(p) = previous {
         if p.size == size
             && p.mtime_ms == mtime
             && p.identity == identity
             && !p.boundary_hash.is_empty()
+            && boundary(&mut file, p.offset)? == p.boundary_hash
         {
             return Ok(p.clone());
         }
     }
-    let mut file = File::open(path)?;
     let resume = if let Some(p) = previous {
         size > p.size
             && p.offset <= size
@@ -74,7 +75,7 @@ fn scan_file(
         previous.unwrap().clone()
     } else {
         LocalUsageFileCheckpoint {
-            file_key: path.to_string_lossy().into_owned(),
+            file_key: file_key.into(),
             identity: identity.clone(),
             size: 0,
             mtime_ms: 0.,
@@ -181,13 +182,18 @@ fn scan(
     provider: &str,
     parse: ParseLine,
 ) -> LocalTokenUsage {
+    let root_key = root_hash(root);
     let mut section = store.get_provider(provider);
+    if section.root_key.as_deref() != Some(root_key.as_str()) {
+        section = Default::default();
+    }
+    section.root_key = Some(root_key.clone());
     let mut files = vec![];
     let mut failed = 0;
     discover(root, &mut files, &mut failed);
     let discovered: HashSet<_> = files
         .iter()
-        .map(|p| p.to_string_lossy().into_owned())
+        .map(|p| file_hash(&root_key, root, p))
         .collect();
     let discovery_failed = failed > 0;
     let mut changed = false;
@@ -198,8 +204,8 @@ fn scan(
     }
     let mut agg = TokenContribution::default();
     for path in &files {
-        let key = path.to_string_lossy().into_owned();
-        match scan_file(path, section.files.get(&key), parse) {
+        let key = file_hash(&root_key, root, path);
+        match scan_file(path, &key, section.files.get(&key), parse) {
             Ok(cp) => {
                 if cp.error_count.unwrap_or(0) > 0 || cp.offset < cp.size {
                     failed += 1;
@@ -227,22 +233,48 @@ fn scan(
             }
         }
     }
-    if changed {
-        store.save_provider(provider, section);
+    let _ = changed;
+    if provider == "claude" {
+        let mut messages = std::collections::HashMap::<String, TokenContribution>::new();
+        for file in section.files.values() {
+            if let Some(m) = &file.messages {
+                for (id, value) in m {
+                    messages.entry(id.clone()).or_default().merge_message(value);
+                }
+            }
+        }
+        agg = TokenContribution::default();
+        for v in messages.values() {
+            agg.add(v);
+        }
     }
-    LocalTokenUsage {
+    if !agg.valid() {
+        return failed_usage();
+    }
+    let summary = LocalTokenUsage {
         scope: "local_device".into(),
         scanned_file_count: files.len() as u64,
         failed_file_count: failed,
         input_tokens: agg.input_tokens,
         output_tokens: agg.output_tokens,
-        cache_read_tokens: Some(agg.cache_read_tokens),
-        cache_write_tokens: Some(agg.cache_write_tokens),
+        cache_read_tokens: (provider != "claude" || agg.cache_read_tokens > 0)
+            .then_some(agg.cache_read_tokens),
+        cache_write_tokens: (provider != "claude" || agg.cache_write_tokens > 0)
+            .then_some(agg.cache_write_tokens),
         total_tokens: agg.input_tokens.saturating_add(agg.output_tokens),
         partial: failed > 0,
         calculated_at: chrono::Utc::now(),
-        observed_from: None,
-    }
+        observed_from: section
+            .files
+            .values()
+            .filter_map(|f| f.observed_from.as_ref())
+            .filter_map(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|t| t.with_timezone(&chrono::Utc))
+            .min(),
+    };
+    section.summary = Some(summary.clone());
+    store.save_provider(provider, section);
+    summary
 }
 fn failed_usage() -> LocalTokenUsage {
     LocalTokenUsage {
@@ -264,7 +296,10 @@ mod tests {
     use super::*;
     use std::io::Write;
     fn codex_line(input: u64) -> String {
-        format!("{{\"type\":\"event_msg\",\"payload\":{{\"type\":\"token_count\",\"info\":{{\"total_token_usage\":{{\"input_tokens\":{input},\"output_tokens\":2}}}}}}}}\n")
+        format!(
+            "{}\n",
+            serde_json::json!({"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":input,"output_tokens":2,"cached_input_tokens":0,"total_tokens":input+2}}}})
+        )
     }
     #[tokio::test]
     async fn codex_incremental_partial_utf8_truncate_and_delete() {
@@ -341,7 +376,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("large.jsonl");
         let mut file = File::create(path).unwrap();
-        for _ in 0..2048 {
+        for _ in 0..17408 {
             file.write_all(&[b'x'; 1024]).unwrap();
         }
         file.write_all(b"\n").unwrap();
@@ -354,5 +389,48 @@ mod tests {
         let usage = scanner.scan().await;
         assert_eq!(usage.total_tokens, 10);
         assert!(usage.partial);
+    }
+}
+
+fn hash(value: &str) -> String {
+    format!("{:x}", Sha256::digest(value.as_bytes()))
+}
+pub fn root_hash(root: &Path) -> String {
+    let absolute = std::fs::canonicalize(root).unwrap_or_else(|_| {
+        if root.is_absolute() {
+            root.to_owned()
+        } else {
+            std::env::current_dir().unwrap_or_default().join(root)
+        }
+    });
+    let value = absolute.to_string_lossy().replace('\\', "/");
+    let value = value.strip_prefix("//?/").unwrap_or(&value);
+    hash(&if cfg!(windows) {
+        value.to_ascii_lowercase()
+    } else {
+        value.into()
+    })
+}
+fn file_hash(root_key: &str, root: &Path, path: &Path) -> String {
+    hash(&format!(
+        "{}\0{}",
+        root_key,
+        path.strip_prefix(root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/")
+    ))
+}
+fn observe(value: &serde_json::Value, cp: &mut LocalUsageFileCheckpoint) {
+    if let Some(time) = value["timestamp"]
+        .as_str()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+    {
+        let time = time
+            .with_timezone(&chrono::Utc)
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        if cp.observed_from.as_ref().is_none_or(|old| *old > time) {
+            cp.observed_from = Some(time);
+        }
     }
 }

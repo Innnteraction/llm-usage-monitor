@@ -98,7 +98,7 @@ pub struct UsageMonitorEngine {
 
 impl UsageMonitorEngine {
     pub fn new(data_dir: PathBuf) -> Self {
-        let checkpoint_path = data_dir.join("native-local-usage-index-v1.json");
+        let checkpoint_path = data_dir.join("local-usage-index-v2.json");
         let checkpoint_store = LocalUsageCheckpointStore::new(checkpoint_path);
 
         Self {

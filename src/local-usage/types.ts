@@ -28,9 +28,11 @@ export interface LocalUsageFileCheckpoint {
 
 export interface ProviderCheckpointSection {
   files: Record<string, LocalUsageFileCheckpoint>;
+  rootKey?: string;
+  summary?: import("../shared/index").LocalTokenUsage;
 }
 
 export interface LocalUsageCheckpointState {
-  schemaVersion: 1;
+  schemaVersion: 2;
   providers: Record<LocalUsageProviderId, ProviderCheckpointSection>;
 }

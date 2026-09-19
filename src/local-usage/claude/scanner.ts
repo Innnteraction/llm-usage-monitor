@@ -1,18 +1,16 @@
-import { createHash } from "node:crypto";
 import { watch as watchFileSystem } from "node:fs";
 import type { FSWatcher } from "node:fs";
-import { open, readdir, stat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import type { LocalTokenUsage } from "../../shared";
-import { LocalUsageCheckpointStore } from "../checkpointStore";
+import { LocalUsageCheckpointStore, rootKey, checkpointFileKey, checkpointIdentity, checkpointBoundary } from "../checkpointStore";
 import { streamJsonl } from "../streamJsonl";
 import type { ProviderCheckpointSection, TokenContribution } from "../types";
 import { isClaudeUsageCandidate, parseClaudeUsageLine } from "./parser";
 
 const PROVIDER_ID = "claude" as const;
-const hash = (value: string | Buffer): string =>
-  createHash("sha256").update(value).digest("hex");
+
 const read = (value: TokenContribution): number => value.cacheReadTokens ?? 0;
 const write = (value: TokenContribution): number => value.cacheWriteTokens ?? 0;
 const base = (value: TokenContribution): number =>
@@ -73,26 +71,7 @@ const total = (
   };
 };
 
-const boundaryHash = async (
-  filePath: string,
-  position: number,
-): Promise<string> => {
-  const length = Math.min(512, position);
-  if (length === 0) return hash("");
-  const file = await open(filePath, "r");
-  try {
-    const buffer = Buffer.allocUnsafe(length);
-    const { bytesRead } = await file.read(
-      buffer,
-      0,
-      length,
-      Math.max(0, position - length),
-    );
-    return hash(buffer.subarray(0, bytesRead));
-  } finally {
-    await file.close();
-  }
-};
+const boundaryHash = checkpointBoundary;
 
 interface DiscoveredFile {
   filePath: string;
@@ -149,15 +128,16 @@ export class ClaudeLocalUsageScanner {
 
   public constructor(private readonly options: ClaudeLocalUsageScannerOptions) {
     this.rootPath =
-      options.rootPath ?? path.join(homedir(), ".claude", "projects");
+      options.rootPath ?? path.join(process.env.CLAUDE_CONFIG_DIR ?? path.join(homedir(), ".claude"), "projects");
     this.clock = options.clock ?? (() => new Date());
   }
 
   public async scan(signal: AbortSignal): Promise<LocalTokenUsage> {
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
     const discovered = await discoverJsonl(this.rootPath);
-    const previous = (await this.options.checkpointStore.load()).providers
-      .claude;
+    const root = await rootKey(this.rootPath);
+    const priorSection = (await this.options.checkpointStore.load()).providers.claude;
+    const previous = priorSection.rootKey === root ? priorSection : { files: {} };
     const next: ProviderCheckpointSection = { files: {} };
     const failedFiles = new Set<string>();
     let partial = discovered.errorCount > 0;
@@ -165,13 +145,11 @@ export class ClaudeLocalUsageScanner {
     if (!discovered.missing)
       for (const found of discovered.files) {
         if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-        const fileKey = hash(found.relativePath);
+        const fileKey = checkpointFileKey(root, found.relativePath);
         const prior = previous.files[fileKey];
         try {
           const metadata = await stat(found.filePath);
-          const identity = hash(
-            `${metadata.dev}:${metadata.ino}:${metadata.birthtimeMs}`,
-          );
+          const identity = checkpointIdentity(metadata.birthtimeMs);
           const currentBoundary = await boundaryHash(
             found.filePath,
             metadata.size,
@@ -289,7 +267,6 @@ export class ClaudeLocalUsageScanner {
       partial = true;
       failedFiles.add("aggregate");
     }
-    await this.options.checkpointStore.updateProvider(PROVIDER_ID, () => next);
     const observedFrom = Object.values(next.files)
       .map(({ observedFrom: value }) => value)
       .filter((value): value is string => value !== undefined)
@@ -304,7 +281,7 @@ export class ClaudeLocalUsageScanner {
     ) {
       throw new RangeError("local usage total overflow");
     }
-    return {
+    const summary: LocalTokenUsage = {
       scope: "local_device",
       scannedFileCount: Object.keys(next.files).length,
       failedFileCount,
@@ -321,6 +298,8 @@ export class ClaudeLocalUsageScanner {
       calculatedAt: this.clock().toISOString(),
       ...(observedFrom ? { observedFrom } : {}),
     };
+    await this.options.checkpointStore.updateProvider(PROVIDER_ID, () => ({ ...next, rootKey: root, summary }));
+    return summary;
   }
 
   public watch(onDirty: () => void): () => void {

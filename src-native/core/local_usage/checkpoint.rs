@@ -13,7 +13,10 @@ impl LocalUsageCheckpointStore {
     pub fn new(path: PathBuf) -> Self {
         let state = if path.exists() {
             match fs::read_to_string(&path) {
-                Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
+                Ok(content) => serde_json::from_str::<LocalUsageCheckpointState>(&content)
+                    .ok()
+                    .filter(valid_state)
+                    .unwrap_or_default(),
                 Err(_) => LocalUsageCheckpointState::default(),
             }
         } else {
@@ -47,7 +50,7 @@ impl LocalUsageCheckpointStore {
             let _ = fs::create_dir_all(parent);
         }
         if let Ok(json) = serde_json::to_string(&*guard) {
-            let _ = fs::write(&self.path, json);
+            let _ = atomic_write(&self.path, json.as_bytes());
         }
     }
 }
@@ -75,4 +78,46 @@ mod tests {
             2
         );
     }
+}
+
+pub fn atomic_write(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let parent = path.parent().ok_or(std::io::ErrorKind::InvalidInput)?;
+    fs::create_dir_all(parent)?;
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    temporary.write_all(bytes)?;
+    temporary.as_file().sync_all()?;
+    temporary.persist(path).map_err(|e| e.error)?;
+    Ok(())
+}
+fn valid_state(state: &LocalUsageCheckpointState) -> bool {
+    use super::types::MAX_SAFE_INTEGER;
+    fn hash(s: &str) -> bool {
+        s.len() == 64 && s.bytes().all(|c| c.is_ascii_hexdigit())
+    }
+    state.schema_version == 2
+        && state
+            .providers
+            .keys()
+            .all(|k| k == "codex" || k == "claude")
+        && state.providers.values().all(|s| {
+            s.root_key.as_ref().is_none_or(|k| hash(k))
+                && s.files.iter().all(|(k, f)| {
+                    hash(k)
+                        && *k == f.file_key
+                        && hash(&f.identity)
+                        && hash(&f.boundary_hash)
+                        && f.offset <= f.size
+                        && f.size <= MAX_SAFE_INTEGER
+                        && f.mtime_ms.is_finite()
+                        && f.mtime_ms >= 0.
+                        && f.mtime_ms.fract() == 0.
+                        && f.mtime_ms <= MAX_SAFE_INTEGER as f64
+                        && f.contribution.valid()
+                        && f.last_cumulative.is_none_or(|v| v.valid())
+                        && f.messages
+                            .as_ref()
+                            .is_none_or(|m| m.iter().all(|(k, v)| hash(k) && v.valid()))
+                })
+        })
 }
