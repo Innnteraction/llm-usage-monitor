@@ -86,3 +86,16 @@ P0 자동 검증: 아키텍처 verify와 Rust 17개 테스트 통과. `--snapsho
 - 범위: 기존 native-app → native-shell과 native-ui 경계 유지. Cargo에는 기존 windows 의존성의 KeyboardAndMouse feature만 추가했다. architecture verify 및 Rust 26개 테스트 통과. 실화면 동일성 통과로 판정하지 않는다.
 
 - Windows release 빌드 통과. normal 합성 데모 `--quit-after=3` exit 0 / stderr 0 bytes. 화면·입력 검증은 사용자 수동 재검수로 남긴다.
+
+
+## 벤더 색상·초기 노출·장애 데모 — 2026-09-20
+
+- 기존 CSS 브랜드 색을 native compact SVG에 적용했다. 장애 시 브랜드/경고를 3초 주기로 교대하고 hover에 장애 제목/상태 페이지 주소를 표시한다. 모션 감소에서는 경고를 정적으로 유지한다. 기존 CSS의 scale/ease 전환까지 픽셀 동일한 상태는 아니므로 시각 수용은 보류한다.
+- 일반 실행 기본값을 트레이 백그라운드 수집으로 변경했다. `--show`는 기존 즉시 표시 동작, `--start-hidden`은 강제 숨김, 데모는 기본 즉시 표시한다. 시작 중 트레이를 클릭하는 경우 Loading은 유지한다.
+- 벤더 3개 × minor/major/critical/operational/unknown = 15개 합성 장애/대조 입력을 추가했다. 네트워크와 인증에 접속하지 않는 데모로 상세·간략 장애 표시를 확인한다.
+- cmd 경로 감사: provider 직접 실행은 CREATE_NO_WINDOW, reg.exe 조회/설정도 CREATE_NO_WINDOW. 로그인/폴더 준비/계정 전환은 사용자 클릭 시 wt.exe를 여는 의도된 경로다. Claude PTY는 portable-pty 0.8.1의 ConPTY 별도 경로이며 STARTF_USESTDHANDLES와 pseudoconsole 속성으로 실행된다. 이것이 cmd 창의 원인이라고 입증되지는 않았다. 각 벤더 CLI가 만드는 하위 프로세스도 앱 직접 생성 옵션만으로 제어되는 것은 아니다. 사용자 재현 시점/창 제목을 추가로 요청했으며 인증 호출·CLI 원문 수집은 하지 않았다.
+- architecture verify 및 Rust 27개 테스트 통과. 새 시작 정책을 회귀 테스트로 확인했다.
+- 릴리스 링크 결과는 생성되었으나 실행 중인 기본 exe의 교체가 os error 5로 실패했다. 새 deps/llm_usage_monitor.exe를 별도 llm-usage-monitor-preview.exe로 복사하여 데모를 검증한다. 기존 프로세스를 강제 종료하지 않았다. 앞선 기본 exe로 수행한 15개 실행은 새 구현의 검증 근거에서 제외한다.
+
+- 사용자 추가 확인: cmd 창은 자동 갱신 또는 수동 갱신 때 나타남. 따라서 로그인·설정용 wt.exe보다 provider 수집/하위 프로세스 경로를 우선 추적한다. 원인 프로세스는 아직 미확정이다.
+- 새 preview 바이너리로 15개 장애/대조 fixture를 각각 `--quit-after=1`로 실행하여 모두 exit 0, stderr 0 bytes 확인. 실화면 자동 캡처/동작 검증을 대신하지 않는다.

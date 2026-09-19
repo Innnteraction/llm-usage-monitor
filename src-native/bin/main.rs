@@ -465,6 +465,10 @@ fn demo_snapshot() -> AppSnapshot {
         .collect(),
     }
 }
+fn startup_hidden(args: &[String], demo: bool) -> bool {
+    args.iter().any(|a| a == "--start-hidden") || (!demo && !args.iter().any(|a| a == "--show"))
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let fixture_path = args.iter().find_map(|a| a.strip_prefix("--demo-snapshot="));
@@ -479,7 +483,7 @@ fn main() {
     });
     let demo = fixture.is_some() || args.iter().any(|a| a == "--demo");
     let fixed_now = fixture.as_ref().map(|s| s.updated_at);
-    let hidden = args.iter().any(|a| a == "--start-hidden");
+    let hidden = startup_hidden(&args, demo);
     let hide_after = args.iter().find_map(|a| {
         a.strip_prefix("--hide-after=")
             .and_then(|v| v.parse::<u64>().ok())
@@ -748,6 +752,17 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn startup_collects_in_background_but_demo_and_show_open_immediately() {
+        assert!(startup_hidden(&[], false));
+        assert!(!startup_hidden(&[], true));
+        assert!(!startup_hidden(&["--show".into()], false));
+        assert!(startup_hidden(&["--start-hidden".into()], true));
+        assert!(startup_hidden(
+            &["--start-hidden".into(), "--show".into()],
+            false
+        ));
+    }
     #[test]
     fn hidden_session_preserves_state_before_idle_and_resets_after_idle() {
         let mut state = AppState {

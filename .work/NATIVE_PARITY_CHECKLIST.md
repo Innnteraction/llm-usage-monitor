@@ -105,3 +105,20 @@ node scripts/create-parity-scenarios.mjs
 - R-03: 이전 Drag hit-test 수정으로 해결되지 않음. Windows 마우스 capture 해제 후 비동기 SC_MOVE 명령으로 변경. 헤더 빈 공간 드래그, 버튼 클릭, 이동 후 접기/펼치기·재열기·Reset Position 재검수 필요.
 - R-07: 이전 글로우 변경에서 SVG 색상 지정 누락으로 아이콘 소실 회귀 발생. 본체와 글로우 SVG 각각 색상을 명시. 아이콘 표시·hover·활성 상태 재검수 필요.
 - R-08: Codex 5h 무지개에도 4px 둥근 quad를 적용. 모션 켜짐/감소, dark/light에서 네 모서리 확인 필요.
+
+
+### 벤더 색상·백그라운드 시작·장애 데모 — 2026-09-20
+
+- [ ] 간략 모드 Codex는 테마 글자색, Claude #d97757, Antigravity #72b7c9인지 dark/light에서 확인.
+- [ ] 일반 실행에서 팝오버가 열리지 않고 트레이에서 수집하는지 확인. 수집 후 트레이 클릭 시 데이터를 표시하는지 확인. 수집 종료 전 클릭하면 Loading 표시는 정상이다.
+- [ ] `--show`는 즉시 열기, 데모는 기본 즉시 열기, `--start-hidden`은 항상 숨김 시작인지 확인.
+- [ ] 아래 데모에서 상세 배너·벤더 degraded/outage 표시, 접힌 모드 브랜드/경고 교대와 hover 장애 문구 확인. 모션 감소에서는 경고 고정 표시.
+- [ ] operational·unknown에서는 장애 배너/경고를 표시하지 않는지 확인. unknown은 정상 확인으로 해석하지 않는다.
+- [ ] cmd 창: 자동/수동 갱신 때 발생한다고 사용자 확인. 창 제목과 발생 시각을 기록하여 Claude ConPTY 및 CLI 하위 프로세스와 구분. 원인 확정/해결 판정 전이다.
+
+```powershell
+node scripts/create-parity-scenarios.mjs
+./target/release/llm-usage-monitor-preview.exe --demo-snapshot=.work/parity-captures/fixtures/incident_codex_major.json
+```
+
+파일명에서 codex를 claude 또는 antigravity로, major를 minor/critical/operational/unknown으로 바꾸면 15개 조합을 시험할 수 있다. 기존 앱은 트레이 Quit으로 닫고 데모를 실행한다. 데모에서는 실제 provider·인증·상태 API·외부 링크를 호출하지 않는다. Ctrl+Shift+C로 접기/펼치기를 비교한다. fixture와 캡처는 Git 제외다.

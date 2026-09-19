@@ -60,6 +60,23 @@ const scenarios = {
     }
   },
 };
+// 벤더 단독 장애와 정상/unknown 대조군. 인증이나 실제 상태 API를 호출하지 않는다.
+for (const providerId of ["codex", "claude", "antigravity"]) {
+  for (const indicator of ["minor", "major", "critical", "operational", "unknown"]) {
+    scenarios[`incident_${providerId}_${indicator}`] = (snapshot) => {
+      for (const provider of snapshot.providers) {
+        provider.serviceStatus = {
+          indicator: provider.providerId === providerId ? indicator : "operational",
+          description: `Synthetic ${indicator} status`,
+          ...(provider.providerId === providerId && ["minor", "major", "critical"].includes(indicator)
+            ? { incidentTitle: `Synthetic ${providerId} ${indicator} incident` } : {}),
+          statusPageUrl: "https://example.invalid/status",
+          checkedAt: snapshot.updatedAt,
+        };
+      }
+    };
+  }
+}
 for (const [name, update] of Object.entries(scenarios)) {
   const snapshot = structuredClone(base);
   update(snapshot);

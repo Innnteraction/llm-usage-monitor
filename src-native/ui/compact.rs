@@ -52,12 +52,30 @@ pub fn render_compact(
                 .find(|w| id == ProviderId::Claude && is_fable(w));
             let event = events.clone();
             let has_error = provider.error.is_some();
-            let help = format!(
+            let incident = provider.service_status.as_ref().filter(|s| {
+                matches!(
+                    s.indicator,
+                    ServiceHealthIndicator::Minor
+                        | ServiceHealthIndicator::Major
+                        | ServiceHealthIndicator::Critical
+                )
+            });
+            let mut help = format!(
                 "{}\n{}\nstatus: {}",
                 provider_name(id),
                 provider.account_label.as_deref().unwrap_or(""),
                 status(provider, now)
             );
+            if let Some(incident) = incident {
+                help.push_str(&format!(
+                    "\n⚠ {}\n{}",
+                    incident
+                        .incident_title
+                        .as_deref()
+                        .unwrap_or(&incident.description),
+                    incident.status_page_url
+                ));
+            }
             div()
                 .flex()
                 .flex_col()
@@ -84,16 +102,7 @@ pub fn render_compact(
                                 .items_center()
                                 .justify_center()
                                 .tooltip(move |_, cx| super::tooltip::tooltip(help.clone(), p, cx))
-                                .child(
-                                    svg()
-                                        .path(match id {
-                                            ProviderId::Codex => "OpenAI",
-                                            ProviderId::Claude => "Claude",
-                                            ProviderId::Antigravity => "Antigravity",
-                                        })
-                                        .size(px(14.))
-                                        .text_color(p.text),
-                                ),
+                                .child(brand_icon(id, p, incident.is_some(), reduced_motion)),
                         )
                         .child(if id == ProviderId::Codex {
                             unlimited_slot(p, reduced_motion).into_any_element()
@@ -141,6 +150,72 @@ pub fn render_compact(
                         }),
                 )
         }))
+}
+
+fn brand_icon(
+    id: ProviderId,
+    p: Palette,
+    incident: bool,
+    reduced_motion: bool,
+) -> gpui::AnyElement {
+    let icon = svg()
+        .path(match id {
+            ProviderId::Codex => "OpenAI",
+            ProviderId::Claude => "Claude",
+            ProviderId::Antigravity => "Antigravity",
+        })
+        .size(px(14.))
+        .text_color(match id {
+            ProviderId::Codex => p.text,
+            ProviderId::Claude => gpui::rgb(0xd97757),
+            ProviderId::Antigravity => gpui::rgb(0x72b7c9),
+        });
+    if !incident {
+        return icon.into_any_element();
+    }
+    // 모션 감소에서는 경고를 계속 표시하여 장애가 가려지지 않게 한다.
+    if reduced_motion {
+        return div()
+            .text_size(px(13.))
+            .text_color(p.high)
+            .child("⚠️")
+            .into_any_element();
+    }
+    div()
+        .relative()
+        .w(px(14.))
+        .h(px(18.))
+        .child(icon.with_animation(
+            "incident-brand",
+            Animation::new(std::time::Duration::from_secs(3)).repeat(),
+            |el, phase| el.opacity(1. - incident_opacity(phase)),
+        ))
+        .child(
+            div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .text_size(px(13.))
+                .text_color(p.high)
+                .child("⚠️")
+                .with_animation(
+                    "incident-warning",
+                    Animation::new(std::time::Duration::from_secs(3)).repeat(),
+                    |el, phase| el.opacity(incident_opacity(phase)),
+                ),
+        )
+        .into_any_element()
+}
+fn incident_opacity(phase: f32) -> f32 {
+    if phase < 0.45 {
+        0.
+    } else if phase < 0.5 {
+        (phase - 0.45) / 0.05
+    } else if phase < 0.95 {
+        1.
+    } else {
+        (1. - phase) / 0.05
+    }
 }
 
 // 사용자 확정 제품 규칙. snapshot의 미제공 값을 변조하지 않는다.
