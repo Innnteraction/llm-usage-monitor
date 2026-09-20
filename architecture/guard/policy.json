@@ -1,0 +1,320 @@
+{
+  "boundaries": [
+    {
+      "may_depend_on": [],
+      "name": "root",
+      "paths": [
+        "*"
+      ],
+      "public_paths": []
+    },
+    {
+      "may_depend_on": [
+        "core",
+        "storage",
+        "infrastructure",
+        "local-usage",
+        "shared",
+        "usage",
+        "providers"
+      ],
+      "name": "main",
+      "paths": [
+        "src/main/**"
+      ],
+      "public_paths": [
+        "src/main/index.ts"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "shared"
+      ],
+      "name": "local-usage",
+      "paths": [
+        "src/local-usage/**"
+      ],
+      "public_paths": [
+        "src/local-usage/index.ts"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "shared"
+      ],
+      "name": "preload",
+      "paths": [
+        "src/preload/**"
+      ],
+      "public_paths": [
+        "src/preload/index.ts"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "provider-codex",
+        "provider-claude",
+        "provider-antigravity",
+        "shared"
+      ],
+      "name": "providers",
+      "paths": [
+        "src/providers/index.ts"
+      ],
+      "public_paths": [
+        "src/providers/index.ts"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "shared",
+        "infrastructure"
+      ],
+      "name": "provider-codex",
+      "paths": [
+        "src/providers/codex/**"
+      ],
+      "public_paths": [
+        "src/providers/codex/index.ts"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "shared",
+        "infrastructure"
+      ],
+      "name": "provider-claude",
+      "paths": [
+        "src/providers/claude/**"
+      ],
+      "public_paths": [
+        "src/providers/claude/index.ts"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "shared"
+      ],
+      "name": "renderer",
+      "paths": [
+        "src/renderer/**"
+      ],
+      "public_paths": [
+        "src/renderer/index.ts"
+      ]
+    },
+    {
+      "may_depend_on": [],
+      "name": "shared",
+      "paths": [
+        "src/shared/**"
+      ],
+      "public_paths": [
+        "src/shared/index.ts"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "shared"
+      ],
+      "name": "usage",
+      "paths": [
+        "src/usage/**"
+      ],
+      "public_paths": [
+        "src/usage/index.ts"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "main",
+        "local-usage",
+        "preload",
+        "provider-claude",
+        "provider-codex",
+        "providers",
+        "renderer",
+        "shared",
+        "usage",
+        "provider-antigravity",
+        "core",
+        "storage",
+        "infrastructure"
+      ],
+      "name": "tests",
+      "paths": [
+        "tests/**"
+      ],
+      "public_paths": []
+    },
+    {
+      "may_depend_on": [
+        "shared",
+        "infrastructure"
+      ],
+      "name": "provider-antigravity",
+      "paths": [
+        "src/providers/antigravity/**"
+      ],
+      "public_paths": [
+        "src/providers/antigravity/index.ts"
+      ]
+    },
+    {
+      "may_depend_on": [],
+      "name": "native-types",
+      "paths": [
+        "src-native/core/types.rs"
+      ],
+      "public_paths": [
+        "src-native/core/types.rs"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "native-types"
+      ],
+      "name": "native-providers",
+      "paths": [
+        "src-native/providers/**"
+      ],
+      "public_paths": [
+        "src-native/providers/**"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "native-types"
+      ],
+      "name": "native-local",
+      "paths": [
+        "src-native/core/local_usage/**"
+      ],
+      "public_paths": [
+        "src-native/core/local_usage/**"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "native-types",
+        "native-providers",
+        "native-local"
+      ],
+      "name": "native-core",
+      "paths": [
+        "src-native/core/mod.rs",
+        "src-native/core/engine.rs",
+        "src-native/core/vendor_health.rs",
+        "src-native/core/engine/**"
+      ],
+      "public_paths": [
+        "src-native/core/mod.rs",
+        "src-native/core/engine.rs",
+        "src-native/core/vendor_health.rs",
+        "src-native/core/engine/**"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "native-types"
+      ],
+      "name": "native-ui",
+      "paths": [
+        "src-native/ui/**"
+      ],
+      "public_paths": [
+        "src-native/ui/**"
+      ]
+    },
+    {
+      "may_depend_on": [],
+      "name": "native-shell",
+      "paths": [
+        "src-native/shell/**"
+      ],
+      "public_paths": [
+        "src-native/shell/**"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "native-types",
+        "native-core",
+        "native-local",
+        "native-ui",
+        "native-shell",
+        "native-providers"
+      ],
+      "name": "native-app",
+      "paths": [
+        "src-native/lib.rs",
+        "src-native/bin/**"
+      ],
+      "public_paths": [
+        "src-native/lib.rs",
+        "src-native/bin/**"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "storage",
+        "local-usage",
+        "shared",
+        "usage",
+        "providers"
+      ],
+      "name": "core",
+      "paths": [
+        "src/core/**"
+      ],
+      "public_paths": [
+        "src/core/index.ts"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "shared"
+      ],
+      "name": "storage",
+      "paths": [
+        "src/storage/**"
+      ],
+      "public_paths": [
+        "src/storage/index.ts"
+      ]
+    },
+    {
+      "may_depend_on": [
+        "shared"
+      ],
+      "name": "infrastructure",
+      "paths": [
+        "src/infrastructure/**"
+      ],
+      "public_paths": [
+        "src/infrastructure/index.ts"
+      ]
+    }
+  ],
+  "exclude_paths": [
+    "**/node_modules/**",
+    "**/.vite/**",
+    "**/dist/**",
+    "**/out/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/playwright-report/**",
+    "**/test-results/**",
+    "src/forge-env.d.ts"
+  ],
+  "include_paths": [
+    "*.mts",
+    "*.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "src-native/**/*.rs"
+  ],
+  "schema_version": "1.0.0",
+  "status": "active"
+}
