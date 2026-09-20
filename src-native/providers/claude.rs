@@ -40,8 +40,6 @@ pub struct ClaudeParsedWindow {
 struct ClaudeAuthStatusJson {
     #[serde(default)]
     email: Option<String>,
-    #[serde(default)]
-    plan: Option<String>,
     #[serde(rename = "authType", default)]
     auth_type: Option<String>,
 }

@@ -101,7 +101,7 @@ try {
             foreach ($link in $ownedLinks.Keys) { Remove-Item -LiteralPath $link -Force }
             if (-not $Uninstall) {
                 $action = if ($enableStartup) { 'on' } else { 'off' }
-                & (Join-Path $installRoot 'startup.ps1') -Action $action | Out-Host
+                & (Join-Path $installRoot 'startup.ps1') -Action $action | Out-Null
                 $shortcut = $shell.CreateShortcut($links[0])
                 $shortcut.TargetPath = Join-Path $installRoot $executable
                 $shortcut.WorkingDirectory = $installRoot

@@ -27,6 +27,9 @@
 
 ## 남은 운영 검수와 경계
 
+- Rust 응답 DTO에서 사용하지 않는 `impact`, `id`, `begin`, `plan` 필드를 제거했다. Serde는 사용하지 않는 응답 키를 무시하며 기존 표시·인증 로직은 그대로다. 설치기의 자동 시작 helper 반환값(`true`/`false`)은 화면에 출력하지 않고 기존 완료 안내의 `start at login` 값을 사용한다.
+- 남은 향후 Rust 호환성 경고는 `gpui 0.2.2 → stacksafe 0.1.4 → stacksafe-macro 0.1.4 → proc-macro-error2 2.0.1`의 private `proc_macro` 재노출(E0365) 때문이다. GPUI 요구 범위는 stacksafe `0.1`이며 현재 해당 계열 마지막 버전은 0.1.4다. 1.x로의 강제 교체나 의존성 fork는 이번 정리에서 적용하지 않았다. [상위 프로젝트 유지보수 이슈](https://github.com/GnomedDev/proc-macro-error-2/issues/17)와 `cargo report future-incompatibilities --id 1`로 확인했으며 경고를 숨기지 않는다. 후속 해결은 호환 GPUI 배포 또는 검증한 의존성 패치가 필요하다.
+
 - rustup 설치 파일을 UUID 이름의 exe로 저장해 설치 모드 대신 proxy 판별 오류가 발생했다. 고유 임시 디렉터리 안의 `rustup-init.exe`로 수정하고, 잠긴 파일의 정리 실패는 경고로 남겨 원래 설치 오류를 보존한다. 실제 다운로드 분기에 허구 파일·체크섬·파일 잠금을 넣은 Windows PowerShell 5.1 회귀 테스트를 통과했다. 공식 exe 다운로드 및 `--help` 검증 명령은 자동 승인 검토에서 `blocked by policy`로 거절되어 실행하지 못했다. 실제 도구 설치 성공은 아직 확인하지 않았다.
 
 - 설치기 자체 안내·오류와 앱의 남은 한국어 표시를 영어로 변경하고, Windows/macOS의 대화형 선택 및 버전 옵션에 `n`/`r` 별칭을 추가했다. OS·외부 설치 도구·벤더가 제공하는 원문과 사용자 데이터의 언어는 변경하지 않는다. Windows PowerShell 5.1 별칭·설치 테스트, Bash 별칭·구문, Node 264개/Rust 33개 테스트와 Windows 양쪽 빌드를 확인했다. Node 검증 산출물은 `out/install-english`에 있다. macOS 실화면은 미검증이다.

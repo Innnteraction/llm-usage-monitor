@@ -38,14 +38,11 @@ struct StatuspageComponent {
 #[derive(Debug, Deserialize)]
 struct StatuspageIncident {
     name: Option<String>,
-    impact: Option<String>,
     status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct GoogleIncident {
-    id: Option<String>,
-    begin: Option<String>,
     end: Option<String>,
     external_desc: Option<String>,
     service_name: Option<String>,
