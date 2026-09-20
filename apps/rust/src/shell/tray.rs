@@ -12,7 +12,7 @@ pub struct SystemTrayManager {
 }
 
 pub fn load_tray_icon() -> Result<Icon> {
-    let png_bytes = include_bytes!("../../assets/icons/tray-icon.png");
+    let png_bytes = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/icons/tray-icon.png"));
     let img =
         image::load_from_memory(png_bytes).context("Failed to decode embedded tray-icon.png")?;
     let rgba = img.into_rgba8();

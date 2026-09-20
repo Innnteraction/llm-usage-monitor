@@ -4,7 +4,6 @@
       "may_depend_on": [],
       "name": "root",
       "paths": [
-        "*",
         "apps/node/*"
       ],
       "public_paths": []
@@ -21,11 +20,9 @@
       ],
       "name": "main",
       "paths": [
-        "src/main/**",
         "apps/node/src/main/**"
       ],
       "public_paths": [
-        "src/main/index.ts",
         "apps/node/src/main/index.ts"
       ]
     },
@@ -35,11 +32,9 @@
       ],
       "name": "local-usage",
       "paths": [
-        "src/local-usage/**",
         "apps/node/src/local-usage/**"
       ],
       "public_paths": [
-        "src/local-usage/index.ts",
         "apps/node/src/local-usage/index.ts"
       ]
     },
@@ -49,11 +44,9 @@
       ],
       "name": "preload",
       "paths": [
-        "src/preload/**",
         "apps/node/src/preload/**"
       ],
       "public_paths": [
-        "src/preload/index.ts",
         "apps/node/src/preload/index.ts"
       ]
     },
@@ -66,11 +59,9 @@
       ],
       "name": "providers",
       "paths": [
-        "src/providers/index.ts",
         "apps/node/src/providers/index.ts"
       ],
       "public_paths": [
-        "src/providers/index.ts",
         "apps/node/src/providers/index.ts"
       ]
     },
@@ -81,11 +72,9 @@
       ],
       "name": "provider-codex",
       "paths": [
-        "src/providers/codex/**",
         "apps/node/src/providers/codex/**"
       ],
       "public_paths": [
-        "src/providers/codex/index.ts",
         "apps/node/src/providers/codex/index.ts"
       ]
     },
@@ -96,11 +85,9 @@
       ],
       "name": "provider-claude",
       "paths": [
-        "src/providers/claude/**",
         "apps/node/src/providers/claude/**"
       ],
       "public_paths": [
-        "src/providers/claude/index.ts",
         "apps/node/src/providers/claude/index.ts"
       ]
     },
@@ -110,11 +97,9 @@
       ],
       "name": "renderer",
       "paths": [
-        "src/renderer/**",
         "apps/node/src/renderer/**"
       ],
       "public_paths": [
-        "src/renderer/index.ts",
         "apps/node/src/renderer/index.ts"
       ]
     },
@@ -122,11 +107,9 @@
       "may_depend_on": [],
       "name": "shared",
       "paths": [
-        "src/shared/**",
         "apps/node/src/shared/**"
       ],
       "public_paths": [
-        "src/shared/index.ts",
         "apps/node/src/shared/index.ts"
       ]
     },
@@ -136,11 +119,9 @@
       ],
       "name": "usage",
       "paths": [
-        "src/usage/**",
         "apps/node/src/usage/**"
       ],
       "public_paths": [
-        "src/usage/index.ts",
         "apps/node/src/usage/index.ts"
       ]
     },
@@ -162,7 +143,6 @@
       ],
       "name": "tests",
       "paths": [
-        "tests/**",
         "apps/node/tests/**"
       ],
       "public_paths": []
@@ -174,11 +154,9 @@
       ],
       "name": "provider-antigravity",
       "paths": [
-        "src/providers/antigravity/**",
         "apps/node/src/providers/antigravity/**"
       ],
       "public_paths": [
-        "src/providers/antigravity/index.ts",
         "apps/node/src/providers/antigravity/index.ts"
       ]
     },
@@ -186,10 +164,12 @@
       "may_depend_on": [],
       "name": "native-types",
       "paths": [
-        "src-native/core/types.rs"
+        "src-native/core/types.rs",
+        "apps/rust/src/core/types.rs"
       ],
       "public_paths": [
-        "src-native/core/types.rs"
+        "src-native/core/types.rs",
+        "apps/rust/src/core/types.rs"
       ]
     },
     {
@@ -198,10 +178,12 @@
       ],
       "name": "native-providers",
       "paths": [
-        "src-native/providers/**"
+        "src-native/providers/**",
+        "apps/rust/src/providers/**"
       ],
       "public_paths": [
-        "src-native/providers/**"
+        "src-native/providers/**",
+        "apps/rust/src/providers/**"
       ]
     },
     {
@@ -210,10 +192,12 @@
       ],
       "name": "native-local",
       "paths": [
-        "src-native/core/local_usage/**"
+        "src-native/core/local_usage/**",
+        "apps/rust/src/core/local_usage/**"
       ],
       "public_paths": [
-        "src-native/core/local_usage/**"
+        "src-native/core/local_usage/**",
+        "apps/rust/src/core/local_usage/**"
       ]
     },
     {
@@ -227,13 +211,21 @@
         "src-native/core/mod.rs",
         "src-native/core/engine.rs",
         "src-native/core/vendor_health.rs",
-        "src-native/core/engine/**"
+        "src-native/core/engine/**",
+        "apps/rust/src/core/mod.rs",
+        "apps/rust/src/core/engine.rs",
+        "apps/rust/src/core/vendor_health.rs",
+        "apps/rust/src/core/engine/**"
       ],
       "public_paths": [
         "src-native/core/mod.rs",
         "src-native/core/engine.rs",
         "src-native/core/vendor_health.rs",
-        "src-native/core/engine/**"
+        "src-native/core/engine/**",
+        "apps/rust/src/core/mod.rs",
+        "apps/rust/src/core/engine.rs",
+        "apps/rust/src/core/vendor_health.rs",
+        "apps/rust/src/core/engine/**"
       ]
     },
     {
@@ -242,20 +234,24 @@
       ],
       "name": "native-ui",
       "paths": [
-        "src-native/ui/**"
+        "src-native/ui/**",
+        "apps/rust/src/ui/**"
       ],
       "public_paths": [
-        "src-native/ui/**"
+        "src-native/ui/**",
+        "apps/rust/src/ui/**"
       ]
     },
     {
       "may_depend_on": [],
       "name": "native-shell",
       "paths": [
-        "src-native/shell/**"
+        "src-native/shell/**",
+        "apps/rust/src/shell/**"
       ],
       "public_paths": [
-        "src-native/shell/**"
+        "src-native/shell/**",
+        "apps/rust/src/shell/**"
       ]
     },
     {
@@ -270,11 +266,17 @@
       "name": "native-app",
       "paths": [
         "src-native/lib.rs",
-        "src-native/bin/**"
+        "src-native/bin/**",
+        "apps/rust/src/lib.rs",
+        "apps/rust/src/bin/**",
+        "apps/rust/tools/**"
       ],
       "public_paths": [
         "src-native/lib.rs",
-        "src-native/bin/**"
+        "src-native/bin/**",
+        "apps/rust/src/lib.rs",
+        "apps/rust/src/bin/**",
+        "apps/rust/tools/**"
       ]
     },
     {
@@ -287,11 +289,9 @@
       ],
       "name": "core",
       "paths": [
-        "src/core/**",
         "apps/node/src/core/**"
       ],
       "public_paths": [
-        "src/core/index.ts",
         "apps/node/src/core/index.ts"
       ]
     },
@@ -301,11 +301,9 @@
       ],
       "name": "storage",
       "paths": [
-        "src/storage/**",
         "apps/node/src/storage/**"
       ],
       "public_paths": [
-        "src/storage/index.ts",
         "apps/node/src/storage/index.ts"
       ]
     },
@@ -315,11 +313,9 @@
       ],
       "name": "infrastructure",
       "paths": [
-        "src/infrastructure/**",
         "apps/node/src/infrastructure/**"
       ],
       "public_paths": [
-        "src/infrastructure/index.ts",
         "apps/node/src/infrastructure/index.ts"
       ]
     }
@@ -333,21 +329,16 @@
     "**/coverage/**",
     "**/playwright-report/**",
     "**/test-results/**",
-    "src/forge-env.d.ts",
     "apps/node/src/forge-env.d.ts"
   ],
   "include_paths": [
-    "*.mts",
-    "*.ts",
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "tests/**/*.ts",
     "src-native/**/*.rs",
     "apps/node/*.mts",
     "apps/node/*.ts",
     "apps/node/src/**/*.ts",
     "apps/node/src/**/*.tsx",
-    "apps/node/tests/**/*.ts"
+    "apps/node/tests/**/*.ts",
+    "apps/rust/**/*.rs"
   ],
   "schema_version": "1.0.0",
   "status": "active"

@@ -1,7 +1,7 @@
 ﻿# Runs the production installer orchestration with synthetic OS adapters.
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'install-common.ps1')
-. (Join-Path $PSScriptRoot 'install-runner.ps1')
+. (Join-Path $PSScriptRoot '../install-common.ps1')
+. (Join-Path $PSScriptRoot '../install-runner.ps1')
 function Assert($Condition,$Message) { if (-not $Condition) { throw $Message } }
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('llm-entry-' + [guid]::NewGuid().ToString('N'))
 $previousLocal = $env:LOCALAPPDATA

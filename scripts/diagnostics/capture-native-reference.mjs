@@ -3,15 +3,14 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
-const root = path.resolve(import.meta.dirname, "..");
+const root = path.resolve(import.meta.dirname, "../..");
 const fixturePath = path.join(root, "shared", "fixtures", "snapshot.json");
 const output = path.join(root, ".work", "parity-captures", "P0", new Date().toISOString().replace(/[:.]/g, "-"));
 
 if (process.argv.includes("--snapshot-only")) {
-  process.env.LLM_USAGE_MONITOR_E2E_ANTIGRAVITY = "1";
-  const { createFakeUsageStore } = await import("../src/main/fakeUsage.ts");
-  const snapshot = createFakeUsageStore(() => new Date("2026-09-19T12:00:00.000Z")).getState();
-  writeFileSync(fixturePath, JSON.stringify(snapshot, null, 2) + "\n");
+  const snapshot = JSON.parse(readFileSync(fixturePath, "utf8"));
+  mkdirSync(output, { recursive: true });
+  writeFileSync(path.join(output, "snapshot.json"), JSON.stringify(snapshot, null, 2) + "\n");
 } else {
 mkdirSync(output, { recursive: true });
 const snapshot = JSON.parse(readFileSync(fixturePath, "utf8"));
@@ -19,8 +18,8 @@ const packaged = process.argv.includes("--packaged");
 const { _electron: electron } = await import("@playwright/test");
 const userData = mkdtempSync(path.join(tmpdir(), "llm-parity-reference-"));
 const app = await electron.launch({
-  args: packaged ? [] : [root], chromiumSandbox: true,
-  executablePath: packaged ? path.join(root, "out", `LLM Usage Monitor-${process.platform}-${process.arch}`, ...(process.platform === "darwin" ? ["LLM Usage Monitor.app", "Contents", "MacOS", "LLM Usage Monitor"] : ["LLM Usage Monitor.exe"])) : undefined,
+  args: packaged ? [] : [path.join(root, "apps/node")], chromiumSandbox: true,
+  executablePath: packaged ? path.join(root, "apps/node/out", `LLM Usage Monitor-${process.platform}-${process.arch}`, ...(process.platform === "darwin" ? ["LLM Usage Monitor.app", "Contents", "MacOS", "LLM Usage Monitor"] : ["LLM Usage Monitor.exe"])) : undefined,
   env: { ...process.env, LLM_USAGE_MONITOR_E2E: "1",
     LLM_USAGE_MONITOR_E2E_ANTIGRAVITY: "1",
     LLM_USAGE_MONITOR_E2E_KEEP_VISIBLE: "1", LLM_USAGE_MONITOR_E2E_USER_DATA: userData },

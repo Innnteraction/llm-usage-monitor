@@ -82,6 +82,12 @@ $restoreRegistration = {
 if (-not $Uninstall) {
     Install-SelectedDependencies $Variant $pnpmVersion $AcceptDependencies $NonInteractive
     $artifact = Build-SelectedApp $Variant $projectRoot
+    $appVersion = $package.version
+    if ($Variant -eq 'rust') {
+        $cargoManifest = Get-Content -LiteralPath (Join-Path $projectRoot 'apps/rust/Cargo.toml') -Raw
+        if ($cargoManifest -notmatch '(?m)^version\s*=\s*"([^"]+)"') { throw 'Rust application version is missing.' }
+        $appVersion = $Matches[1]
+    }
 }
 New-Item -ItemType Directory -Force -Path $installParent | Out-Null
 $stage = Join-Path $installParent ('.llm-install-' + [guid]::NewGuid().ToString('N'))
@@ -95,7 +101,7 @@ try {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'startup.ps1') -Destination $stage
         $revision = 'source-zip'
         if (Get-Command git -ErrorAction SilentlyContinue) { $candidate = & git -C $projectRoot rev-parse --short HEAD 2>$null; if ($LASTEXITCODE -eq 0) { $revision = $candidate } }
-        @{schemaVersion=1;appId='llm-usage-monitor';variant=$Variant;version=$package.version;revision=$revision;executable=$executable} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'install-info.json') -Encoding UTF8
+        @{schemaVersion=1;appId='llm-usage-monitor';variant=$Variant;version=$appVersion;revision=$revision;executable=$executable} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'install-info.json') -Encoding UTF8
     }
     Assert-AppStopped $installRoot
     Assert-AppStopped $legacyNative
@@ -121,7 +127,7 @@ try {
     if (Test-Path -LiteralPath $legacyBackup) { Assert-InstallChild $legacyBackup $installParent; try { Remove-Item -LiteralPath $legacyBackup -Recurse -Force } catch { Write-Warning "Previous Native backup cleanup remains: $legacyBackup" } }
     if ($Uninstall) { Remove-Item -LiteralPath $installRoot; Write-Host 'App removed. Shared cache, credentials and development tools were preserved.' }
     else {
-        Write-Host "Installation complete: $Variant $($package.version) ($revision) / $(Join-Path $installRoot $executable) / start at login=$enableStartup"
+        Write-Host "Installation complete: $Variant $appVersion ($revision) / $(Join-Path $installRoot $executable) / start at login=$enableStartup"
         if (-not $NoStart) { Start-Process -FilePath (Join-Path $installRoot $executable) -WorkingDirectory $installRoot -WindowStyle Hidden }
     }
 } finally {

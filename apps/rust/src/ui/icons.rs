@@ -5,43 +5,43 @@ impl AssetSource for Icons {
     fn load(&self, path: &str) -> anyhow::Result<Option<Cow<'static, [u8]>>> {
         Ok(match path {
             "AddSquare" => Some(Cow::Borrowed(include_bytes!(
-                "../../assets/native-icons/AddSquare.svg"
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/native-icons/AddSquare.svg")
             ))),
             "Antigravity" => Some(Cow::Borrowed(include_bytes!(
-                "../../assets/native-icons/Antigravity.svg"
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/native-icons/Antigravity.svg")
             ))),
             "Claude" => Some(Cow::Borrowed(include_bytes!(
-                "../../assets/native-icons/Claude.svg"
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/native-icons/Claude.svg")
             ))),
             "Help-filled" => Some(Cow::Borrowed(include_bytes!(
-                "../../assets/native-icons/Help-filled.svg"
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/native-icons/Help-filled.svg")
             ))),
             "Help" => Some(Cow::Borrowed(include_bytes!(
-                "../../assets/native-icons/Help.svg"
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/native-icons/Help.svg")
             ))),
             "MinusSquare" => Some(Cow::Borrowed(include_bytes!(
-                "../../assets/native-icons/MinusSquare.svg"
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/native-icons/MinusSquare.svg")
             ))),
             "Moon-filled" => Some(Cow::Borrowed(include_bytes!(
-                "../../assets/native-icons/Moon-filled.svg"
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/native-icons/Moon-filled.svg")
             ))),
             "Moon" => Some(Cow::Borrowed(include_bytes!(
-                "../../assets/native-icons/Moon.svg"
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/native-icons/Moon.svg")
             ))),
             "OpenAI" => Some(Cow::Borrowed(include_bytes!(
-                "../../assets/native-icons/OpenAI.svg"
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/native-icons/OpenAI.svg")
             ))),
             "Pin-filled" => Some(Cow::Borrowed(include_bytes!(
-                "../../assets/native-icons/Pin-filled.svg"
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/native-icons/Pin-filled.svg")
             ))),
             "Pin" => Some(Cow::Borrowed(include_bytes!(
-                "../../assets/native-icons/Pin.svg"
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/native-icons/Pin.svg")
             ))),
             "Sun-filled" => Some(Cow::Borrowed(include_bytes!(
-                "../../assets/native-icons/Sun-filled.svg"
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/native-icons/Sun-filled.svg")
             ))),
             "Sun" => Some(Cow::Borrowed(include_bytes!(
-                "../../assets/native-icons/Sun.svg"
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/native-icons/Sun.svg")
             ))),
             _ => None,
         })

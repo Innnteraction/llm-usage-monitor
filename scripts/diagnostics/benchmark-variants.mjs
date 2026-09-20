@@ -7,7 +7,8 @@ import process from 'node:process';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 const execute = promisify(execFile);
-const output = path.resolve('.work/parity-captures/install-memory');
+const root = path.resolve(import.meta.dirname, '../..');
+const output = path.resolve(root, '.work/parity-captures/install-memory');
 await mkdir(output, { recursive: true });
 const profile = await mkdtemp(path.join(tmpdir(), 'llm-install-memory-'));
 const report = { workload: 'same synthetic snapshot, visible expanded view, 5s warmup, 5 samples; Windows process-tree working set sum includes shared pages', results: [] };
@@ -27,7 +28,7 @@ let app;
 let native;
 try {
   app = await electron.launch({
-    executablePath: path.resolve('out/install-build/LLM Usage Monitor-win32-x64/LLM Usage Monitor.exe'),
+    executablePath: path.resolve(root, 'apps/node/out/install-build/LLM Usage Monitor-win32-x64/LLM Usage Monitor.exe'),
     chromiumSandbox: true, timeout: 20000,
     env: { ...process.env, LLM_USAGE_MONITOR_E2E: '1', LLM_USAGE_MONITOR_E2E_ANTIGRAVITY: '1', LLM_USAGE_MONITOR_E2E_KEEP_VISIBLE: '1', LLM_USAGE_MONITOR_E2E_USER_DATA: profile },
   });
@@ -35,12 +36,12 @@ try {
   await page.getByRole('heading', { name: 'Codex', exact: true }).waitFor({ timeout: 15000 });
   // The canonical parity fixture contains fictional accounts only.
   const { readFile } = await import('node:fs/promises');
-  const fixture = JSON.parse(await readFile('shared/fixtures/snapshot.json', 'utf8'));
+  const fixture = JSON.parse(await readFile(path.join(root, 'shared/fixtures/snapshot.json'), 'utf8'));
   await page.clock.install({ fixedTime: new Date(fixture.updatedAt) });
   await app.evaluate(({ BrowserWindow }, value) => { for (const window of BrowserWindow.getAllWindows()) window.webContents.send('usage-monitor:state-changed', value); }, fixture);
   report.results.push({ variant: 'node', workingSetMiB: await samples(app.process().pid) });
   await app.close(); app = undefined;
-  native = spawn(path.resolve('target/release/llm-usage-monitor.exe'), [`--demo-snapshot=${path.resolve('shared/fixtures/snapshot.json')}`, '--startup-timing', '--quit-after=25'], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+  native = spawn(path.resolve(root, 'target/release/llm-usage-monitor.exe'), [`--demo-snapshot=${path.resolve(root, 'shared/fixtures/snapshot.json')}`, '--startup-timing', '--quit-after=25'], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
   let diagnostics = '';
   native.stderr.on('data', chunk => { diagnostics += chunk; });
   const exited = new Promise((resolve, reject) => { native.once('error', reject); native.once('close', resolve); });

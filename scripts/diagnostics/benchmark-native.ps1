@@ -1,7 +1,7 @@
-param(
-    [string]$Executable = (Join-Path $PSScriptRoot '../target/release/llm-usage-monitor.exe'),
+﻿param(
+    [string]$Executable = (Join-Path $PSScriptRoot '../../target/release/llm-usage-monitor.exe'),
     [ValidateRange(3, 60)][int]$Samples = 10,
-    [string]$Output = (Join-Path $PSScriptRoot '../.work/native-memory-results.json')
+    [string]$Output = (Join-Path $PSScriptRoot '../../.work/native-memory-results.json')
 )
 $ErrorActionPreference = 'Stop'
 $resolvedExe = (Resolve-Path -LiteralPath $Executable).Path

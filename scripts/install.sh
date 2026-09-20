@@ -101,7 +101,12 @@ if [ "$uninstall" = false ]; then
 EOF
   fi
   cp "$script_dir/startup.sh" "$stage/Contents/Resources/startup.sh"
+  if [ "$variant" = node ]; then
   version="$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "$project_root/apps/node/package.json" | head -n 1)"
+  else
+    version="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' "$project_root/apps/rust/Cargo.toml" | head -n 1)"
+  fi
+  [ -n "$version" ] || { echo "Application version is missing." >&2; exit 1; }
   revision="$(git -C "$project_root" rev-parse --short HEAD 2>/dev/null || printf source-zip)"
   executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$stage/Contents/Info.plist")"
   printf '{"schemaVersion":1,"appId":"llm-usage-monitor","variant":"%s","version":"%s","revision":"%s","executable":"%s"}\n' "$variant" "$version" "$revision" "$executable" > "$stage/Contents/Resources/install-info.json"

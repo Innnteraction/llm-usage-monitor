@@ -93,7 +93,7 @@ mod tests {
     #[test]
     fn shared_node_rust_presentation_contract() {
         let contract: serde_json::Value = serde_json::from_str(include_str!(
-            "../../shared/fixtures/presentation-contract.json"
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/fixtures/presentation-contract.json")
         ))
         .unwrap();
         let now = contract["now"]

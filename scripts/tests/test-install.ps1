@@ -1,6 +1,6 @@
 ﻿# No installed application, real registry, tool installer, vendor CLI or credentials are touched.
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'install-common.ps1')
+. (Join-Path $PSScriptRoot '../install-common.ps1')
 function Assert($Condition,[string]$Message) { if (-not $Condition) { throw $Message } }
 function Must-Fail([scriptblock]$Operation) { $failed=$false; try { & $Operation } catch { $failed=$true }; Assert $failed 'Expected failure' }
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('llm-install-test-' + [guid]::NewGuid().ToString('N'))
@@ -95,7 +95,7 @@ try {
     try { Must-Fail { Assert-AppStopped $target } } finally { $lock.Dispose() }
     Assert-AppStopped $target
     # Common startup helper against a fake registry, exercising Unicode/spaces and identity.
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'startup.ps1') -Destination $target
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../startup.ps1') -Destination $target
     @{schemaVersion=1;appId='llm-usage-monitor';variant='rust';executable='locked.exe'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $target 'install-info.json') -Encoding UTF8
     $global:installTestRegistry=$null
     function Get-ItemProperty {
