@@ -11,13 +11,13 @@
 | 항목 | 값 |
 | --- | --- |
 | schema version | 1.0.0 |
-| source digest | b61b7e22769b276a7cdcc7ab338de4f0d3980780c3a93942e50853c8e60a82bd |
-| Git commit | 614ff3e4cd2b0e18c6c6e99397bc6f98b436e0f4 |
+| source digest | e0c0f331b8b5c083e6c0edde0f47bcbbdd0000371d1fcddff4bd57023f8030c1 |
+| Git commit | 092f5a88d1e9a32449205e81d65b08b5293837d1 |
 | dirty | false |
 | 선택 scope | production |
-| 분석 module | 124 |
-| 제외 module | 48 |
-| 추출 symbol | 949 |
+| 분석 module | 117 |
+| 제외 module | 46 |
+| 추출 symbol | 933 |
 | entrypoint 관측 | 85 |
 | 정규화된 분석 entrypoint | 34 |
 | 미포함 nested TypeScript project | 0 |
@@ -31,24 +31,24 @@ capability: architecture-static-summary, call-candidates, cargo-metadata, entryp
 
 | 단계 | 결과 | 기계적 정의 |
 | --- | --- | --- |
-| 원시 edge 관측 | 13,727 | 정적 분석기가 기록한 전체 관계 관측 |
-| 구조 의존 edge 관측 | 12,721 | 원시 관측 중 imports·calls·registers |
+| 원시 edge 관측 | 13,492 | 정적 분석기가 기록한 전체 관계 관측 |
+| 구조 의존 edge 관측 | 12,508 | 원시 관측 중 imports·calls·registers |
 | package-root 내부 재분류 관측 | 0 | 구조 의존 관측 중 알려진 내부 module prefix와 일치한 부분집합 |
-| 정규화된 module dependency | 297 | 내부 source·target 확인, self-edge 제외, source·target·type·resolution 중복 제거 |
-| 경계 내부 module dependency | 230 | source와 target의 일차 경계가 같은 정규화 관계 |
-| 경계 간 module dependency | 67 | source와 target의 일차 경계가 다른 정규화 관계 |
-| 경계 쌍 집계 행 | 17 | source 경계·target 경계·confidence별 집계 행 |
+| 정규화된 module dependency | 281 | 내부 source·target 확인, self-edge 제외, source·target·type·resolution 중복 제거 |
+| 경계 내부 module dependency | 216 | source와 target의 일차 경계가 같은 정규화 관계 |
+| 경계 간 module dependency | 65 | source와 target의 일차 경계가 다른 정규화 관계 |
+| 경계 쌍 집계 행 | 14 | source 경계·target 경계·confidence별 집계 행 |
 
-`원시 관측 13,727 → 의존 유형 선별 12,721 → 내부 판정·self-edge 제외·중복 제거 → module dependency 297`
+`원시 관측 13,492 → 의존 유형 선별 12,508 → 내부 판정·self-edge 제외·중복 제거 → module dependency 281`
 
 내부 재분류 관측은 구조 의존 관측의 부분집합이므로 별도 graph 크기로 더하거나 빼지 않는다.
 
 | 관계 유형 | 원시 관측 | 정규화된 내부 module dependency |
 | --- | --- | --- |
-| calls | 12,089 | 136 |
-| contains | 949 | 0 |
-| exports | 57 | 0 |
-| imports | 555 | 161 |
+| calls | 11,900 | 122 |
+| contains | 933 | 0 |
+| exports | 51 | 0 |
+| imports | 531 | 159 |
 | registers | 77 | 0 |
 
 <a id="evidence-boundaries"></a>
@@ -57,17 +57,15 @@ capability: architecture-static-summary, call-candidates, cargo-metadata, entryp
 
 | 경계 | module | 내부 dependency | inbound | outbound |
 | --- | --- | --- | --- | --- |
-| src-native | 37 | 142 | 0 | 0 |
+| src-native | 33 | 128 | 0 | 0 |
 | src/renderer | 17 | 28 | 0 | 11 |
 | src/providers | 15 | 19 | 7 | 13 |
-| src/main | 12 | 19 | 0 | 14 |
+| src/main | 14 | 20 | 7 | 15 |
 | (analysis-root-files) | 10 | 0 | 0 | 0 |
 | src/local-usage | 10 | 13 | 2 | 4 |
-| src/shared | 9 | 6 | 44 | 0 |
+| src/shared | 9 | 6 | 42 | 0 |
 | src/usage | 6 | 2 | 5 | 6 |
-| src/core | 3 | 1 | 2 | 15 |
-| src/infrastructure | 2 | 0 | 4 | 2 |
-| src/storage | 2 | 0 | 3 | 1 |
+| src/core | 2 | 0 | 2 | 15 |
 | src/preload | 1 | 0 | 0 | 1 |
 
 <a id="evidence-module-hubs"></a>
@@ -76,26 +74,26 @@ capability: architecture-static-summary, call-candidates, cargo-metadata, entryp
 
 | module | import fan-in | import fan-out | 합계 |
 | --- | --- | --- | --- |
-| src/shared/index.ts | 36 | 0 | 36 |
+| src/shared/index.ts | 35 | 0 | 35 |
 | src/main/application.ts | 1 | 12 | 13 |
 | src-native/ui/mod.rs | 1 | 10 | 11 |
 | src/renderer/selectors.ts | 7 | 1 | 8 |
+| src/main/platform/index.ts | 6 | 2 | 8 |
 | src/renderer/components/ProviderCard.tsx | 1 | 6 | 7 |
 | src/renderer/App.tsx | 0 | 7 | 7 |
 | src-native/core/types.rs | 6 | 0 | 6 |
 | src-native/ui/theme.rs | 6 | 0 | 6 |
 | src/local-usage/types.ts | 5 | 1 | 6 |
 | src/renderer/components/HelpTrigger.tsx | 5 | 1 | 6 |
-| src/main/platform/index.ts | 4 | 2 | 6 |
 | src/renderer/components/QuotaMeter.tsx | 2 | 4 | 6 |
 | src-native/core/local_usage/mod.rs | 1 | 5 | 6 |
 | src/renderer/components/CompactQuotaTable.tsx | 1 | 5 | 6 |
 | src/core/UsageMonitorCore.ts | 0 | 6 | 6 |
+| src/providers/claude/ptyProbe.ts | 3 | 2 | 5 |
 | src-native/core/mod.rs | 1 | 4 | 5 |
 | src/local-usage/claude/scanner.ts | 0 | 5 | 5 |
 | src/local-usage/codex/scanner.ts | 0 | 5 | 5 |
 | src/local-usage/checkpointStore.ts | 2 | 2 | 4 |
-| src/providers/claude/ptyProbe.ts | 2 | 2 | 4 |
 | src/providers/codex/appServerClient.ts | 2 | 2 | 4 |
 | src-native/providers/mod.rs | 1 | 3 | 4 |
 | src-native/shell/mod.rs | 1 | 3 | 4 |
@@ -110,56 +108,48 @@ fan-in·fan-out은 정규화된 `imports` 관계만 센다.
 
 ```mermaid
 flowchart LR
-  b0["src/core<br/>modules=3"]
-  b1["src/infrastructure<br/>modules=2"]
-  b2["src/local-usage<br/>modules=10"]
-  b3["src/main<br/>modules=12"]
-  b4["src/preload<br/>modules=1"]
-  b5["src/providers<br/>modules=15"]
-  b6["src/renderer<br/>modules=17"]
-  b7["src/shared<br/>modules=9"]
-  b8["src/storage<br/>modules=2"]
-  b9["src/usage<br/>modules=6"]
-  b6 -->|"11 · confirmed"| b7
-  b5 -->|"9 · confirmed"| b7
-  b3 -->|"8 · confirmed"| b7
-  b9 -->|"6 · confirmed"| b7
-  b0 -->|"5 · confirmed"| b9
-  b0 -->|"4 · confirmed"| b5
-  b2 -->|"4 · confirmed"| b7
-  b5 -->|"4 · confirmed"| b1
-  b3 -->|"3 · confirmed"| b5
-  b0 -->|"2 · confirmed"| b2
-  b0 -->|"2 · confirmed"| b7
-  b0 -->|"2 · confirmed"| b8
-  b1 -->|"2 · confirmed"| b7
-  b3 -->|"2 · confirmed"| b0
-  b3 -->|"1 · confirmed"| b8
-  b4 -->|"1 · confirmed"| b7
-  b8 -->|"1 · confirmed"| b7
+  b0["src/core<br/>modules=2"]
+  b1["src/local-usage<br/>modules=10"]
+  b2["src/main<br/>modules=14"]
+  b3["src/preload<br/>modules=1"]
+  b4["src/providers<br/>modules=15"]
+  b5["src/renderer<br/>modules=17"]
+  b6["src/shared<br/>modules=9"]
+  b7["src/usage<br/>modules=6"]
+  b5 -->|"11 · confirmed"| b6
+  b2 -->|"10 · confirmed"| b6
+  b4 -->|"9 · confirmed"| b6
+  b7 -->|"6 · confirmed"| b6
+  b0 -->|"5 · confirmed"| b7
+  b0 -->|"4 · confirmed"| b4
+  b1 -->|"4 · confirmed"| b6
+  b4 -->|"4 · confirmed"| b2
+  b0 -->|"3 · confirmed"| b2
+  b2 -->|"3 · confirmed"| b4
+  b0 -->|"2 · confirmed"| b1
+  b2 -->|"2 · confirmed"| b0
+  b0 -->|"1 · confirmed"| b6
+  b3 -->|"1 · confirmed"| b6
 ```
 
-상위 17개 집계 행만 표시했다. 실선은 confirmed, 점선은 uncertain이며 수치는 정규화된 module dependency 수다.
+상위 14개 집계 행만 표시했다. 실선은 confirmed, 점선은 uncertain이며 수치는 정규화된 module dependency 수다.
 
 | source 경계 | target 경계 | confidence | module dependency |
 | --- | --- | --- | --- |
 | src/renderer | src/shared | confirmed | 11 |
+| src/main | src/shared | confirmed | 10 |
 | src/providers | src/shared | confirmed | 9 |
-| src/main | src/shared | confirmed | 8 |
 | src/usage | src/shared | confirmed | 6 |
 | src/core | src/usage | confirmed | 5 |
 | src/core | src/providers | confirmed | 4 |
 | src/local-usage | src/shared | confirmed | 4 |
-| src/providers | src/infrastructure | confirmed | 4 |
+| src/providers | src/main | confirmed | 4 |
+| src/core | src/main | confirmed | 3 |
 | src/main | src/providers | confirmed | 3 |
 | src/core | src/local-usage | confirmed | 2 |
-| src/core | src/shared | confirmed | 2 |
-| src/core | src/storage | confirmed | 2 |
-| src/infrastructure | src/shared | confirmed | 2 |
 | src/main | src/core | confirmed | 2 |
-| src/main | src/storage | confirmed | 1 |
+| src/core | src/shared | confirmed | 1 |
 | src/preload | src/shared | confirmed | 1 |
-| src/storage | src/shared | confirmed | 1 |
 
 <a id="evidence-cycles"></a>
 
@@ -167,7 +157,7 @@ flowchart LR
 
 | 순환군 | confidence | 경계 교차 | module 수 | 경계 | 대표 module |
 | --- | --- | --- | --- | --- | --- |
-| SCC-01 | candidate | 아니오 | 15 | src-native | src-native/core/engine.rs, src-native/core/engine/cache.rs, src-native/core/engine/jobs.rs, src-native/core/vendor_health.rs, src-native/shell/desktop.rs |
+| SCC-01 | candidate | 아니오 | 13 | src-native | src-native/core/engine.rs, src-native/core/vendor_health.rs, src-native/shell/desktop.rs, src-native/shell/mod.rs, src-native/ui/animated_text.rs |
 | SCC-02 | candidate | 아니오 | 4 | src-native | src-native/providers/antigravity.rs, src-native/providers/claude.rs, src-native/providers/codex.rs, src-native/providers/mod.rs |
 | SCC-03 | candidate | 아니오 | 3 | src-native | src-native/core/local_usage/claude.rs, src-native/core/local_usage/codex.rs, src-native/core/local_usage/mod.rs |
 
@@ -177,30 +167,30 @@ flowchart LR
 
 | entrypoint | 종류 | resolution | 도달 module | 도달 경계 | 계산 기준 |
 | --- | --- | --- | --- | --- | --- |
-| src/main/application.ts#startApplication | worker | candidate | 43 | 8 | module-dependency-closure |
-| src/main/application.ts#startApplication.createMainWindow | worker | candidate | 43 | 8 | module-dependency-closure |
-| src-native/bin/test_collector.rs#test-collector | cli | resolved | 32 | 1 | module-dependency-closure |
-| src-native/lib.rs#llm_usage_monitor_core | library | resolved | 31 | 1 | module-dependency-closure |
-| src/core/UsageMonitorCore.ts#UsageMonitorCore.initSubscriptions | worker | candidate | 28 | 7 | module-dependency-closure |
-| src/core/UsageMonitorCore.ts#UsageMonitorCore.subscribe | worker | candidate | 28 | 7 | module-dependency-closure |
-| src/core/UsageMonitorCore.ts#UsageMonitorCore.trackBackground | http | candidate | 28 | 7 | module-dependency-closure |
-| src-native/bin/main.rs#llm-usage-monitor | cli | resolved | 23 | 1 | module-dependency-closure |
-| src-native/bin/main.rs#main | cli | resolved | 23 | 1 | module-dependency-closure |
-| src-native/bin/benchmark.rs#benchmark-native | cli | resolved | 21 | 1 | module-dependency-closure |
-| src-native/bin/cache_fixture.rs#cache-fixture | cli | resolved | 21 | 1 | module-dependency-closure |
-| src/providers/antigravity/provider.ts#AntigravityQuotaProvider.fetchQuota | http | candidate | 7 | 3 | module-dependency-closure |
+| src/main/application.ts#startApplication | worker | candidate | 40 | 6 | module-dependency-closure |
+| src/main/application.ts#startApplication.createMainWindow | worker | candidate | 40 | 6 | module-dependency-closure |
+| src-native/bin/test_collector.rs#test-collector | cli | resolved | 30 | 1 | module-dependency-closure |
+| src-native/lib.rs#llm_usage_monitor_core | library | resolved | 29 | 1 | module-dependency-closure |
+| src/core/UsageMonitorCore.ts#UsageMonitorCore.initSubscriptions | worker | candidate | 26 | 6 | module-dependency-closure |
+| src/core/UsageMonitorCore.ts#UsageMonitorCore.subscribe | worker | candidate | 26 | 6 | module-dependency-closure |
+| src/core/UsageMonitorCore.ts#UsageMonitorCore.trackBackground | http | candidate | 26 | 6 | module-dependency-closure |
+| src-native/bin/benchmark.rs#benchmark-native | cli | resolved | 19 | 1 | module-dependency-closure |
+| src-native/bin/cache_fixture.rs#cache-fixture | cli | resolved | 19 | 1 | module-dependency-closure |
+| src-native/bin/main.rs#llm-usage-monitor | cli | resolved | 19 | 1 | module-dependency-closure |
+| src-native/bin/main.rs#main | cli | resolved | 19 | 1 | module-dependency-closure |
+| src/providers/antigravity/provider.ts#AntigravityQuotaProvider.fetchQuota | http | candidate | 8 | 3 | module-dependency-closure |
+| src/providers/codex/appServerClient.ts#CodexAppServerClient.close.finish | http | candidate | 7 | 3 | module-dependency-closure |
+| src/providers/codex/appServerClient.ts#CodexAppServerClient.receiveLine | http | candidate | 7 | 3 | module-dependency-closure |
+| src/providers/codex/appServerClient.ts#CodexAppServerClient.request | http | candidate | 7 | 3 | module-dependency-closure |
+| src/providers/codex/appServerClient.ts#createNodeTransport.onStdout | worker | candidate | 7 | 3 | module-dependency-closure |
 | src/local-usage/claude/scanner.ts#ClaudeLocalUsageScanner.watch | worker | candidate | 6 | 2 | module-dependency-closure |
 | src/local-usage/codex/scanner.ts#CodexLocalUsageScanner.watch | worker | candidate | 6 | 2 | module-dependency-closure |
-| src/providers/codex/appServerClient.ts#CodexAppServerClient.close.finish | http | candidate | 6 | 3 | module-dependency-closure |
-| src/providers/codex/appServerClient.ts#CodexAppServerClient.receiveLine | http | candidate | 6 | 3 | module-dependency-closure |
-| src/providers/codex/appServerClient.ts#CodexAppServerClient.request | http | candidate | 6 | 3 | module-dependency-closure |
-| src/providers/codex/appServerClient.ts#createNodeTransport.onStdout | worker | candidate | 6 | 3 | module-dependency-closure |
-| src/providers/antigravity/processRunner.ts#AntigravityCliRunner.runCommand | worker | candidate | 5 | 3 | module-dependency-closure |
+| src/providers/antigravity/processRunner.ts#AntigravityCliRunner.runCommand | worker | candidate | 6 | 3 | module-dependency-closure |
 | src/renderer/hooks/useUsageMonitor.ts#useUsageMonitor | worker | candidate | 5 | 2 | module-dependency-closure |
 | src/usage/localUsageCoordinator.ts#createLocalUsageCoordinator.dirty | http | candidate | 3 | 2 | module-dependency-closure |
 | src/usage/localUsageCoordinator.ts#createLocalUsageCoordinator.request | http | candidate | 3 | 2 | module-dependency-closure |
 | src/usage/vendorHealthPoller.ts#createVendorHealthPoller.request | http | candidate | 3 | 2 | module-dependency-closure |
-| src/core/fakeUsage.ts#createFakeUsageStore.subscribe | http | candidate | 2 | 2 | module-dependency-closure |
+| src/main/fakeUsage.ts#createFakeUsageStore.subscribe | http | candidate | 2 | 2 | module-dependency-closure |
 | src/preload/index.ts#subscribe | worker | candidate | 2 | 2 | module-dependency-closure |
 | src/usage/poller.ts#createUsagePoller.clearTimer | http | candidate | 2 | 2 | module-dependency-closure |
 | src/usage/poller.ts#createUsagePoller.refreshProvider | http | candidate | 2 | 2 | module-dependency-closure |
@@ -222,7 +212,7 @@ flowchart LR
 | --- | --- |
 | 상태 | available |
 | 사유 | 해당 없음 |
-| 분석 commit | 109 |
+| 분석 commit | 106 |
 | 제외 bulk commit | 0 |
 | shallow | false |
 
@@ -231,32 +221,33 @@ flowchart LR
   c0["(analysis-root-files)"]
   c1["src-native"]
   c2["src/core"]
-  c3["src/main"]
-  c4["src/preload"]
-  c5["src/providers"]
-  c6["src/renderer"]
-  c7["src/shared"]
-  c8["src/usage"]
-  c3 ---|"commits=26 · J=0.400"| c6
-  c6 ---|"commits=19 · J=0.365"| c7
-  c3 ---|"commits=16 · J=0.286"| c7
-  c0 ---|"commits=12 · J=0.226"| c3
-  c5 ---|"commits=10 · J=0.172"| c6
-  c3 ---|"commits=10 · J=0.169"| c5
-  c5 ---|"commits=8 · J=0.195"| c7
-  c4 ---|"commits=8 · J=0.178"| c6
-  c3 ---|"commits=8 · J=0.174"| c4
-  c6 ---|"commits=8 · J=0.160"| c8
-  c3 ---|"commits=8 · J=0.157"| c8
-  c4 ---|"commits=7 · J=0.259"| c7
-  c0 ---|"commits=6 · J=0.103"| c6
-  c0 ---|"commits=5 · J=0.135"| c5
-  c0 ---|"commits=5 · J=0.125"| c7
-  c2 ---|"commits=4 · J=0.250"| c8
-  c1 ---|"commits=4 · J=0.129"| c2
-  c2 ---|"commits=4 · J=0.083"| c6
-  c2 ---|"commits=4 · J=0.082"| c3
-  c1 ---|"commits=4 · J=0.057"| c3
+  c3["src/local-usage"]
+  c4["src/main"]
+  c5["src/preload"]
+  c6["src/providers"]
+  c7["src/renderer"]
+  c8["src/shared"]
+  c9["src/usage"]
+  c4 ---|"commits=31 · J=0.484"| c7
+  c7 ---|"commits=19 · J=0.373"| c8
+  c4 ---|"commits=16 · J=0.262"| c8
+  c0 ---|"commits=13 · J=0.228"| c4
+  c4 ---|"commits=10 · J=0.185"| c9
+  c4 ---|"commits=10 · J=0.159"| c6
+  c6 ---|"commits=9 · J=0.158"| c7
+  c6 ---|"commits=8 · J=0.200"| c8
+  c5 ---|"commits=8 · J=0.182"| c7
+  c7 ---|"commits=8 · J=0.163"| c9
+  c4 ---|"commits=8 · J=0.157"| c5
+  c5 ---|"commits=7 · J=0.259"| c8
+  c0 ---|"commits=6 · J=0.105"| c7
+  c0 ---|"commits=5 · J=0.139"| c6
+  c0 ---|"commits=5 · J=0.125"| c8
+  c1 ---|"commits=5 · J=0.069"| c4
+  c2 ---|"commits=4 · J=0.267"| c9
+  c1 ---|"commits=4 · J=0.143"| c2
+  c2 ---|"commits=4 · J=0.075"| c4
+  c1 ---|"commits=3 · J=0.097"| c3
 ```
 
 상위 20개 경계 쌍만 표시했다. 이 관계는 설계 위반의 증명이 아니라 추가 조사 신호다.
@@ -281,6 +272,7 @@ flowchart LR
 | src/local-usage/claude/scanner.ts | ClaudeLocalUsageScanner.watch:305-316 | entrypoint:worker:src/local-usage |
 | src/local-usage/types.ts |  | dependency-hub |
 | src/main/application.ts | startApplication:131-515 | dependency-hub,entrypoint:worker:src/main |
+| src/main/fakeUsage.ts | createFakeUsageStore.subscribe:327-330 | entrypoint:http:src/main |
 | src/main/platform/index.ts |  | dependency-hub |
 | src/preload/index.ts | subscribe:37-48 | entrypoint:worker:src/preload |
 | src/providers/antigravity/provider.ts | AntigravityQuotaProvider.fetchQuota:91-127 | entrypoint:http:src/providers |
@@ -302,7 +294,7 @@ flowchart LR
 | 수준 | 코드 | 메시지 |
 | --- | --- | --- |
 | error | source-rust-std-source-unavailable | rust-src를 찾지 못해 rust-analyzer sysroot 로딩을 시작하지 않았습니다. |
-| info | non-production-excluded | 기본 구조 집계에서 test·fixture·example module 48개를 제외했습니다. |
+| info | non-production-excluded | 기본 구조 집계에서 test·fixture·example module 46개를 제외했습니다. |
 
 ## 해석 원칙
 

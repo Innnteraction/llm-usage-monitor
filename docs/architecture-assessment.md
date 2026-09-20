@@ -2,13 +2,13 @@
 writing:
   audience: "LLM Usage Monitor의 UX를 개선하거나 신규 Provider를 연동하려는 동료 개발자 및 소프트웨어 아키텍트"
   intent: "현재 코드베이스의 UI-백엔드 분리도, 벤더 확장성, 다국어 지원 상태를 증거 기반으로 정밀 진단하고 명확한 개선 결과를 보고한다."
-  core_message: "Renderer의 컴포넌트 모듈화와 더불어, Main의 UI-백엔드 결합을 해소한 UsageMonitorCore 추출, Provider Capabilities 일반화, i18n 감지 인프라 구축 및 영문 일원화를 달성하여 타 개발자의 UX 자유도와 진정한 확장성을 확보하였다."
+  core_message: "Node 의존 방향과 Rust 책임 분리를 개선하고 공통 검증을 연결했다. 현재 구현, 완료한 검증, Mac·CI·의미 분석의 미확인 범위를 분리해 판단한다."
   expected_change: "현 아키텍처의 3대 핵심 영역(UI 독립 백엔드 코어, 확장 가능한 벤더 규격, 영문 일원화 및 i18n 개방)에 대한 구조적 이해를 얻고, 안심하고 새로운 UX와 Provider를 추가한다."
 ---
 
 # LLM Usage Monitor 아키텍처 평가 보고서
 
-> **현재 구조 검토는 아래 [2026-09-20 재평가 초안](#assessment-20260920)을 기준으로 읽는다.** 기존 본문의 Reviewed 표기와 AA-001~AA-007은 당시 판단의 이력으로 보존한다. 기존 본문에는 현재 Rust·공유 캐시·설치 구조와 다른 내용이 있으며, 현재 revision에 대한 검토 완료 선언이 아니다.
+> **현재 판단은 [9장: 개선 후 재평가](#assessment-current)를 기준으로 읽는다.** 1~6장은 초기 평가, 7장은 `092f5a8`의 개선 전 평가, 8장은 구현 직후 결과 기록이다. 기존 Reviewed 표기는 해당 이력에만 적용된다. 최신 기계 증거는 `614ff3e`에서 다시 생성했으며, 과거 증거는 별도 문서로 보존했다.
 
 > 이 문서는 저장소의 최신 구현과 정적 구조 분석 증거를 바탕으로 작성한 정규 아키텍처 평가 보고서다.
 > 특히 **1) 화면과 백엔드의 책임 분리(UI 독립성), 2) 벤더별 확장 용이성, 3) 다국어(i18n) 준비 상태**를 집중 조명한다.
@@ -204,7 +204,7 @@ flowchart TD
 | revision / 시작 상태 | `092f5a88d1e9a32449205e81d65b08b5293837d1` / clean |
 | source digest | `e0c0f331b8b5c083e6c0edde0f47bcbbdd0000371d1fcddff4bd57023f8030c1` |
 | 재현 | `sg-review-arch/scripts/analyze-architecture.ps1 -Root <repo> -Output <temp>/architecture-facts.json -EvidenceOutput docs/architecture-evidence.md` 및 `sg-guard-arch/scripts/architecture-guard.ps1 check --root <repo>` |
-| 기계 증거 | [snapshot](architecture-evidence.md#evidence-snapshot), [coverage](architecture-evidence.md#evidence-coverage), [diagnostics](architecture-evidence.md#evidence-diagnostics) |
+| 기계 증거 | [snapshot](architecture-evidence-092f5a8.md#evidence-snapshot), [coverage](architecture-evidence-092f5a8.md#evidence-coverage), [diagnostics](architecture-evidence-092f5a8.md#evidence-diagnostics) |
 
 동일 물리 경로라도 Git 관리 범위, 빌드 기준, import namespace, 논리 책임을 구분한다. `src-native`라는 디렉터리 하나 안에도 types/core/providers/local-usage/ui/shell/app 책임이 있다. 기계 증거의 일차 디렉터리 집계는 이 책임들을 하나로 합치므로 그대로 설계 경계로 해석하지 않는다.
 
@@ -228,11 +228,11 @@ flowchart TD
 
 ### 7.3 Coverage와 판정 한계
 
-기계 요약은 production 모듈 117개를 포함하고 test/fixture/example 46개를 제외했다. 원시 관계 관측 13,492건 중 imports/calls/registers 12,508건을 선별한 뒤 내부 모듈 판정·self-edge 제외·중복 제거를 거쳐 정규화된 module dependency 281개로 집계했다. 내부 재분류 관측은 0건이며 별도로 더하지 않는다. 이는 실행 횟수가 아니다. 상세 단위는 [기계 증거](architecture-evidence.md#evidence-coverage)에 둔다.
+기계 요약은 production 모듈 117개를 포함하고 test/fixture/example 46개를 제외했다. 원시 관계 관측 13,492건 중 imports/calls/registers 12,508건을 선별한 뒤 내부 모듈 판정·self-edge 제외·중복 제거를 거쳐 정규화된 module dependency 281개로 집계했다. 내부 재분류 관측은 0건이며 별도로 더하지 않는다. 이는 실행 횟수가 아니다. 상세 단위는 [기계 증거](architecture-evidence-092f5a8.md#evidence-coverage)에 둔다.
 
 guard는 정책 선택 범위에서 모듈 161개, 확정 dependency 252개로 `pass`였다. 기계 요약과 대상 scope·관계 유형·해석 규칙이 달라 수치를 직접 비교하지 않는다. guard의 `pass`는 **현 정책과 baseline 대비 새 위반 없음**이다.
 
-Rust는 `rust-src` 부재로 의미 해석이 축소됐다. 검출한 세 SCC는 모두 candidate이며 실제 실행 순환이나 확정 import 순환이라고 보고하지 않는다. 예를 들어 `providers/mod.rs`의 재노출과 자식 provider의 공통 command helper 사용, local-usage 부모 helper와 자식 parser 참조가 후보에 섞인다. [순환군](architecture-evidence.md#evidence-cycles)을 조사 신호로만 사용했다.
+Rust는 `rust-src` 부재로 의미 해석이 축소됐다. 검출한 세 SCC는 모두 candidate이며 실제 실행 순환이나 확정 import 순환이라고 보고하지 않는다. 예를 들어 `providers/mod.rs`의 재노출과 자식 provider의 공통 command helper 사용, local-usage 부모 helper와 자식 parser 참조가 후보에 섞인다. [순환군](architecture-evidence-092f5a8.md#evidence-cycles)을 조사 신호로만 사용했다.
 
 TS `UsageMonitorCore.refresh` trace는 depth 3 / nodes 24 제한으로 추출했지만 한 모듈·두 symbol까지만 연결됐다. interface dispatch 이후 poller/provider 동작은 원문으로 대조했다. Rust `start_monitor` trace는 rust-analyzer capability 부재로 실행 불가였다. 필요한 도구를 임의 설치하지 않았다. 정적 읽기는 런타임 E2E 검증을 대체하지 않는다.
 
@@ -312,11 +312,11 @@ sequenceDiagram
 | --- | --- | --- | --- | --- | --- |
 | AA-008 | 사실 | 확인 | 현 guard 보호 범위에 core가 없고 baseline은 15건이다. 기존 승인 4건과 경위가 미확인이다. | 로컬 `.architecture-guard/policy.json` include/boundaries, `baseline.json`, current-check; `.git/info/exclude`로 상태 폴더 제외 | 092f5a8 / 이 PC의 로컬 정책 |
 | AA-009 | 사실 | 확인 | shared-cache 테스트는 기본 테스트와 현재 CI에서 제외된다. | `vitest.config.mts:3`, `package.json`의 test:shared-cache, `.github/workflows/native.yml`, `install.yml` | 092f5a8 |
-| AA-010 | 평가 | 주의 | UI-independent core의 파일 소유권과 의존 방향이 미완성이다. Electron import 부재만으로 완전 분리라고 하지 않는다. | `src/core/UsageMonitorCore.ts:27`, `src/providers/codex/appServerClient.ts:14`, `src/providers/antigravity/processRunner.ts:8`, `src/main/platform/index.ts:4`; [경계 의존](architecture-evidence.md#evidence-boundary-dependencies) | 092f5a8 |
-| AA-011 | 평가 | 주의 | Rust 엔진 내 책임 응집과 작업 식별 방식이 변경 국소성을 낮춘다. | `src-native/core/engine.rs`의 cache(10), UsageMonitorEngine(149), MonitorEvent(362), apply_result(407), collect/start_monitor(536); [hub와 후보 순환](architecture-evidence.md#evidence-module-hubs) | 092f5a8 |
+| AA-010 | 평가 | 주의 | UI-independent core의 파일 소유권과 의존 방향이 미완성이다. Electron import 부재만으로 완전 분리라고 하지 않는다. | `src/core/UsageMonitorCore.ts:27`, `src/providers/codex/appServerClient.ts:14`, `src/providers/antigravity/processRunner.ts:8`, `src/main/platform/index.ts:4`; [경계 의존](architecture-evidence-092f5a8.md#evidence-boundary-dependencies) | 092f5a8 |
+| AA-011 | 평가 | 주의 | Rust 엔진 내 책임 응집과 작업 식별 방식이 변경 국소성을 낮춘다. | `src-native/core/engine.rs`의 cache(10), UsageMonitorEngine(149), MonitorEvent(362), apply_result(407), collect/start_monitor(536); [hub와 후보 순환](architecture-evidence-092f5a8.md#evidence-module-hubs) | 092f5a8 |
 | AA-012 | 평가 | 주의 | 공통 startup helper는 중복을 줄였지만 배포 어댑터 통합 검증이 부족하다. | `scripts/install.ps1:71`, `:99`, `scripts/test-install.ps1`의 함수 대체; `src/main/launchAtLogin.ts`, `src-native/shell/desktop.rs:288`; 설치 workflow의 macOS syntax/check 단계 | 092f5a8 / 실기 macOS 미확인 |
-| AA-013 | 평가 | 주의 | 기존 Reviewed 보고서는 현재 배포·경계와 drift가 있어 역사적 판단으로 보존해야 한다. | 기존 AA-001~007과 현재 [snapshot](architecture-evidence.md#evidence-snapshot), [경계](architecture-evidence.md#evidence-boundaries) 대조 | 이전 revision 미표기 / 현재 092f5a8 |
-| AA-014 | 사실 | 확인 | UI는 정규화된 snapshot과 사용자 동작 API를 중심으로 작동한다. | `src/preload/index.ts:25`, `src/renderer/hooks/useUsageMonitor.ts:11`, `src-native/ui/quota_card.rs:6`, native `UiEvents`; [renderer dependency](architecture-evidence.md#evidence-boundary-dependencies) | 092f5a8 / 읽은 대표 경로 |
+| AA-013 | 평가 | 주의 | 기존 Reviewed 보고서는 현재 배포·경계와 drift가 있어 역사적 판단으로 보존해야 한다. | 기존 AA-001~007과 현재 [snapshot](architecture-evidence-092f5a8.md#evidence-snapshot), [경계](architecture-evidence-092f5a8.md#evidence-boundaries) 대조 | 이전 revision 미표기 / 현재 092f5a8 |
+| AA-014 | 사실 | 확인 | UI는 정규화된 snapshot과 사용자 동작 API를 중심으로 작동한다. | `src/preload/index.ts:25`, `src/renderer/hooks/useUsageMonitor.ts:11`, `src-native/ui/quota_card.rs:6`, native `UiEvents`; [renderer dependency](architecture-evidence-092f5a8.md#evidence-boundary-dependencies) | 092f5a8 / 읽은 대표 경로 |
 | AA-015 | 사실 | 확인 | 실패 보존·부분 반영·교차 캐시용 fixture와 테스트 코드가 존재한다. | `tests/unit/sharedCacheInterop.test.ts`, native engine monitor_tests, `src/usage/store.ts` | 092f5a8 / 존재·경로 확인, 이번 실행 아님 |
 | AA-016 | 제안 | 권장 | 하나의 앱 프로세스를 유지하고 각 언어 내부 책임을 재배치하며 공유 동작 fixture를 릴리스 관문으로 삼는다. | AA-008~015, 7.8 목표와 7.9 전환표 | 인간 검토 대기 |
 
@@ -433,3 +433,162 @@ AA008~AA012의 구체적인 변경과 검증 범위는 [경계 검사 안내](..
 Windows에서 Node 266개, Rust 36개, 교차 캐시 2개 테스트와 양쪽 배포 빌드가 통과했다.
 Rust 의미 기반 전체 그래프, macOS 실제 설치/자동 시작/UI, 원격 CI 실행은 아직 검증 완료가 아니다.
 기존 `proc-macro-error2` 전이 의존성의 미래 호환 경고도 남아 있다.
+
+<a id="assessment-current"></a>
+
+## 9. 개선 후 재평가 — 614ff3e (draft)
+
+### 9.1 현재 결론과 판단 기준
+
+제품 목표는 사용자가 Node/Electron 또는 Rust/GPUI 하나를 선택해 같은 quota·로컬 토큰 정보를 확인하는 것이다. 두 구현의 데이터 의미와 조작을 유지하면서, 벤더 수집 변경·설치 전환·UI 변경을 서로 독립적으로 검증하는 구조를 기준으로 평가한다. 주요 actor는 앱 사용자와 유지보수자이며, 우선 품질 목표는 **동작 일관성, 실패 격리, 변경 국소성**이다.
+
+- **P2 주의:** CI 관문은 추가했지만 원격 실행 결과는 아직 없다. 공통 표시 fixture도 시간·백분율의 일부 규칙을 검증하며 모든 클릭 의도와 애니메이션을 보증하지 않는다.
+- **강점:** Node core/provider의 main 역방향 의존을 제거했고, Rust 저장·작업 식별·병합·스케줄링 책임을 나눴다. 추적 가능한 정책의 baseline은 0건이다.
+- **강점:** Windows에서 설치 전환·실패 복구·양쪽 자동 시작 호출과 교차 캐시를 검증했다. Rust 자동 시작 헬퍼의 무한 대기도 제한했다.
+- **중요 미확인:** macOS 실기 설치·로그인·UI, Rust 전체 의미 기반 의존 분석은 남아 있다. 이 공백을 아키텍처 위반 0건이나 Windows 테스트 성공으로 대체하지 않는다.
+
+### 9.2 Snapshot과 증거 범위
+
+| 항목 | 현재 기준 |
+| --- | --- |
+| 평가 상태 | 개선 후 재평가 초안(draft); 구현 승인과 이 문서의 인간 검토 완료는 구분 |
+| Git revision | `614ff3e4cd2b0e18c6c6e99397bc6f98b436e0f4` |
+| 분석 시작 상태 | clean; 이후 이 작업의 문서만 변경 |
+| source digest | `b61b7e22769b276a7cdcc7ab338de4f0d3980780c3a93942e50853c8e60a82bd` |
+| 소스 저장소 루트·분석 루트 | `C:/midas/codes/utils/llm-usage-monitor` (같은 경로, 다른 역할) |
+| 프로젝트·manifest 루트 | 저장소 루트의 `package.json`, `Cargo.toml` |
+| package root | TS는 `src` 모듈 트리, Rust crate는 `src-native/lib.rs` 및 Cargo의 bin 진입점 |
+| 배포 단위 | Electron 앱(main/renderer/preload), 또는 Rust GPUI 앱; 설치기는 최종 앱 하나를 관리 |
+| 증거 | [최신 snapshot](architecture-evidence.md#evidence-snapshot), [이전 snapshot](architecture-evidence-092f5a8.md#evidence-snapshot) |
+| 재현 명령 | `analyze-architecture.ps1 -Root <repo> -Output <temp>/architecture-facts.json -EvidenceOutput <repo>/docs/architecture-evidence.md` |
+
+이번 갱신에서는 정적 분석을 다시 실행했다. 테스트·빌드 결과는 직전 구현 작업의 [검증 기록](../.work/ARCHITECTURE_IMPROVEMENT_CHECKLIST.md)을 인용하며 문서 변경 때문에 재실행하지 않았다. 대표 비동기 경로도 새 runtime trace가 아니라 현재 코드와 이전 테스트 실행에 근거한다.
+
+[Coverage](architecture-evidence.md#evidence-coverage)는 production 124개 모듈을 포함하고 test/fixture 등 48개를 제외한다. 원시 관계 관측 13,727건에서 imports/calls/registers 12,721건을 선별하고 내부 관계 확인·self-edge 제외·중복 제거를 거쳐 정규화된 module dependency 297개를 얻었다. 내부 재분류 관측은 0건이며 별도로 더하지 않는다. 이는 런타임 호출 횟수가 아니다.
+
+[Diagnostics](architecture-evidence.md#evidence-diagnostics)의 `rust-src` 부재는 여전하다. [순환 후보](architecture-evidence.md#evidence-cycles) 3건을 확정 순환이나 제거해야 할 결함으로 보지 않는다. 기본 디렉터리 집계는 `src-native`를 하나로 묶으므로 아래 책임 경계는 코드·정책을 추가 대조한 결과다. guard의 171개 모듈·270개 확정 의존과 이 보고서의 production 집계는 범위·관계 정의가 달라 직접 비교하지 않는다.
+
+### 9.3 개선 전 claim의 현재 상태
+
+안정적인 claim ID를 유지하며 이전 판단을 삭제하지 않는다. 아래의 상태 변경은 모두 `614ff3e` / Windows 검증 기준이다.
+
+| Claim | 종류 | 상태 | 현재 판단 | 근거 |
+| --- | --- | --- | --- | --- |
+| AA-008 | 사실 | 확인: 보호 범위 개선 | 저장소 정책에 core/storage/infrastructure와 분리된 Rust 엔진이 포함되고 baseline은 비어 있다. 로컬 15건 중 14건은 참조 정리, lib.rs 선언은 구성 진입점 책임 분류로 처리했다. 과거 승인 경위 자체를 복원한 것은 아니다. | `architecture/guard/policy.json`, `baseline.json`, `reports/current-check.md`; [경계 집계](architecture-evidence.md#evidence-boundaries) |
+| AA-009 | 사실 | 확인: CI 정의 개선 | 기본 unit 실행은 여전히 교차 캐시를 제외하지만 `contracts.yml`은 이를 별도 필수 step으로 실행한다. 원격 성공·브랜치 보호 설정은 미확인이다. | `.github/workflows/contracts.yml`, `vitest.config.mts`, `package.json` |
+| AA-010 | 평가 | 적합: 역방향 의존 해소 | core는 storage, provider는 infrastructure를 참조한다. Node의 실제 책임 소유와 의존 방향이 일치한다. | `src/core/UsageMonitorCore.ts`, `src/storage/index.ts`, `src/infrastructure/index.ts`; [경계 의존](architecture-evidence.md#evidence-boundary-dependencies) |
+| AA-011 | 평가 | 적합: 책임 분리 | cache/jobs/reducer/monitor를 분리하고 JobKey로 작업을 식별한다. 구체 provider 조립과 legacy 일괄 수집 API는 engine에 남는다. | `src-native/core/engine.rs`, `engine/*.rs`, 부분 갱신·Stop 테스트 |
+| AA-012 | 평가 | 주의: 검증 확대 | Windows 실제 설치 조정 함수와 양쪽 caller를 검증했다. Rust helper 실패·비정상 응답·timeout도 검증했다. OS 로그인·Mac 전환 전체는 미확인이다. | `scripts/test-install-entry.ps1`, `tests/unit/launchAtLogin.test.ts`, `src-native/shell/desktop.rs::startup_tests` |
+| AA-013 | 평가 | 적합: 문서 시점 분리 | 역사적 Reviewed 표기와 현재 draft, 이전/최신 기계 증거를 분리한다. | 이 장과 revision별 evidence |
+| AA-014 | 사실 | 확인: 유지 | UI는 정규화된 snapshot과 사용자 동작 API 경계를 유지한다. | `src/preload/index.ts`, `src-native/ui` 및 [경계 의존](architecture-evidence.md#evidence-boundary-dependencies) |
+| AA-015 | 사실 | 확인: 실행 근거 추가 | 부분 반영·실패 보존·교차 캐시·설치 복구 테스트가 Windows에서 통과했다. | [구현 검증 기록](../.work/ARCHITECTURE_IMPROVEMENT_CHECKLIST.md) |
+| AA-016 | 제안 | 채택·단계 적용 | 별도 서비스/FFI 없이 언어 내부 경계와 공통 계약 검증을 강화하는 방향을 유지한다. 전체 UI 표준화 완료를 뜻하지 않는다. | `582355e`, `17c2cb8`, `614ff3e`; [검사 안내](../architecture/README.md) |
+
+### 9.4 현재 책임과 데이터 흐름
+
+관점: 사용자와 외부 시스템의 관계. Snapshot은 9.2, 실선은 구현·계약에서 확인한 경로다. 벤더별 인증 세부 경로는 집계했다.
+
+```mermaid
+flowchart LR
+  User[사용자] --> App[선택한 모니터 앱]
+  App --> CLI[벤더 CLI - 인증 소유]
+  App --> Health[공개 장애 상태]
+  Logs[PC 로컬 사용 로그] --> App
+  App --> Cache[공유 표시 캐시와 토큰 인덱스]
+```
+
+관점: 배포 단위와 설치 책임. Snapshot은 9.2, 실선은 설치 구조이고 런타임 import 관계가 아니다. Node/Rust는 선택 대안이며 동시에 설치한다는 뜻이 아니다.
+
+```mermaid
+flowchart TD
+  Installer[소스 설치기] --> Choice{한 버전 선택}
+  Choice --> Electron[Electron 앱 - main 및 renderer]
+  Choice --> Native[GPUI 앱 - Rust]
+  Electron --> Helper[설치본 startup helper]
+  Native --> Helper
+  Helper --> OS[사용자 OS 자동 시작 등록]
+```
+
+관점: 소스 책임과 허용 방향. Snapshot은 9.2, 실선은 현재 내부 참조를 책임 단위로 집계했다. 두 언어 사이의 import는 없으며 Node와 Rust 세부 폴더 구성을 동일하게 강제하지 않는다.
+
+```mermaid
+flowchart LR
+  Host[호스트 구성 진입점] --> Core[수집 조정]
+  Host --> UI[표시와 사용자 의도]
+  Core --> Provider[벤더 어댑터]
+  Core --> Storage[캐시와 인덱스]
+  Provider --> Infra[CLI 탐색 기반 코드]
+  UI --> Contract[정규화 snapshot 계약]
+  Core --> Contract
+  Provider --> Contract
+```
+
+관점: Rust 부분 갱신과 종료 순서. Snapshot은 9.2, 실선은 코드·fixture 테스트로 확인한 개념적 순서이며 실행 시간 측정 trace가 아니다. 세부 8개 작업은 빠른/느린 수집으로 집계했다.
+
+```mermaid
+sequenceDiagram
+  participant UI
+  participant Monitor
+  participant Cache
+  participant Collector
+  Monitor-->>UI: 기본 snapshot
+  par 캐시 복구
+    Cache-->>Monitor: stale 이전 값
+  and 독립 수집
+    Collector-->>Monitor: 준비된 작업 결과
+  end
+  Monitor->>Monitor: generation 확인과 필드 병합
+  Monitor-->>UI: 부분 snapshot
+  UI->>Monitor: Stop
+  Monitor->>Collector: 진행 작업 정리 대기
+  Monitor->>Cache: 마지막 쓰기 완료 대기
+```
+
+quota는 벤더 계정 범위이고 token은 PC 로그 집계다. 캐시는 마지막 표시·집계 값을 저장하며 인증을 소유하지 않는다. 창 위치·앱별 환경설정을 캐시 계약으로 변환하지 않는다. 외부 snapshot과 Codex 5h의 의도된 표시 규칙도 유지했다.
+
+### 9.5 평가 매트릭스와 변경 비용
+
+등급은 🔴 부적합(목표 방해), 🟡 주의(위험 존재), 🟢 적합(현재 목표에 충분), ⚪ 미확인(근거 부족)이다. 신뢰도는 ●●● 높음(서로 다른 직접 증거), ●●○ 중간(직접·보조 증거), ●○○ 낮음(제한 표본)이다. P0~P3은 영향 우선순위이며 점수로 합산하지 않는다.
+
+| 평가 축 | 우선순위 | 등급 | 신뢰도 | 핵심 근거 | 제품·변경 영향 |
+| --- | --- | --- | --- | --- | --- |
+| 공통 동작 검증 | P2 | 🟡 주의 | ●●● 높음 | AA-009·015, 공통 표시 fixture | CI 정의와 일부 표시 의미는 확보, 클릭·애니메이션 전체 계약은 남음 |
+| 설치·운영 | P2 | 🟡 주의 | ●●● 높음 | AA-012 | Windows 복구·caller 검증 확대, 실제 OS 로그인 검수 필요 |
+| Rust 의미 의존 | P2 | ⚪ 미확인 | ●○○ 낮음 | rust-src 부재 | 후보 순환을 근거로 추가 리팩터링하지 않음 |
+| macOS 동등성 | P2 | ⚪ 미확인 | ●○○ 낮음 | 실기 실행 없음 | 설치 전환·자동 시작·UI 비교가 다음 단계 |
+| Node 의존 방향 | — | 🟢 적합 | ●●● 높음 | AA-010와 경계 검사 | CLI 탐색 변경을 main 밖에서 검증 가능 |
+| Rust 변경 국소성 | — | 🟢 적합 | ●●○ 중간 | AA-011와 회귀 테스트 | 저장·병합·스케줄 수정 위치를 구분 가능 |
+| 추적 가능한 경계 정책 | — | 🟢 적합 | ●●● 높음 | AA-008 | 새 예외 없이 구조 검증 재현, TS CI 검사 가능 |
+| 실패 격리·UI 경계 | — | 🟢 적합 | ●●● 높음 | AA-014·015 | 벤더 실패와 표시 변경의 영향 범위 제한 |
+
+계층화는 앱 내부에 적용되며 Node 역방향 참조는 해소됐다. Ports and Adapters는 TS provider/IPC와 native UiEvents·OS helper 경계에서 **부분 적용**이다. 모든 구현체를 interface로 감싸거나 core의 구체 provider 생성을 제거해야 한다는 뜻은 아니다. 이벤트 기반 갱신은 단일 앱 coordinator 내부에서 **확인**되며 분산 이벤트 시스템은 아니다. 계약 중심 이중 구현은 cache·시간·백분율 fixture 범위에서 **부분 적용**이고 전체 시각 동등성은 미확인이다.
+
+- CLI 탐색 변경은 `infrastructure/cli.ts`와 platform/provider 테스트에서 시작한다. 호스트 창·트레이 구현을 함께 바꿀 필요가 줄었다(AA-010).
+- Rust 작업 추가는 JobKey·collector·스케줄과 해당 결과 테스트를 함께 검토한다. 저장이나 병합 규칙을 바꾸지 않는 변경은 각 모듈 내부로 제한한다(AA-011).
+- 캐시 schema 변경은 두 언어와 교차 테스트를 한 작업으로 다룬다. 단위 테스트 통과만으로 호환성을 승인하지 않는다(AA-009·015).
+- 자동 시작 변경은 helper와 caller 테스트에 OS 실기 검수를 더한다. 15초 timeout은 실패 통지이며 이미 변경된 등록의 원복 보장은 아니다(AA-012).
+
+### 9.6 전환 결과와 다음 확인
+
+권장 방향은 AA-016을 유지한다. 새 서비스나 FFI 도입을 정당화할 장애·배포 요구가 없어 별도 대안은 제시하지 않는다. 다음 그림의 실선은 완료된 변경 묶음, 점선은 아직 검증하지 않은 단계이며 세부 일정은 정하지 않는다.
+
+```mermaid
+flowchart LR
+  Boundaries[Node 책임 이동과 정책] --> Engine[Rust 엔진 분리]
+  Engine --> Contracts[설치 및 공통 fixture 검증]
+  Contracts -.-> CI[사용자 승인 후 push와 원격 CI]
+  CI -.-> Mac[Mac 설치 전환과 로그인 및 UI 검수]
+  Mac -.-> Parity[누락된 클릭 의도와 시각 회귀 계약 확장]
+```
+
+| 단계 | 현재 결과 | 보존 기준·검증 | 남은 확인 또는 중단 조건 |
+| --- | --- | --- | --- |
+| A1/A3 | 구현 완료 | main 역방향 참조 제거, tracked baseline 0건, TS 경계 검사 통과 | 정책으로 위반을 새로 면제하려 하면 별도 검토 |
+| A2 | CI 정의·Windows 실행 완료 | Node 266개, 교차 캐시 2개; 독립 CI step 구성 | 원격 CI 실행·required check 설정은 미확인 |
+| A4 | 구현·회귀 검증 완료 | JobKey, 부분 갱신·stale·중복 refresh·Stop 보존 | Rust 의미 그래프 전체 검증으로 확대 해석하지 않음 |
+| A5 | Windows 격리 검증 완료 | 전환·업데이트·실패 복구·제거, 한글/공백/BOM, caller·timeout | Mac 실제 전환·OS 로그인은 남음; 실제 인증·사용자 등록을 테스트 fixture로 쓰지 않음 |
+| A6 | 일부 의미 계약 구현 | 시간대·pending·미제공·백분율 fixture | 표시 선택·클릭 의도 전부와 시각 비교는 미완료; 기존 디자인 변경을 정당화하지 않음 |
+
+Rust 검증은 all-targets 35개 실행 후 timeout 테스트를 추가하고 startup 테스트 2개를 재실행한 기록이다(최종 테스트 정의 36개). Windows release 앱과 Electron 패키징은 성공했다. 기존 GPUI 전이 의존성의 future-incompat 경고는 남는다. 빌드 산출물·캡처는 Git에 추가하지 않는다.
+
+이번 문서 커밋 이후에도 **push하지 않는다**. 사용자 승인 후 원격 CI와 macOS 점검으로 넘어가며, 결과가 들어오면 이 장의 미확인 항목을 해당 OS·revision 근거와 함께 갱신한다.
