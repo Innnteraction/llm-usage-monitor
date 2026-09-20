@@ -15,5 +15,5 @@
 
 - module 171개
 - 확정 dependency edge 270개
-- 참고 edge 13407개
+- 참고 edge 13445개
 - 정책 제외 source 11개

@@ -91,6 +91,38 @@ mod tests {
     use chrono::TimeZone;
 
     #[test]
+    fn shared_node_rust_presentation_contract() {
+        let contract: serde_json::Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/presentation-contract.json"
+        ))
+        .unwrap();
+        let now = contract["now"]
+            .as_str()
+            .unwrap()
+            .parse::<DateTime<Utc>>()
+            .unwrap();
+        for row in contract["countdowns"].as_array().unwrap() {
+            let reset = row["reset"]
+                .as_str()
+                .map(|s| s.parse::<DateTime<Utc>>().unwrap());
+            assert_eq!(
+                format_reset_countdown(reset, now),
+                row["expanded"].as_str().unwrap()
+            );
+            assert_eq!(
+                format_compact_countdown(reset, now),
+                row["compact"].as_str().unwrap()
+            );
+        }
+        for row in contract["percentages"].as_array().unwrap() {
+            assert_eq!(
+                format_percent(row["value"].as_f64()),
+                row["text"].as_str().unwrap()
+            );
+        }
+    }
+
+    #[test]
     fn test_format_token_count() {
         assert_eq!(format_token_count(500), "500");
         assert_eq!(format_token_count(1500), "2K");

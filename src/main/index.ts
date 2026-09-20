@@ -7,3 +7,4 @@ export * from "./trayMenu";
 export * from "./windowPosition";
 
 export * from "./trayIcon";
+export { launchAtLogin } from "./launchAtLogin";

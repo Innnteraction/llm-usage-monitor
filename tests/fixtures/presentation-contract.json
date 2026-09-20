@@ -1,0 +1,17 @@
+{
+  "now": "2026-09-20T00:00:00Z",
+  "countdowns": [
+    { "reset": null, "expanded": "--", "compact": "--" },
+    { "reset": "2026-09-20T00:00:00Z", "expanded": "reset pending", "compact": "pending" },
+    { "reset": "2026-09-20T09:06:00Z", "expanded": "9h 6m", "compact": "9h 06m" },
+    { "reset": "2026-09-20T18:06:00+09:00", "expanded": "9h 6m", "compact": "9h 06m" },
+    { "reset": "2026-09-22T03:00:00Z", "expanded": "2d 3h", "compact": "2d 03h" },
+    { "reset": "2026-09-20T00:00:59Z", "expanded": "0m", "compact": "0m" }
+  ],
+  "percentages": [
+    { "value": null, "text": "--" },
+    { "value": 0, "text": "00%" },
+    { "value": 24.5, "text": "25%" },
+    { "value": 100, "text": "100%" }
+  ]
+}

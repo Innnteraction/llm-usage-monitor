@@ -416,3 +416,20 @@ core는 스케줄·상태 의미, infrastructure는 파일·프로세스·잠금
 - OS 자동 시작과 installer rollback의 실제 운영 안전성은 읽기만으로 보장하지 않는다. macOS 로그인·재부팅, Windows 깨끗한 PC 설치는 기존 수동 체크리스트를 따른다.
 - 기존 공유 캐시 테스트는 좋은 출발점이지만 디자인·애니메이션·사용자 동작 전부를 규정하지 않는다. UI 변경이 잦아지면 A6을 앞당긴다.
 - runtime 격리·프로세스 분리나 양쪽 언어를 잇는 FFI는 성능·장애 증거가 실제로 요구할 때 별도 평가한다.
+
+## 8. 리뷰 후 개선 결과 (2026-09-20)
+
+§7의 검토 시점은 `092f5a8`이다. 이후 승인된 개선은 `582355e`(Node 경계/CI),
+`17c2cb8`(Rust 엔진/정책)와 설치·표시 계약 검증 커밋으로 반영했다.
+AA008~AA012의 구체적인 변경과 검증 범위는 [경계 검사 안내](../architecture/README.md),
+[구현 체크리스트](../.work/ARCHITECTURE_IMPROVEMENT_CHECKLIST.md)에 기록한다.
+
+- Node core→main, provider→main 역방향 의존을 제거했다. 캐시는 storage, CLI 탐색은 infrastructure가 소유한다.
+- 저장소 정책에 core와 새 경계를 포함했다. 신규 baseline은 0건이다. 개인 스킬 없이 실행 가능한 TypeScript 검사와 Windows/macOS 계약 CI를 추가했다.
+- Rust 엔진에서 cache·job·reducer·monitor를 분리하고 숫자 작업 키를 명시적 enum으로 바꿨다.
+- 설치 진입점을 얇게 유지하고 실제 설치 조정 함수 전체를 격리 실행한다. 버전 전환·업데이트·빌드/등록 실패 복구·제거와 양쪽 앱의 startup helper 호출을 검증했다.
+- 공통 표시 fixture로 시간대·pending·미제공·백분율 의미를 검증한다. 실제 픽셀·애니메이션 비교는 수동 검수로 남긴다.
+
+Windows에서 Node 266개, Rust 36개, 교차 캐시 2개 테스트와 양쪽 배포 빌드가 통과했다.
+Rust 의미 기반 전체 그래프, macOS 실제 설치/자동 시작/UI, 원격 CI 실행은 아직 검증 완료가 아니다.
+기존 `proc-macro-error2` 전이 의존성의 미래 호환 경고도 남아 있다.

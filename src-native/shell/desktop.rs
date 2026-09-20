@@ -287,6 +287,10 @@ mod tests {
 
 fn managed_startup(action: &str) -> Result<bool> {
     let executable = std::env::current_exe()?;
+    managed_startup_at(action, &executable)
+}
+
+fn managed_startup_at(action: &str, executable: &std::path::Path) -> Result<bool> {
     let parent = executable
         .parent()
         .context("executable directory unavailable")?;
@@ -336,7 +340,33 @@ fn managed_startup(action: &str) -> Result<bool> {
             .arg(&executable);
         c
     };
-    let output = command.stdin(Stdio::null()).output()?;
+    run_startup_helper(&mut command, std::time::Duration::from_secs(15))
+}
+
+fn run_startup_helper(command: &mut Command, timeout: std::time::Duration) -> Result<bool> {
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()?;
+    let started = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if started.elapsed() < timeout => {
+                std::thread::sleep(std::time::Duration::from_millis(20))
+            }
+            result => {
+                let _ = child.kill();
+                let _ = child.wait();
+                if let Err(error) = result {
+                    return Err(error.into());
+                }
+                bail!("Login startup operation timed out.");
+            }
+        }
+    }
+    let output = child.wait_with_output()?;
     if !output.status.success() {
         bail!("Login startup operation failed.");
     }
@@ -355,4 +385,68 @@ pub fn set_launch_at_login(enabled: bool) -> Result<bool> {
         bail!("Login startup verification failed.");
     }
     Ok(actual)
+}
+
+#[cfg(test)]
+mod startup_tests {
+    use super::*;
+    #[test]
+    fn rejects_failed_invalid_and_stuck_helpers() {
+        #[cfg(windows)]
+        let scripts = ["exit 1", "Write-Output invalid", "while ($true) {}"];
+        #[cfg(not(windows))]
+        let scripts = ["exit 1", "echo invalid", "while :; do :; done"];
+        for (index, script) in scripts.into_iter().enumerate() {
+            #[cfg(windows)]
+            let mut command = {
+                use std::os::windows::process::CommandExt;
+                let mut c = Command::new("powershell.exe");
+                c.creation_flags(0x08000000).args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    script,
+                ]);
+                c
+            };
+            #[cfg(not(windows))]
+            let mut command = {
+                let mut c = Command::new("/bin/bash");
+                c.args(["-c", script]);
+                c
+            };
+            let timeout = std::time::Duration::from_millis(if index == 2 { 200 } else { 5000 });
+            let error = run_startup_helper(&mut command, timeout)
+                .unwrap_err()
+                .to_string();
+            assert!(
+                error.contains(["failed", "Invalid", "timed out"][index]),
+                "{error}"
+            );
+        }
+    }
+    #[test]
+    fn calls_installed_helper_and_rejects_foreign_manifest() {
+        let root = tempfile::tempdir().unwrap();
+        let parent = root.path().join("설치 App/MacOS");
+        std::fs::create_dir_all(&parent).unwrap();
+        let executable = parent.join("Synthetic App.exe");
+        let directory = if cfg!(target_os = "macos") {
+            parent.join("../Resources")
+        } else {
+            parent
+        };
+        std::fs::create_dir_all(&directory).unwrap();
+        let manifest = directory.join("install-info.json");
+        std::fs::write(&manifest, "\u{feff}{\"schemaVersion\":1,\"appId\":\"llm-usage-monitor\",\"variant\":\"rust\",\"executable\":\"Synthetic App.exe\"}").unwrap();
+        #[cfg(windows)]
+        std::fs::write(directory.join("startup.ps1"), "param($Action,$Executable)\nif ($Executable -notlike '*Synthetic App.exe') { throw 'Wrong executable' }; if ($Action -eq 'on') { 'true' } else { 'false' }").unwrap();
+        #[cfg(not(windows))]
+        std::fs::write(directory.join("startup.sh"), "#!/bin/bash\ncase \"$2\" in *\"Synthetic App.exe\") ;; *) exit 1;; esac\nif [ \"$1\" = on ]; then echo true; else echo false; fi\n").unwrap();
+        assert!(!managed_startup_at("query", &executable).unwrap());
+        assert!(managed_startup_at("on", &executable).unwrap());
+        assert!(!managed_startup_at("off", &executable).unwrap());
+        std::fs::write(manifest, "{\"variant\":\"node\"}").unwrap();
+        assert!(managed_startup_at("on", &executable).is_err());
+    }
 }

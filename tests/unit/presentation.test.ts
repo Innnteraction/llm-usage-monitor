@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import contract from "../fixtures/presentation-contract.json";
 import {
   formatQuotaCountdown,
   formatCompactCountdown,
@@ -12,6 +13,18 @@ import {
 } from "../../src/renderer";
 
 describe("quota presentation", () => {
+  it("matches the shared Rust/Node presentation contract", () => {
+    for (const row of contract.countdowns) {
+      const reset = row.reset ?? undefined;
+      const now = Date.parse(contract.now);
+      // Electron components select pending text before calling the formatter;
+      // GPUI's formatter includes that branch. Compare the displayed meaning.
+      const pending = isResetPending(reset, now);
+      expect(pending ? "reset pending" : formatQuotaCountdown(reset, now)).toBe(row.expanded);
+      expect(pending ? "pending" : formatCompactCountdown(reset, now)).toBe(row.compact);
+    }
+    for (const row of contract.percentages) expect(formatPercent(row.value ?? undefined)).toBe(row.text);
+  });
   it("calculates countdowns from an explicit clock", () => {
     const now = Date.parse("2026-09-02T00:00:00.000Z");
 
@@ -238,4 +251,3 @@ describe("tooltip placement", () => {
     expect(result.left).toBe(50); // 44 + gap(6)
   });
 });
-
