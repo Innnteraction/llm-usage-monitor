@@ -187,6 +187,18 @@ claude --safe-mode --ax-screen-reader --restricted --strict-mcp-config --tools "
 
 ---
 
+## 개발 폴더와 검증
+
+Node 소스·테스트·설정은 `apps/node`, Rust 구현은 `apps/rust`에 있다. 공용 fixture는 `shared/fixtures`, 설치기는 `scripts`에서 관리한다. `.work`는 로컬 전용이며 빌드에 필요하지 않다. [개발 안내](docs/development.md)에서 변경 대상별 검증과 산출물 경로를 확인한다.
+
+Rust 단독 개발에는 Node가 필요하지 않다.
+
+```sh
+cargo test --locked --all-targets
+cargo run --locked --release --bin llm-usage-monitor -- --demo
+```
+
+
 ## 로컬 개발 및 테스트
 
 ```bash
@@ -208,7 +220,7 @@ pnpm test
 pnpm typecheck
 pnpm lint
 
-# 프로덕션 패키징 (out/)
+# 프로덕션 패키징 (apps/node/out/)
 pnpm package
 
 # 배포 산출물 생성: Windows는 Squirrel 인스톨러(.exe), macOS는 .zip

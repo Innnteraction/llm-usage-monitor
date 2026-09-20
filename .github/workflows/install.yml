@@ -6,7 +6,15 @@ on:
       - 'scripts/install*'
       - 'scripts/startup*'
       - 'scripts/migrate-login-items.applescript'
-      - 'scripts/test-install*.ps1'
+      - 'scripts/tests/test-install*.ps1'
+      - 'apps/node/package.json'
+      - 'apps/node/scripts/package-install.mjs'
+      - 'apps/node/forge.config.ts'
+      - 'apps/rust/Cargo.toml'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
       - '.github/workflows/install.yml'
 permissions:
   contents: read
@@ -20,8 +28,8 @@ jobs:
       - name: Isolated installer scenarios (Windows PowerShell)
         shell: powershell
         run: |
-          ./scripts/test-install.ps1
-          ./scripts/test-install-entry.ps1
+          ./scripts/tests/test-install.ps1
+          ./scripts/tests/test-install-entry.ps1
       - name: Read-only environment check
         shell: powershell
         run: ./scripts/install.ps1 -Check

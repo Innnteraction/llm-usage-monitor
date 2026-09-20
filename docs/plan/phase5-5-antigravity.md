@@ -44,8 +44,8 @@ MCP 설정은 전역과 workspace에 각각 존재한다. 이 앱은 해당 파�
 
 | 항목 | 승인 요청 |
 | --- | --- |
-| 새 경계 | `provider-antigravity`: `src/providers/antigravity/**` |
-| 유일한 외부 공개 경로 | `src/providers/antigravity/index.ts` |
+| 새 경계 | `provider-antigravity`: `apps/node/src/providers/antigravity/**` |
+| 유일한 외부 공개 경로 | `apps/node/src/providers/antigravity/index.ts` |
 | 새 허용 방향 | `provider-antigravity → shared`, `providers → provider-antigravity`, `tests → provider-antigravity` |
 | 그대로 금지 | provider 간 직접 의존, renderer/preload의 provider·Node 접근, 인증·설정 직접 접근 |
 | 공개 타입 | `ProviderId`에 `antigravity`, `ProviderSource`에 `antigravity_cli` 추가; 기존 IPC method 유지 |
@@ -53,7 +53,7 @@ MCP 설정은 전역과 workspace에 각각 존재한다. 이 앱은 해당 파�
 
 승인용 draft의 canonical SHA-256은 `f097193b98a169061c1d8f96d7faf6d666a5c964f4de813ce70dbbece75e4e91`이다. 이는 비밀키가 아니라 사용자가 검토한 정책 문서의 변경 여부를 확인하는 식별자다. 활성화 후 digest는 `0310ae79a4a82c0a02bc3150faba4c352d5c935eebc95868587e92ae65b25edd`다.
 
-최초 영향 보고서는 `.architecture-guard/reports/antigravity-resume-impact.md`다. 당시 새 경로가 미분류여서 승인 필요 판정이었다. 활성화 후 `.architecture-guard/plans/antigravity-feasibility.json`은 pass이며 초기 대상은 `tests/smoke/antigravity.smoke.test.ts`와 `vitest.antigravity-smoke.config.mts`다. 공개 계약 확장의 역의존은 main·preload·renderer·usage·local-usage와 관련 테스트까지 이어지므로 후속 구현에서 컴파일과 cache·refresh 회귀를 확인한다. 기존 위반 허용이나 baseline 완화는 하지 않았다.
+최초 영향 보고서는 `.architecture-guard/reports/antigravity-resume-impact.md`다. 당시 새 경로가 미분류여서 승인 필요 판정이었다. 활성화 후 `.architecture-guard/plans/antigravity-feasibility.json`은 pass이며 초기 대상은 `apps/node/tests/smoke/antigravity.smoke.test.ts`와 `vitest.antigravity-smoke.config.mts`다. 공개 계약 확장의 역의존은 main·preload·renderer·usage·local-usage와 관련 테스트까지 이어지므로 후속 구현에서 컴파일과 cache·refresh 회귀를 확인한다. 기존 위반 허용이나 baseline 완화는 하지 않았다.
 
 ## 승인 후 구현·검증 순서
 

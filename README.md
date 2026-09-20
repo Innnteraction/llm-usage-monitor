@@ -188,6 +188,15 @@ Mouse Controls and Tray Menu:
 
 ## Local Development & Testing
 
+Node source, tests and build configuration live in `apps/node`; Rust lives in `apps/rust`. Shared fixtures are in `shared/fixtures`, and installation scripts stay in `scripts`. `.work` is local-only and is not required to build. See the [development guide](docs/development.md) for ownership, commands and output paths.
+
+Rust-only development does not require Node:
+
+```sh
+cargo test --locked --all-targets
+cargo run --locked --release --bin llm-usage-monitor -- --demo
+```
+
 ```bash
 pnpm install
 
@@ -207,7 +216,7 @@ pnpm test
 pnpm typecheck
 pnpm lint
 
-# Production packaging (out/)
+# Production packaging (apps/node/out/)
 pnpm package
 
 # Create distribution installers (Squirrel .exe for Windows, .zip for macOS)

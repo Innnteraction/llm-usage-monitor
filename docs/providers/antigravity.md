@@ -49,7 +49,7 @@ agy --print /usage --output-format json --print-timeout 20s
 기본 자동 검사는 fake process·허구 JSON만 사용한다. 별도 실계정 smoke는 사용자가 명시적으로 실행할 때만 수행하며 성공 여부·정규화 계약만 출력한다. 실제 응답을 Vitest assertion의 expected/actual 값으로 넣지 않는다.
 
 ```powershell
-corepack pnpm exec vitest run --config vitest.antigravity-smoke.config.mts
+pnpm test:smoke:antigravity
 ```
 
 현재 계약 확인은 특정 로그인 환경의 관측이다. 모든 전역 startup 부작용이 없음을 입증하거나 향후 CLI 출력의 호환성을 보장하지 않는다. 구조 변경은 parser mismatch로 처리하고 마지막 정상 quota를 stale로 유지한다.

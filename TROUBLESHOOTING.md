@@ -4,7 +4,7 @@
 
 ## 1. Default Development Workflow (v0.9.2 Onwards)
 
-`pnpm dev` packages the current source code via Electron Forge and executes the resulting binary under `out/`. It does not copy files into the user installation directory. After saving code changes, terminate the app via the tray menu or `Ctrl+C` and restart it. If packaging fails, previous build artifacts are never launched.
+`pnpm dev` packages the current source code via Electron Forge and executes the resulting binary under `apps/node/out/`. It does not copy files into the user installation directory. After saving code changes, terminate the app via the tray menu or `Ctrl+C` and restart it. If packaging fails, previous build artifacts are never launched.
 
 `pnpm dev:hmr` runs the standard Forge + Vite pipeline. Hot Module Replacement (HMR) applies renderer UI changes without restarting the application. Restart behavior for main/preload changes follows Forge defaults. Do not run both dev commands concurrently.
 
@@ -65,17 +65,17 @@ Diagnostics should always use built-in mock datasets rather than live credential
 pnpm package
 
 # Baseline: Packaged binary, fresh test profile, 5 start/stop cycles
-node node_modules/@playwright/test/cli.js test tests/e2e/runtime.spec.ts
+pnpm --dir apps/node exec playwright test tests/e2e/runtime.spec.ts
 
 # Run app.asar via development Electron binary
 $env:LLM_USAGE_MONITOR_RUNTIME_MODE = 'asar'
-node node_modules/@playwright/test/cli.js test tests/e2e/runtime.spec.ts
+pnpm --dir apps/node exec playwright test tests/e2e/runtime.spec.ts
 
 # Compare with GPU sandbox bypass while holding other variables constant
 $env:LLM_USAGE_MONITOR_GPU_SANDBOX = '0'
-node node_modules/@playwright/test/cli.js test tests/e2e/runtime.spec.ts
+pnpm --dir apps/node exec playwright test tests/e2e/runtime.spec.ts
 Remove-Item Env:LLM_USAGE_MONITOR_RUNTIME_MODE
-node node_modules/@playwright/test/cli.js test tests/e2e/runtime.spec.ts
+pnpm --dir apps/node exec playwright test tests/e2e/runtime.spec.ts
 Remove-Item Env:LLM_USAGE_MONITOR_GPU_SANDBOX
 ```
 
@@ -96,10 +96,10 @@ Defensive checks inside `publishState` guard against destroyed windows, loading 
 - Occurs when the user updates the Codex CLI or installs it to a non-standard directory (e.g., via npm, pnpm, or a standalone installer) that differs from the default hardcoded path.
 
 ### Root Cause
-- `src/shared/platform.ts` previously defined the default binary name on Windows simply as `"codex"`. If the binary was not added to the global system `PATH`, or if an update installed it into a user-specific folder (such as `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin\codex.exe`), the process runner could not resolve it.
+- `apps/node/src/shared/platform.ts` previously defined the default binary name on Windows simply as `"codex"`. If the binary was not added to the global system `PATH`, or if an update installed it into a user-specific folder (such as `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin\codex.exe`), the process runner could not resolve it.
 
 ### Resolution
-- **Platform-Aware Binary Resolution** (`src/main/platform/index.ts`):
+- **Platform-Aware Binary Resolution** (`apps/node/src/main/platform/index.ts`):
   1. `getExecutableCandidates`: Dynamically appends executable extensions (`.exe`, `.cmd`, `.bat`) in prioritized order on Windows.
   2. `getPlatformFallbackDirectories`:
      - Windows: Traverses `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin`, `%APPDATA%\npm`, `%LOCALAPPDATA%\pnpm`, Bun directories, Git `usr/bin`, and related tool paths.

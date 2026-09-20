@@ -21,8 +21,9 @@ jobs:
       - run: npm install --global pnpm@9.15.9
       - run: pnpm install --frozen-lockfile
       - run: rustup default stable
+      - run: pnpm check:versions
       - run: pnpm check:architecture
-      - run: node --test scripts/test-architecture.mjs
+      - run: pnpm test:architecture
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test

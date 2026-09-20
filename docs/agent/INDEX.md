@@ -8,6 +8,7 @@
 
 | 작업 단계 | 참조 | 반드시 얻어야 할 결과 |
 | --- | --- | --- |
+| 개발 위치·빌드·테스트 선택 | [개발 구조](../development.md) | Node·Rust·공용 자료의 소유 위치와 가까운 검증을 확인한다. |
 | provider quota 추가·수정 | [Provider 통합 계약](provider-integration.md) | CLI 소유권, 수집 source, 타입 mapping, stale·실패 표현과 테스트 경계를 확정한다. |
 | 로컬 토큰 스캐너 추가·수정 | [Provider 통합 계약](provider-integration.md) | 스캔 범위, 증분·청크 파싱, 중복 방지와 partial 표시를 확정한다. |
 | 자격증·인증·키체인 접근 경로 변경 | [Provider 통합 계약](provider-integration.md) | 읽기 전용이며 opt-in인지, 벤더 파일이 변경되지 않는지, 민감값이 노출되지 않는지 검증한다. |

@@ -6,11 +6,11 @@ Renderer와 shared는 브라우저에서 사용할 수 있는 계약·표시 정
 
 ```sh
 pnpm check:architecture
-node --test scripts/test-architecture.mjs
+pnpm test:architecture
 pnpm test:shared-cache
 ```
 
-`boundaries.json`과 TypeScript 컴파일러의 모듈 해석을 이용해 모든 `src` TS/TSX 파일의
+`boundaries.json`과 TypeScript 컴파일러의 모듈 해석을 이용해 모든 `apps/node/src` TS/TSX 파일의
 경계 누락, 금지 의존, 공개 index 우회, 정적 import/export/require 순환을 검사한다.
 동적으로 계산한 import 경로, 런타임 호출 그래프, Rust 의미 해석은 이 검사의 범위가 아니다.
 허용된 외부 패키지라도 자격증 접근 여부 등 동작 수준의 리뷰는 별도로 필요하다.
@@ -22,9 +22,8 @@ pnpm test:shared-cache
 & <skill-root>/sg-guard-arch/scripts/architecture-guard.ps1 check --root $pwd --state-dir architecture/guard
 ```
 
-기존 로컬 정책의 예외 15건을 승계하지 않았다. Node의 실제 역방향 의존·private 참조를
-제거했고, Rust `lib.rs`의 provider 모듈 선언은 앱 조립 책임으로 명시했다. 새 baseline은
-비어 있다. 선언 전용 `forge-env.d.ts`는 스킬 분석기의 그래프에서 제외하되 저장소 TS 검사에 포함한다.
+Node의 역방향 의존·private 참조는 허용하지 않는다. Rust `lib.rs`의 provider 모듈
+선언은 앱 조립 책임으로 분류하며 baseline은 비어 있다. 선언 전용 `forge-env.d.ts`는 스킬 분석기의 그래프에서 제외하되 저장소 TS 검사에 포함한다.
 개발자별 `.architecture-guard` 상태는 더 이상 저장소 정책의 기준이 아니다.
 
 Rust 엔진은 `engine.rs`의 수집 어댑터, `engine/cache.rs`의 저장·잠금,

@@ -13,7 +13,7 @@
 
 ## coverage
 
-- module 171개
+- module 173개
 - 확정 dependency edge 270개
-- 참고 edge 13445개
-- 정책 제외 source 11개
+- 참고 edge 13926개
+- 정책 제외 source 13개

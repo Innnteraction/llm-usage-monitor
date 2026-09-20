@@ -65,7 +65,7 @@ for (let iteration = 1; iteration <= 5; iteration++) {
       if (iteration === 1) {
         await page.getByRole("button", { name: "refresh", exact: true }).click();
         await expect(page.getByRole("status")).toHaveText("Quota refreshed.");
-        await page.getByRole("button", { name: "Tokens", exact: true }).click();
+        // Expanded mode shows local tokens by default; there is no Tokens button.
         await expect(page.locator(".local-usage")).toHaveCount(2);
         await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.hide());
         expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible())).toBe(false);

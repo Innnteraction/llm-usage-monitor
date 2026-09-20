@@ -17,6 +17,7 @@ writing:
 제품 목표는 사용자가 Node/Electron 또는 Rust/GPUI 하나를 선택해 같은 quota·로컬 토큰 정보를 확인하는 것이다. 두 구현의 데이터 의미와 조작을 유지하면서, 벤더 수집 변경·설치 전환·UI 변경을 서로 독립적으로 검증하는 구조를 기준으로 평가한다. 주요 actor는 앱 사용자와 유지보수자이며, 우선 품질 목표는 **동작 일관성, 실패 격리, 변경 국소성**이다.
 
 - **P2 주의:** CI 관문은 추가했지만 원격 실행 결과는 아직 없다. 공통 표시 fixture도 시간·백분율의 일부 규칙을 검증하며 모든 클릭 의도와 애니메이션을 보증하지 않는다.
+- **강점:** `apps/node`와 `apps/rust`가 각 앱의 소스·설정·테스트 소유권을 구분한다. 공용 fixture와 설치 도구는 앱 밖에 있으며 `.work`는 빌드 입력이 아니다.
 - **강점:** Node core/provider는 main에 의존하지 않으며, Rust 저장·작업 식별·병합·스케줄링 책임은 별도 모듈에 있다. 추적 가능한 정책의 baseline은 0건이다.
 - **강점:** Windows에서 설치 전환·실패 복구·양쪽 자동 시작 호출과 교차 캐시를 검증했다. Rust 자동 시작 헬퍼는 대기를 15초로 제한한다.
 - **중요 미확인:** macOS 실기 설치·로그인·UI, Rust 전체 의미 기반 의존 분석은 남아 있다. 이 공백을 아키텍처 위반 0건이나 Windows 테스트 성공으로 대체하지 않는다.
@@ -26,21 +27,21 @@ writing:
 | 항목 | 현재 기준 |
 | --- | --- |
 | 평가 상태 | 현재 구현 평가 초안(draft) |
-| 분석 대상 코드 revision | `614ff3e4cd2b0e18c6c6e99397bc6f98b436e0f4` |
-| 분석 시점 | 2026-09-20, clean 상태에서 분석; 이후 코드 변경 없음 |
-| source digest | `b61b7e22769b276a7cdcc7ab338de4f0d3980780c3a93942e50853c8e60a82bd` |
+| 분석 대상 코드 revision | `7b7f099a90aeffa9af7a1fedd7e8c1ddda4aac10` |
+| 분석 시점 | 2026-09-20, 위 revision에 폴더 정리 검증 변경을 포함한 working tree (dirty=true) |
+| source digest | `f599a3e87e20d72887ba5e857ab4b0c2fa662deab512bc6acd99fe05e4ca050c` |
 | 소스 저장소 루트·분석 루트 | `C:/midas/codes/utils/llm-usage-monitor` (같은 경로, 다른 역할) |
-| 프로젝트·manifest 루트 | 저장소 루트의 `package.json`, `Cargo.toml` |
-| package root | TS는 `src` 모듈 트리, Rust crate는 `src-native/lib.rs` 및 Cargo의 bin 진입점 |
+| 프로젝트·manifest 루트 | 루트는 pnpm·Cargo workspace, 실제 앱 manifest는 `apps/node/package.json`, `apps/rust/Cargo.toml` |
+| package root | TS는 `apps/node/src` 모듈 트리, Rust crate는 `apps/rust/src/lib.rs` 및 Cargo의 bin 진입점 |
 | 배포 단위 | Electron 앱(main/renderer/preload), 또는 Rust GPUI 앱; 설치기는 최종 앱 하나를 관리 |
 | 증거 | [기계 분석 snapshot](architecture-evidence.md#evidence-snapshot) |
 | 재현 명령 | `analyze-architecture.ps1 -Root <repo> -Output <temp>/architecture-facts.json -EvidenceOutput <repo>/docs/architecture-evidence.md` |
 
 기계 증거와 평가는 위 코드 revision 및 source digest를 기준으로 한다. 테스트·빌드 결과의 실행 범위는 [검증 기록](verification.md)에 명시되어 있다. 문서 편집 시 테스트를 재실행한 것으로 간주하지 않는다. 비동기 경로는 코드와 fixture 테스트에 근거하며 runtime trace가 아니다.
 
-[Coverage](architecture-evidence.md#evidence-coverage)는 production 124개 모듈을 포함하고 test/fixture 등 48개를 제외한다. 원시 관계 관측 13,727건에서 imports/calls/registers 12,721건을 선별하고 내부 관계 확인·self-edge 제외·중복 제거를 거쳐 정규화된 module dependency 297개를 얻었다. 내부 재분류 관측은 0건이며 별도로 더하지 않는다. 이는 런타임 호출 횟수가 아니다.
+[Coverage](architecture-evidence.md#evidence-coverage)는 production 138개 모듈을 포함하고 test/fixture 등 48개를 제외한다. 원시 관계 관측 14,208건에서 imports/calls/registers 13,174건을 선별하고 내부 관계 확인·self-edge 제외·중복 제거를 거쳐 정규화된 module dependency 299개를 얻었다. 내부 재분류 관측은 0건이며 별도로 더하지 않는다. 이는 런타임 호출 횟수가 아니다.
 
-[Diagnostics](architecture-evidence.md#evidence-diagnostics)의 `rust-src` 부재는 여전하다. [순환 후보](architecture-evidence.md#evidence-cycles) 3건을 확정 순환이나 제거해야 할 결함으로 보지 않는다. 기본 디렉터리 집계는 `src-native`를 하나로 묶으므로 아래 책임 경계는 코드·정책을 추가 대조한 결과다. guard의 171개 모듈·270개 확정 의존과 이 보고서의 production 집계는 범위·관계 정의가 달라 직접 비교하지 않는다.
+[Diagnostics](architecture-evidence.md#evidence-diagnostics)의 `rust-src` 부재는 여전하다. [순환 후보](architecture-evidence.md#evidence-cycles) 3건을 확정 순환이나 제거해야 할 결함으로 보지 않는다. 기본 package 집계는 `apps/node`·`apps/rust`·공통 영역을 구분하며 앱 내부를 하나로 묶으므로 아래 책임 경계는 코드·정책을 추가 대조한 결과다. guard의 173개 모듈·270개 확정 의존과 이 보고서의 production 집계는 범위·관계 정의가 달라 직접 비교하지 않는다.
 
 ## 3. 현재 아키텍처 판단
 
@@ -49,15 +50,17 @@ writing:
 | Claim | 종류 | 상태 | 현재 판단 | 근거 |
 | --- | --- | --- | --- | --- |
 | AA-008 | 사실 | 확인 | 저장소 정책은 core/storage/infrastructure와 Rust 엔진을 포함하며 baseline은 비어 있다. lib.rs의 provider 모듈 선언은 구성 진입점 책임에 속한다. | `architecture/guard/policy.json`, `baseline.json`, `reports/current-check.md`; [경계 집계](architecture-evidence.md#evidence-boundaries) |
-| AA-009 | 사실 | 확인 | 기본 unit 실행은 교차 캐시를 제외하지만 `contracts.yml`은 이를 별도 필수 step으로 실행한다. 원격 성공·브랜치 보호 설정은 미확인이다. | `.github/workflows/contracts.yml`, `vitest.config.mts`, `package.json` |
-| AA-010 | 평가 | 적합 | core는 storage, provider는 infrastructure를 참조한다. Node의 실제 책임 소유와 의존 방향이 일치한다. | `src/core/UsageMonitorCore.ts`, `src/storage/index.ts`, `src/infrastructure/index.ts`; [경계 의존](architecture-evidence.md#evidence-boundary-dependencies) |
-| AA-011 | 평가 | 적합 | cache/jobs/reducer/monitor를 분리하고 JobKey로 작업을 식별한다. 구체 provider 조립과 일괄 수집 API는 engine에 남는다. | `src-native/core/engine.rs`, `engine/*.rs`, 부분 갱신·Stop 테스트 |
-| AA-012 | 평가 | 주의 | Windows 실제 설치 조정 함수와 양쪽 caller를 검증했다. Rust helper 실패·비정상 응답·timeout도 검증했다. OS 로그인·Mac 전환 전체는 미확인이다. | `scripts/test-install-entry.ps1`, `tests/unit/launchAtLogin.test.ts`, `src-native/shell/desktop.rs::startup_tests` |
-| AA-014 | 사실 | 확인 | UI는 정규화된 snapshot과 사용자 동작 API 경계를 유지한다. | `src/preload/index.ts`, `src-native/ui` 및 [경계 의존](architecture-evidence.md#evidence-boundary-dependencies) |
+| AA-009 | 사실 | 확인 | 기본 unit 실행은 교차 캐시를 제외하지만 `contracts.yml`은 이를 별도 필수 step으로 실행한다. 원격 성공·브랜치 보호 설정은 미확인이다. | `.github/workflows/contracts.yml`, `apps/node/vitest.config.mts`, `apps/node/vitest.interop.config.mts`, `package.json` |
+| AA-010 | 평가 | 적합 | core는 storage, provider는 infrastructure를 참조한다. Node의 실제 책임 소유와 의존 방향이 일치한다. | `apps/node/src/core/UsageMonitorCore.ts`, `apps/node/src/storage/index.ts`, `apps/node/src/infrastructure/index.ts`; [경계 의존](architecture-evidence.md#evidence-boundary-dependencies) |
+| AA-011 | 평가 | 적합 | cache/jobs/reducer/monitor를 분리하고 JobKey로 작업을 식별한다. 구체 provider 조립과 일괄 수집 API는 engine에 남는다. | `apps/rust/src/core/engine.rs`, `engine/*.rs`, 부분 갱신·Stop 테스트 |
+| AA-012 | 평가 | 주의 | Windows 실제 설치 조정 함수와 양쪽 caller를 검증했다. Rust helper 실패·비정상 응답·timeout도 검증했다. OS 로그인·Mac 전환 전체는 미확인이다. | `scripts/tests/test-install-entry.ps1`, `apps/node/tests/unit/launchAtLogin.test.ts`, `apps/rust/src/shell/desktop.rs::startup_tests` |
+| AA-014 | 사실 | 확인 | UI는 정규화된 snapshot과 사용자 동작 API 경계를 유지한다. | `apps/node/src/preload/index.ts`, `apps/rust/src/ui` 및 [경계 의존](architecture-evidence.md#evidence-boundary-dependencies) |
 | AA-015 | 사실 | 확인 | 부분 반영·실패 보존·교차 캐시·설치 복구 테스트가 Windows에서 통과했다. | [구현 검증 기록](verification.md) |
 | AA-016 | 제안 | 권장 | 별도 서비스/FFI 없이 언어 내부 경계와 공통 계약 검증을 강화하는 방향을 유지한다. 전체 UI 표준화 완료를 뜻하지 않는다. | [검사 안내](../architecture/README.md) |
 
 ## 4. 현재 책임과 데이터 흐름
+
+[개발 구조](development.md)의 앱별 디렉터리는 개발·빌드 경계다. Node 내부 `src/shared`는 TypeScript 계약이고 저장소 `shared/fixtures`는 언어 공통 검증 데이터다. pnpm과 Cargo 잠금 파일은 저장소 루트에서 관리하며 Rust 단독 빌드는 Node를 요구하지 않는다.
 
 관점: 사용자와 외부 시스템의 관계. Snapshot은 2장, 실선은 구현·계약에서 확인한 경로다. 벤더별 인증 세부 경로는 집계했다.
 
@@ -153,6 +156,8 @@ quota는 벤더 계정 범위이고 token은 PC 로그 집계다. 캐시는 마�
 | 설치·자동 시작 | Windows 전환·업데이트·실패 복구·제거, 한글/공백/BOM, 양쪽 caller, Rust timeout | Mac 실제 전환·OS 로그인은 미확인; 실제 인증·사용자 등록을 fixture로 쓰지 않음 |
 | 표시·조작 | 시간대·pending·미제공·백분율 공통 fixture | 표시 선택·클릭 의도 전체와 시각 비교는 미완료 |
 
-Rust 검증은 all-targets 35개 실행 후 timeout 테스트를 추가하고 startup 테스트 2개를 재실행한 기록이다(최종 테스트 정의 36개). Windows release 앱과 Electron 패키징은 성공했다. 기존 GPUI 전이 의존성의 future-incompat 경고는 남는다. 빌드 산출물·캡처는 Git에 추가하지 않는다.
+폴더 분리 후 Rust all-targets 36개, Node 단위/통합 265개, 교차 캐시 2개와 runtime E2E 6개가 통과했다. Windows release 앱과 Electron 패키징은 성공했다. 기존 GPUI 전이 의존성의 future-incompat 경고는 남는다. 빌드 산출물·캡처는 Git에 추가하지 않는다.
+
+일부 기존 화면 E2E에는 제거된 Tokens 버튼·과거 문구 참조가 남아 있다. runtime 검증과 전체 화면 회귀 검증을 동일시하지 않으며 후자는 현재 UI 계약에 맞춘 후속 정비가 필요하다.
 
 원격 CI와 macOS 실기 검증 결과를 확보하면 해당 OS·revision과 함께 미확인 항목을 갱신한다. 새로운 구조 변경은 실제 회귀나 변경 비용의 근거가 있을 때 검토한다.

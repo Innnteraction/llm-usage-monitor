@@ -164,11 +164,9 @@
       "may_depend_on": [],
       "name": "native-types",
       "paths": [
-        "src-native/core/types.rs",
         "apps/rust/src/core/types.rs"
       ],
       "public_paths": [
-        "src-native/core/types.rs",
         "apps/rust/src/core/types.rs"
       ]
     },
@@ -178,11 +176,9 @@
       ],
       "name": "native-providers",
       "paths": [
-        "src-native/providers/**",
         "apps/rust/src/providers/**"
       ],
       "public_paths": [
-        "src-native/providers/**",
         "apps/rust/src/providers/**"
       ]
     },
@@ -192,11 +188,9 @@
       ],
       "name": "native-local",
       "paths": [
-        "src-native/core/local_usage/**",
         "apps/rust/src/core/local_usage/**"
       ],
       "public_paths": [
-        "src-native/core/local_usage/**",
         "apps/rust/src/core/local_usage/**"
       ]
     },
@@ -208,20 +202,12 @@
       ],
       "name": "native-core",
       "paths": [
-        "src-native/core/mod.rs",
-        "src-native/core/engine.rs",
-        "src-native/core/vendor_health.rs",
-        "src-native/core/engine/**",
         "apps/rust/src/core/mod.rs",
         "apps/rust/src/core/engine.rs",
         "apps/rust/src/core/vendor_health.rs",
         "apps/rust/src/core/engine/**"
       ],
       "public_paths": [
-        "src-native/core/mod.rs",
-        "src-native/core/engine.rs",
-        "src-native/core/vendor_health.rs",
-        "src-native/core/engine/**",
         "apps/rust/src/core/mod.rs",
         "apps/rust/src/core/engine.rs",
         "apps/rust/src/core/vendor_health.rs",
@@ -234,11 +220,9 @@
       ],
       "name": "native-ui",
       "paths": [
-        "src-native/ui/**",
         "apps/rust/src/ui/**"
       ],
       "public_paths": [
-        "src-native/ui/**",
         "apps/rust/src/ui/**"
       ]
     },
@@ -246,11 +230,9 @@
       "may_depend_on": [],
       "name": "native-shell",
       "paths": [
-        "src-native/shell/**",
         "apps/rust/src/shell/**"
       ],
       "public_paths": [
-        "src-native/shell/**",
         "apps/rust/src/shell/**"
       ]
     },
@@ -265,15 +247,11 @@
       ],
       "name": "native-app",
       "paths": [
-        "src-native/lib.rs",
-        "src-native/bin/**",
         "apps/rust/src/lib.rs",
         "apps/rust/src/bin/**",
         "apps/rust/tools/**"
       ],
       "public_paths": [
-        "src-native/lib.rs",
-        "src-native/bin/**",
         "apps/rust/src/lib.rs",
         "apps/rust/src/bin/**",
         "apps/rust/tools/**"
@@ -332,7 +310,6 @@
     "apps/node/src/forge-env.d.ts"
   ],
   "include_paths": [
-    "src-native/**/*.rs",
     "apps/node/*.mts",
     "apps/node/*.ts",
     "apps/node/src/**/*.ts",

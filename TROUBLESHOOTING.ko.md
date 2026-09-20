@@ -4,7 +4,7 @@
 
 ## 1. v0.9.2부터의 기본 개발 실행
 
-`pnpm dev`는 현재 소스를 Forge로 패키징한 뒤 `out/`의 실제 실행 파일을 실행한다. 설치 폴더에 복사하지 않는다. 저장 후에는 트레이의 종료 메뉴 또는 `Ctrl+C`로 종료하고 다시 실행한다. 패키징 실패 시 이전 산출물은 실행하지 않는다.
+`pnpm dev`는 현재 소스를 Forge로 패키징한 뒤 `apps/node/out/`의 실제 실행 파일을 실행한다. 설치 폴더에 복사하지 않는다. 저장 후에는 트레이의 종료 메뉴 또는 `Ctrl+C`로 종료하고 다시 실행한다. 패키징 실패 시 이전 산출물은 실행하지 않는다.
 
 `pnpm dev:hmr`는 기존 Forge·Vite 경로다. HMR(Hot Module Replacement)은 저장한 화면 코드를 앱 재시작 없이 반영한다. main/preload 변경의 재시작 동작은 Forge를 따른다. 두 개발 명령은 동시에 사용하지 않는다.
 
@@ -63,21 +63,21 @@ GPU process exited unexpectedly: exit_code=-2147483645
 pnpm package
 
 # 기본: 실제 packaged 실행 파일, 새 테스트 프로필, 5회 시작·종료 + 동시 실행
-node node_modules/@playwright/test/cli.js test tests/e2e/runtime.spec.ts
+pnpm --dir apps/node exec playwright test tests/e2e/runtime.spec.ts
 
 # 같은 app.asar를 개발용 Electron으로 실행
 $env:LLM_USAGE_MONITOR_RUNTIME_MODE = 'asar'
-node node_modules/@playwright/test/cli.js test tests/e2e/runtime.spec.ts
+pnpm --dir apps/node exec playwright test tests/e2e/runtime.spec.ts
 
 # 나머지 조건을 고정하고 GPU 샌드박스 우회와 비교
 $env:LLM_USAGE_MONITOR_GPU_SANDBOX = '0'
-node node_modules/@playwright/test/cli.js test tests/e2e/runtime.spec.ts
+pnpm --dir apps/node exec playwright test tests/e2e/runtime.spec.ts
 Remove-Item Env:LLM_USAGE_MONITOR_RUNTIME_MODE
-node node_modules/@playwright/test/cli.js test tests/e2e/runtime.spec.ts
+pnpm --dir apps/node exec playwright test tests/e2e/runtime.spec.ts
 Remove-Item Env:LLM_USAGE_MONITOR_GPU_SANDBOX
 ```
 
-HMR 비교는 별도 터미널에서 허구 provider로 `pnpm dev:hmr`를 띄운 뒤 진행한다. 테스트는 별도의 프로필을 사용한다. Forge는 `.vite` 산출물을 개발 모드로 바꾸므로 HMR 비교를 마친 후에는 다시 `pnpm package`한다.
+HMR 비교는 별도 터미널에서 허구 provider로 `pnpm dev:hmr`를 띄운 뒤 진행한다. 테스트는 별도의 프로필을 사용한다. Forge는 `apps/node/.vite` 산출물을 개발 모드로 바꾸므로 HMR 비교를 마친 후에는 다시 `pnpm package`한다.
 
 ```powershell
 # 터미널 A
@@ -88,14 +88,14 @@ Remove-Item Env:LLM_USAGE_MONITOR_E2E
 
 # 터미널 B
 $env:LLM_USAGE_MONITOR_RUNTIME_MODE = 'hmr'
-node node_modules/@playwright/test/cli.js test tests/e2e/runtime.spec.ts
+pnpm --dir apps/node exec playwright test tests/e2e/runtime.spec.ts
 $env:LLM_USAGE_MONITOR_GPU_SANDBOX = '0'
-node node_modules/@playwright/test/cli.js test tests/e2e/runtime.spec.ts
+pnpm --dir apps/node exec playwright test tests/e2e/runtime.spec.ts
 Remove-Item Env:LLM_USAGE_MONITOR_RUNTIME_MODE
 Remove-Item Env:LLM_USAGE_MONITOR_GPU_SANDBOX
 ```
 
-`pnpm test:e2e:runtime`으로 최종 package와 기본 실행 검사를 한 번에 실행할 수도 있다. `pnpm exec`에서 로컬 명령을 못 찾는 환경을 고려해 위 비교 명령은 설치된 CLI를 Node로 직접 실행한다.
+`pnpm test:e2e:runtime`으로 최종 package와 기본 실행 검사를 한 번에 실행할 수도 있다. 위 비교 명령은 Node 앱 디렉터리에서 Playwright 설정을 해석한다.
 
 같은 사용자 일반 터미널과 에이전트 환경도 구분해 기록한다. 차이가 있어야 실행 파일 경로·부모 프로세스·OS 실행 제한·프로필 등을 다음 후보로 좁힐 수 있다. 드라이버 변경, 버전 다운그레이드 또는 추가 샌드박스 해제를 근거 없이 적용하지 않는다.
 
@@ -127,10 +127,10 @@ Remove-Item Env:LLM_USAGE_MONITOR_GPU_SANDBOX
 - 사용자가 Codex CLI를 업데이트하거나 npm/pnpm/전용 인스톨러 등을 통해 설치 위치가 변경되었을 때 고정된 경로로는 실행 파일을 찾지 못함.
 
 ### 근본 원인
-- `src/shared/platform.ts`의 기본 실행 파일명이 Windows에서도 단순히 `"codex"`로 정의되어 있었으며, `process.env.PATH`에 등록되지 않았거나 업데이트 후 새로운 디렉터리(예: `OpenAI\Codex\bin\codex.exe`)에 설치된 바이너리를 발견하지 못함.
+- `apps/node/src/shared/platform.ts`의 기본 실행 파일명이 Windows에서도 단순히 `"codex"`로 정의되어 있었으며, `process.env.PATH`에 등록되지 않았거나 업데이트 후 새로운 디렉터리(예: `OpenAI\Codex\bin\codex.exe`)에 설치된 바이너리를 발견하지 못함.
 
 ### 해결 방법
-- **플랫폼별 다중 확장자 및 표준 디렉터리 동적 순회 로직 구현** (`src/main/platform/index.ts`):
+- **플랫폼별 다중 확장자 및 표준 디렉터리 동적 순회 로직 구현** (`apps/node/src/main/platform/index.ts`):
   1. `getExecutableCandidates`: Windows 환경에서 입력된 바이너리명에 대해 `.exe`, `.cmd`, `.bat` 등 가능한 확장자 후보군을 우선 순위별로 생성.
   2. `getPlatformFallbackDirectories`:
      - Windows: `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin`, `%APPDATA%\npm`, `%LOCALAPPDATA%\pnpm`, Bun, Git usr bin 등 주요 CLI 설치 디렉터리 순회.
