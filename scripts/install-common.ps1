@@ -129,14 +129,23 @@ function Install-SelectedDependencies([string]$Variant, [string]$PnpmVersion, [b
             Invoke-Checked winget @('install','--id','Microsoft.VisualStudio.2022.BuildTools','--exact','--source','winget','--accept-source-agreements','--accept-package-agreements','--override','--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended')
         }
         if (-not (Get-ToolVersion rustup)) {
-            $download = Join-Path ([IO.Path]::GetTempPath()) ("llm-rustup-" + [guid]::NewGuid().ToString('N') + '.exe')
+            $downloadDirectory = Join-Path ([IO.Path]::GetTempPath()) ("llm-rustup-" + [guid]::NewGuid().ToString('N'))
+            # rustup selects installer/proxy mode from its executable filename.
+            $download = Join-Path $downloadDirectory 'rustup-init.exe'
             try {
+                New-Item -ItemType Directory -Path $downloadDirectory | Out-Null
                 Invoke-WebRequest 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe' -OutFile $download -UseBasicParsing
                 $checksumResponse = Invoke-WebRequest 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe.sha256' -UseBasicParsing
                 $checksumText = if ($checksumResponse.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($checksumResponse.Content) } else { [string]$checksumResponse.Content }
                 if ($checksumText -notmatch '^([a-fA-F0-9]{64})\b' -or (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash -ne $Matches[1]) { throw 'rustup official SHA-256 validation failed. Installation stopped.' }
                 Invoke-Checked $download @('-y','--default-toolchain','none','--no-modify-path')
-            } finally { if (Test-Path -LiteralPath $download) { Remove-Item -LiteralPath $download -Force } }
+            } finally {
+                if (Test-Path -LiteralPath $downloadDirectory) {
+                    Assert-InstallChild $downloadDirectory ([IO.Path]::GetTempPath())
+                    try { Remove-Item -LiteralPath $downloadDirectory -Recurse -Force }
+                    catch { Write-Warning "Temporary installer cleanup remains: $downloadDirectory. Close any installer still running before removing it." }
+                }
+            }
             Update-InstallerPath
         }
         $stable = & rustup toolchain list

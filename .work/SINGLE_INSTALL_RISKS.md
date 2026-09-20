@@ -27,6 +27,8 @@
 
 ## 남은 운영 검수와 경계
 
+- rustup 설치 파일을 UUID 이름의 exe로 저장해 설치 모드 대신 proxy 판별 오류가 발생했다. 고유 임시 디렉터리 안의 `rustup-init.exe`로 수정하고, 잠긴 파일의 정리 실패는 경고로 남겨 원래 설치 오류를 보존한다. 실제 다운로드 분기에 허구 파일·체크섬·파일 잠금을 넣은 Windows PowerShell 5.1 회귀 테스트를 통과했다. 공식 exe 다운로드 및 `--help` 검증 명령은 자동 승인 검토에서 `blocked by policy`로 거절되어 실행하지 못했다. 실제 도구 설치 성공은 아직 확인하지 않았다.
+
 - 설치기 자체 안내·오류와 앱의 남은 한국어 표시를 영어로 변경하고, Windows/macOS의 대화형 선택 및 버전 옵션에 `n`/`r` 별칭을 추가했다. OS·외부 설치 도구·벤더가 제공하는 원문과 사용자 데이터의 언어는 변경하지 않는다. Windows PowerShell 5.1 별칭·설치 테스트, Bash 별칭·구문, Node 264개/Rust 33개 테스트와 Windows 양쪽 빌드를 확인했다. Node 검증 산출물은 `out/install-english`에 있다. macOS 실화면은 미검증이다.
 
 - Windows PowerShell 5.1에서 없는 Run 값을 `Get-ItemPropertyValue -ErrorAction SilentlyContinue`로 조회하면 예외가 발생하는 문제가 사용자 실행에서 확인됐다. 설치기와 공통 자동 시작 helper를 키 조회 후 속성 존재 확인으로 수정했다. 기존 가짜 레지스트리가 이 예외를 재현하지 못했으므로 키 없음·값 없음·접근 거부를 구분하도록 회귀 검증을 보강했다. 실제 설치 진입점이 해당 조회를 지나 동의 단계에 도달함을 시스템 변경 없이 확인했다.

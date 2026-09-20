@@ -35,6 +35,42 @@ try {
         Must-Fail { Install-SelectedDependencies node 9.15.9 $true $true }
         Assert ($global:installTestCalls -contains 'npm') 'Download failure reached fake installer'
     }
+    & {
+        # Exercise the actual rustup download branch without network or tool installation.
+        $global:installTestRustLock = $null
+        $global:installTestRustDownload = $null
+        function Get-ToolVersion([string]$Name) { if ($Name -ne 'rustup') { return 'fake' } }
+        function Get-BuildToolsReady { return $true }
+        function Invoke-WebRequest {
+            param($Uri,$OutFile,[switch]$UseBasicParsing)
+            if ($OutFile) {
+                $global:installTestRustDownload = $OutFile
+                [IO.File]::WriteAllText($OutFile,'Synthetic installer')
+            } else {
+                return @{ Content = (Get-FileHash -LiteralPath $global:installTestRustDownload -Algorithm SHA256).Hash + '  rustup-init.exe' }
+            }
+        }
+        function Invoke-Checked([string]$File,[string[]]$Arguments) {
+            Assert ((Split-Path -Leaf $File) -eq 'rustup-init.exe') 'rustup installer filename must be preserved'
+            Assert ($Arguments -contains '--no-modify-path') 'Preserve global PATH'
+            $global:installTestRustLock = [IO.File]::Open($File,'Open','Read','None')
+            throw 'Synthetic rustup installation failure'
+        }
+        try {
+            $failure = ''
+            try { Install-SelectedDependencies rust 9.15.9 $true $true }
+            catch { $failure = $_.Exception.Message }
+            Assert ($failure -eq 'Synthetic rustup installation failure') 'Cleanup must preserve the original installer error'
+            Assert (Test-Path -LiteralPath $global:installTestRustDownload) 'Locked installer must be preserved'
+        } finally {
+            if ($global:installTestRustLock) { $global:installTestRustLock.Dispose() }
+            if ($global:installTestRustDownload) {
+                $directory = Split-Path -Parent $global:installTestRustDownload
+                Assert-InstallChild $directory ([IO.Path]::GetTempPath())
+                Remove-Item -LiteralPath $directory -Recurse -Force
+            }
+        }
+    }
     Must-Fail { Invoke-Checked powershell.exe @('-NoProfile','-Command','exit 3010') }
     Must-Fail { Invoke-Checked powershell.exe @('-NoProfile','-Command','exit 1') }
     Must-Fail { Assert-InstallChild (Split-Path -Parent $testRoot) $testRoot }
@@ -90,5 +126,5 @@ try {
 } finally {
     Assert-InstallChild $testRoot ([IO.Path]::GetTempPath())
     Remove-Item -LiteralPath $testRoot -Recurse -Force
-    Remove-Variable installTestRegistry,installTestReadError,installTestCalls,installTestNode -Scope Global -ErrorAction SilentlyContinue
+    Remove-Variable installTestRegistry,installTestReadError,installTestCalls,installTestNode,installTestRustDownload,installTestRustLock -Scope Global -ErrorAction SilentlyContinue
 }
