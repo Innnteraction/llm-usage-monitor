@@ -6,7 +6,9 @@ settings:
 
 importers:
 
-  .:
+  .: {}
+
+  apps/node:
     dependencies:
       electron-squirrel-startup:
         specifier: 1.0.1

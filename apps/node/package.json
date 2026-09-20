@@ -1,0 +1,68 @@
+{
+  "name": "llm-usage-monitor",
+  "productName": "LLM Usage Monitor",
+  "version": "0.12.0",
+  "description": "Tray monitor for Codex, Claude Code and Antigravity usage quotas (macOS, Windows)",
+  "author": {
+    "name": "Innnteraction",
+    "email": "innnteractive@gmail.com"
+  },
+  "license": "MIT",
+  "private": true,
+  "main": ".vite/build/main.js",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=9.15 <10"
+  },
+  "scripts": {
+    "dev": "node ./scripts/dev.mjs",
+    "dev:hmr": "node ./scripts/dev.mjs --hmr",
+    "dev:incident": "node ./scripts/dev.mjs --incident",
+    "typecheck": "tsc --noEmit",
+    "lint": "cd ../.. && eslint --config apps/node/eslint.config.mjs apps/node scripts",
+    "test": "vitest run",
+    "test:smoke:codex": "vitest run tests/smoke/codex.smoke.test.ts --config vitest.smoke.config.mts",
+    "test:smoke:local-usage": "vitest run tests/smoke/local-usage.smoke.test.ts --config vitest.smoke.config.mts",
+    "test:smoke:claude-pty": "vitest run --config vitest.claude-smoke.config.mts",
+    "test:smoke:claude-packaged": "pnpm package && playwright test --config playwright.claude-packaged.config.ts",
+    "test:e2e": "pnpm package && playwright test",
+    "test:e2e:runtime": "pnpm package && playwright test tests/e2e/runtime.spec.ts",
+    "screenshot:readme": "node ./scripts/capture-readme-screenshots.mjs",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "postinstall": "node scripts/postinstall.mjs",
+    "test:shared-cache": "cargo build --locked --bin cache-fixture && vitest run --config vitest.interop.config.mts",
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "test:smoke:antigravity": "vitest run --config vitest.antigravity-smoke.config.mts",
+    "test:architecture": "node --test scripts/test-architecture.mjs"
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "1.0.1",
+    "node-pty": "1.1.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "7.11.2",
+    "@electron-forge/maker-squirrel": "7.11.2",
+    "@electron-forge/maker-zip": "7.11.2",
+    "@electron-forge/plugin-vite": "7.11.2",
+    "@electron-forge/shared-types": "7.11.2",
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
+    "@types/electron-squirrel-startup": "1.0.2",
+    "@types/node": "26.4.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.1",
+    "electron": "44.1.0",
+    "eslint": "10.9.1",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.69.0",
+    "vite": "8.2.2",
+    "vitest": "4.1.11"
+  }
+}

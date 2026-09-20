@@ -19,7 +19,7 @@ done
 [ "$(uname -s)" = Darwin ] || { echo 'Only macOS is supported by this script.' >&2; exit 2; }
 case "$(uname -m)" in arm64|x86_64) ;; *) echo 'Unsupported CPU.' >&2; exit 2;; esac
 case "$autostart" in preserve|on|off) ;; *) exit 2;; esac
-required_pnpm="$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' "$project_root/package.json")"
+required_pnpm="$(sed -n 's/.*"packageManager": "pnpm@\([^"]*\)".*/\1/p' "$project_root/apps/node/package.json")"
 inspect_environment
 [ "$check" = true ] && exit 0
 if [ -z "$variant" ] && [ "$uninstall" = false ]; then
@@ -101,7 +101,7 @@ if [ "$uninstall" = false ]; then
 EOF
   fi
   cp "$script_dir/startup.sh" "$stage/Contents/Resources/startup.sh"
-  version="$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "$project_root/package.json" | head -n 1)"
+  version="$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "$project_root/apps/node/package.json" | head -n 1)"
   revision="$(git -C "$project_root" rev-parse --short HEAD 2>/dev/null || printf source-zip)"
   executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$stage/Contents/Info.plist")"
   printf '{"schemaVersion":1,"appId":"llm-usage-monitor","variant":"%s","version":"%s","revision":"%s","executable":"%s"}\n' "$variant" "$version" "$revision" "$executable" > "$stage/Contents/Resources/install-info.json"

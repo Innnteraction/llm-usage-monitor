@@ -6,8 +6,8 @@ import ts from "typescript";
 
 // Resolve imports with the same compiler options as the application. Unknown
 // source folders fail closed; no developer-local baseline is needed by CI.
-export function checkArchitecture(root) {
-  const policy = JSON.parse(fs.readFileSync(path.join(root, "architecture/boundaries.json"), "utf8"));
+export function checkArchitecture(root, policyPath = path.resolve(import.meta.dirname, "../../../architecture/boundaries.json")) {
+  const policy = JSON.parse(fs.readFileSync(policyPath, "utf8"));
   const config = ts.readConfigFile(path.join(root, "tsconfig.json"), ts.sys.readFile);
   const options = ts.parseJsonConfigFileContent(config.config, ts.sys, root).options;
   const files = ts.sys.readDirectory(path.join(root, "src"), [".ts", ".tsx"]);
@@ -62,7 +62,7 @@ export function checkArchitecture(root) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const result = checkArchitecture(process.cwd());
+  const result = checkArchitecture(path.resolve(import.meta.dirname, ".."));
   for (const error of result.errors) console.error(error);
   console.log(`Architecture: ${result.files} TypeScript modules, ${result.errors.length} violations (zero-baseline policy).`);
   process.exitCode = result.errors.length ? 1 : 0;

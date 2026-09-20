@@ -79,10 +79,10 @@ build_selected_app() {
   cd "$project_root"
   if [ "$variant" = node ]; then
     pnpm install --frozen-lockfile
-    node scripts/package-install.mjs
+    node apps/node/scripts/package-install.mjs
     local arch
     arch="$(node -p 'process.arch')"
-    built_app="$project_root/out/install-build/LLM Usage Monitor-darwin-$arch/LLM Usage Monitor.app"
+    built_app="$project_root/apps/node/out/install-build/LLM Usage Monitor-darwin-$arch/LLM Usage Monitor.app"
   else
     rustup run stable cargo build --locked --release --bin llm-usage-monitor
     built_app="$project_root/target/release/llm-usage-monitor"

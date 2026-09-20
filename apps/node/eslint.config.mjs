@@ -6,10 +6,10 @@ export default tseslint.config(
   {
     ignores: [
       "**/.vite/**",
-      "out/**",
-      "node_modules/**",
-      "playwright-report/**",
-      "test-results/**",
+      "**/out/**",
+      "**/node_modules/**",
+      "**/playwright-report/**",
+      "**/test-results/**",
     ],
   },
   eslint.configs.recommended,
@@ -21,7 +21,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/renderer/**/*.{ts,tsx}"],
+    files: ["**/src/renderer/**/*.{ts,tsx}"],
     plugins: {
       "react-hooks": reactHooks,
     },

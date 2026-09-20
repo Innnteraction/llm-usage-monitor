@@ -17,6 +17,7 @@ export const createTrayIcon = (platform: NodeJS.Platform = process.platform): Na
   try {
     if (typeof app?.getAppPath === "function") {
       candidateDirs.push(path.join(app.getAppPath(), "assets", "icons"));
+      candidateDirs.push(path.join(app.getAppPath(), "..", "..", "assets", "icons"));
       candidateDirs.push(path.join(app.getAppPath(), "..", "assets", "icons"));
     }
   } catch {

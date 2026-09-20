@@ -3,6 +3,10 @@ import { MakerSquirrel } from "@electron-forge/maker-squirrel";
 import { VitePlugin } from "@electron-forge/plugin-vite";
 import { chmod, cp, mkdir } from "node:fs/promises";
 import path from "node:path";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const assetsRoot = path.resolve(import.meta.dirname, "../../assets");
 
 const commonNodePtyFiles = [
   "LICENSE",
@@ -51,8 +55,8 @@ const config: ForgeConfig = {
   packagerConfig: {
     icon:
       process.platform === "darwin"
-        ? path.resolve("assets", "icons", "app-icon.icns")
-        : path.resolve("assets", "icons", "app-icon.ico"),
+        ? path.resolve(assetsRoot, "icons", "app-icon.icns")
+        : path.resolve(assetsRoot, "icons", "app-icon.ico"),
     extendInfo: {
       LSUIElement: true,
       NSAppleEventsUsageDescription:
@@ -61,15 +65,15 @@ const config: ForgeConfig = {
     asar: {
       unpack: "**/node_modules/node-pty/**/*",
     },
-    extraResource: [path.resolve("assets")],
+    extraResource: [assetsRoot],
   },
   hooks: {
     packageAfterPrune: async (_forgeConfig, buildPath) => {
-      const assetsSource = path.resolve("assets");
+      const assetsSource = assetsRoot;
       const assetsDestination = path.join(buildPath, "assets");
       await cp(assetsSource, assetsDestination, { recursive: true });
 
-      const source = path.resolve("node_modules", "node-pty");
+      const source = path.dirname(require.resolve("node-pty/package.json"));
       const destination = path.join(buildPath, "node_modules", "node-pty");
       await mkdir(destination, { recursive: true });
       await Promise.all(
@@ -91,7 +95,7 @@ const config: ForgeConfig = {
             name: "llm_usage_monitor",
             exe: "LLM Usage Monitor.exe",
             setupExe: "LLM-Usage-Monitor-Setup.exe",
-            setupIcon: path.resolve("assets", "icons", "app-icon.ico"),
+            setupIcon: path.resolve(assetsRoot, "icons", "app-icon.ico"),
             noMsi: true,
           }),
         ]

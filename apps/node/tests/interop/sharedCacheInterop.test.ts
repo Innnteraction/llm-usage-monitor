@@ -8,7 +8,7 @@ import { acquireSharedLock, SnapshotCache, SNAPSHOT_CACHE_FILENAME } from "../..
 
 it("shares token checkpoints Node → Rust → Node and excludes competing runtimes", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "shared-cache-fixture-"));
-  const executable = path.resolve(`target/debug/cache-fixture${process.platform === "win32" ? ".exe" : ""}`);
+  const executable = path.resolve(import.meta.dirname, `../../../../target/debug/cache-fixture${process.platform === "win32" ? ".exe" : ""}`);
   try {
     await mkdir(path.join(root, "codex")); await mkdir(path.join(root, "claude"));
     const index = path.join(root, "local-usage-index-v2.json");
@@ -84,9 +84,9 @@ it("shares token checkpoints Node → Rust → Node and excludes competing runti
 
 it("round-trips sanitized quota, rejects corrupt versions, and recovers after writer termination", async () => {
   const root=await mkdtemp(path.join(tmpdir(),"quota-cross-fixture-"));
-  const executable=path.resolve(`target/debug/cache-fixture${process.platform === "win32" ? ".exe" : ""}`);
+  const executable=path.resolve(import.meta.dirname, `../../../../target/debug/cache-fixture${process.platform === "win32" ? ".exe" : ""}`);
   try {
-    const fixture=JSON.parse(await readFile(path.resolve("shared/fixtures/snapshot.json"),"utf8"));
+    const fixture=JSON.parse(await readFile(path.resolve(import.meta.dirname, "../../../../shared/fixtures/snapshot.json"),"utf8"));
     const file=path.join(root,SNAPSHOT_CACHE_FILENAME);
     const cache=new SnapshotCache(file);
     await cache.save(fixture);

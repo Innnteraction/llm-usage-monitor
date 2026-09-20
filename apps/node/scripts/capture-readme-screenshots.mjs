@@ -13,7 +13,7 @@ import path from "node:path";
 import process from "node:process";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
-const outputDir = path.join(repoRoot, "docs", "images");
+const outputDir = path.resolve(repoRoot, "../../docs/images");
 const scale = 2;
 
 if (!existsSync(path.join(repoRoot, ".vite", "build", "main.js"))) {

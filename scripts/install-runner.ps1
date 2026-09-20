@@ -23,7 +23,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 if ($env:OS -ne 'Windows_NT' -or $env:PROCESSOR_ARCHITECTURE -ne 'AMD64' -or $env:PROCESSOR_ARCHITEW6432) {
     throw 'Run in 64-bit PowerShell on Windows x64. Windows ARM64 and WSL are not supported.'
 }
-$package = Get-Content -LiteralPath (Join-Path $projectRoot 'package.json') -Raw | ConvertFrom-Json
+$package = Get-Content -LiteralPath (Join-Path $projectRoot 'apps/node/package.json') -Raw | ConvertFrom-Json
 $pnpmVersion = $package.packageManager -replace '^pnpm@',''
 $environment = Get-InstallEnvironment $pnpmVersion
 Show-InstallComparison $environment

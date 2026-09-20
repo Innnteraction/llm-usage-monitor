@@ -4,7 +4,8 @@
       "may_depend_on": [],
       "name": "root",
       "paths": [
-        "*"
+        "*",
+        "apps/node/*"
       ],
       "public_paths": []
     },
@@ -20,10 +21,12 @@
       ],
       "name": "main",
       "paths": [
-        "src/main/**"
+        "src/main/**",
+        "apps/node/src/main/**"
       ],
       "public_paths": [
-        "src/main/index.ts"
+        "src/main/index.ts",
+        "apps/node/src/main/index.ts"
       ]
     },
     {
@@ -32,10 +35,12 @@
       ],
       "name": "local-usage",
       "paths": [
-        "src/local-usage/**"
+        "src/local-usage/**",
+        "apps/node/src/local-usage/**"
       ],
       "public_paths": [
-        "src/local-usage/index.ts"
+        "src/local-usage/index.ts",
+        "apps/node/src/local-usage/index.ts"
       ]
     },
     {
@@ -44,10 +49,12 @@
       ],
       "name": "preload",
       "paths": [
-        "src/preload/**"
+        "src/preload/**",
+        "apps/node/src/preload/**"
       ],
       "public_paths": [
-        "src/preload/index.ts"
+        "src/preload/index.ts",
+        "apps/node/src/preload/index.ts"
       ]
     },
     {
@@ -59,10 +66,12 @@
       ],
       "name": "providers",
       "paths": [
-        "src/providers/index.ts"
+        "src/providers/index.ts",
+        "apps/node/src/providers/index.ts"
       ],
       "public_paths": [
-        "src/providers/index.ts"
+        "src/providers/index.ts",
+        "apps/node/src/providers/index.ts"
       ]
     },
     {
@@ -72,10 +81,12 @@
       ],
       "name": "provider-codex",
       "paths": [
-        "src/providers/codex/**"
+        "src/providers/codex/**",
+        "apps/node/src/providers/codex/**"
       ],
       "public_paths": [
-        "src/providers/codex/index.ts"
+        "src/providers/codex/index.ts",
+        "apps/node/src/providers/codex/index.ts"
       ]
     },
     {
@@ -85,10 +96,12 @@
       ],
       "name": "provider-claude",
       "paths": [
-        "src/providers/claude/**"
+        "src/providers/claude/**",
+        "apps/node/src/providers/claude/**"
       ],
       "public_paths": [
-        "src/providers/claude/index.ts"
+        "src/providers/claude/index.ts",
+        "apps/node/src/providers/claude/index.ts"
       ]
     },
     {
@@ -97,20 +110,24 @@
       ],
       "name": "renderer",
       "paths": [
-        "src/renderer/**"
+        "src/renderer/**",
+        "apps/node/src/renderer/**"
       ],
       "public_paths": [
-        "src/renderer/index.ts"
+        "src/renderer/index.ts",
+        "apps/node/src/renderer/index.ts"
       ]
     },
     {
       "may_depend_on": [],
       "name": "shared",
       "paths": [
-        "src/shared/**"
+        "src/shared/**",
+        "apps/node/src/shared/**"
       ],
       "public_paths": [
-        "src/shared/index.ts"
+        "src/shared/index.ts",
+        "apps/node/src/shared/index.ts"
       ]
     },
     {
@@ -119,10 +136,12 @@
       ],
       "name": "usage",
       "paths": [
-        "src/usage/**"
+        "src/usage/**",
+        "apps/node/src/usage/**"
       ],
       "public_paths": [
-        "src/usage/index.ts"
+        "src/usage/index.ts",
+        "apps/node/src/usage/index.ts"
       ]
     },
     {
@@ -143,7 +162,8 @@
       ],
       "name": "tests",
       "paths": [
-        "tests/**"
+        "tests/**",
+        "apps/node/tests/**"
       ],
       "public_paths": []
     },
@@ -154,10 +174,12 @@
       ],
       "name": "provider-antigravity",
       "paths": [
-        "src/providers/antigravity/**"
+        "src/providers/antigravity/**",
+        "apps/node/src/providers/antigravity/**"
       ],
       "public_paths": [
-        "src/providers/antigravity/index.ts"
+        "src/providers/antigravity/index.ts",
+        "apps/node/src/providers/antigravity/index.ts"
       ]
     },
     {
@@ -265,10 +287,12 @@
       ],
       "name": "core",
       "paths": [
-        "src/core/**"
+        "src/core/**",
+        "apps/node/src/core/**"
       ],
       "public_paths": [
-        "src/core/index.ts"
+        "src/core/index.ts",
+        "apps/node/src/core/index.ts"
       ]
     },
     {
@@ -277,10 +301,12 @@
       ],
       "name": "storage",
       "paths": [
-        "src/storage/**"
+        "src/storage/**",
+        "apps/node/src/storage/**"
       ],
       "public_paths": [
-        "src/storage/index.ts"
+        "src/storage/index.ts",
+        "apps/node/src/storage/index.ts"
       ]
     },
     {
@@ -289,10 +315,12 @@
       ],
       "name": "infrastructure",
       "paths": [
-        "src/infrastructure/**"
+        "src/infrastructure/**",
+        "apps/node/src/infrastructure/**"
       ],
       "public_paths": [
-        "src/infrastructure/index.ts"
+        "src/infrastructure/index.ts",
+        "apps/node/src/infrastructure/index.ts"
       ]
     }
   ],
@@ -305,7 +333,8 @@
     "**/coverage/**",
     "**/playwright-report/**",
     "**/test-results/**",
-    "src/forge-env.d.ts"
+    "src/forge-env.d.ts",
+    "apps/node/src/forge-env.d.ts"
   ],
   "include_paths": [
     "*.mts",
@@ -313,7 +342,12 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "tests/**/*.ts",
-    "src-native/**/*.rs"
+    "src-native/**/*.rs",
+    "apps/node/*.mts",
+    "apps/node/*.ts",
+    "apps/node/src/**/*.ts",
+    "apps/node/src/**/*.tsx",
+    "apps/node/tests/**/*.ts"
   ],
   "schema_version": "1.0.0",
   "status": "active"

@@ -162,8 +162,8 @@ function Build-SelectedApp([string]$Variant, [string]$ProjectRoot) {
     try {
         if ($Variant -eq 'node') {
             Invoke-Checked pnpm @('install','--frozen-lockfile')
-            Invoke-Checked node @('scripts/package-install.mjs')
-            return (Join-Path $ProjectRoot 'out/install-build/LLM Usage Monitor-win32-x64')
+            Invoke-Checked node @('apps/node/scripts/package-install.mjs')
+            return (Join-Path $ProjectRoot 'apps/node/out/install-build/LLM Usage Monitor-win32-x64')
         }
         Invoke-Checked rustup @('run','stable-x86_64-pc-windows-msvc','cargo','build','--locked','--release','--bin','llm-usage-monitor')
         return (Join-Path $ProjectRoot 'target/release/llm-usage-monitor.exe')
