@@ -69,6 +69,7 @@ const config: ForgeConfig = {
   },
   hooks: {
     packageAfterPrune: async (_forgeConfig, buildPath) => {
+      await cp(path.resolve(import.meta.dirname, "../../LICENSE"), path.join(buildPath, "LICENSE"));
       const assetsSource = assetsRoot;
       const assetsDestination = path.join(buildPath, "assets");
       await cp(assetsSource, assetsDestination, { recursive: true });

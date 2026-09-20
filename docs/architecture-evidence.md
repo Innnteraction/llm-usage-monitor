@@ -11,8 +11,8 @@
 | 항목 | 값 |
 | --- | --- |
 | schema version | 1.0.0 |
-| source digest | f599a3e87e20d72887ba5e857ab4b0c2fa662deab512bc6acd99fe05e4ca050c |
-| Git commit | 7b7f099a90aeffa9af7a1fedd7e8c1ddda4aac10 |
+| source digest | c2d8d2d9ae36d848958815f552cecbb1341a76759415592c307b94e2a9938b75 |
+| Git commit | 9d1f555734a87c2b488a706ed76d21a289e6ef91 |
 | dirty | true |
 | 선택 scope | production |
 | 분석 module | 138 |
@@ -31,21 +31,21 @@ capability: architecture-static-summary, call-candidates, cargo-metadata, entryp
 
 | 단계 | 결과 | 기계적 정의 |
 | --- | --- | --- |
-| 원시 edge 관측 | 14,208 | 정적 분석기가 기록한 전체 관계 관측 |
-| 구조 의존 edge 관측 | 13,174 | 원시 관측 중 imports·calls·registers |
+| 원시 edge 관측 | 14,212 | 정적 분석기가 기록한 전체 관계 관측 |
+| 구조 의존 edge 관측 | 13,178 | 원시 관측 중 imports·calls·registers |
 | package-root 내부 재분류 관측 | 0 | 구조 의존 관측 중 알려진 내부 module prefix와 일치한 부분집합 |
 | 정규화된 module dependency | 299 | 내부 source·target 확인, self-edge 제외, source·target·type·resolution 중복 제거 |
 | 경계 내부 module dependency | 299 | source와 target의 일차 경계가 같은 정규화 관계 |
 | 경계 간 module dependency | 0 | source와 target의 일차 경계가 다른 정규화 관계 |
 | 경계 쌍 집계 행 | 0 | source 경계·target 경계·confidence별 집계 행 |
 
-`원시 관측 14,208 → 의존 유형 선별 13,174 → 내부 판정·self-edge 제외·중복 제거 → module dependency 299`
+`원시 관측 14,212 → 의존 유형 선별 13,178 → 내부 판정·self-edge 제외·중복 제거 → module dependency 299`
 
 내부 재분류 관측은 구조 의존 관측의 부분집합이므로 별도 graph 크기로 더하거나 빼지 않는다.
 
 | 관계 유형 | 원시 관측 | 정규화된 내부 module dependency |
 | --- | --- | --- |
-| calls | 12,467 | 137 |
+| calls | 12,471 | 137 |
 | contains | 977 | 0 |
 | exports | 57 | 0 |
 | imports | 614 | 162 |

@@ -27,9 +27,9 @@ writing:
 | 항목 | 현재 기준 |
 | --- | --- |
 | 평가 상태 | 현재 구현 평가 초안(draft) |
-| 분석 대상 코드 revision | `7b7f099a90aeffa9af7a1fedd7e8c1ddda4aac10` |
+| 분석 대상 코드 revision | `9d1f555734a87c2b488a706ed76d21a289e6ef91` |
 | 분석 시점 | 2026-09-20, 위 revision에 폴더 정리 검증 변경을 포함한 working tree (dirty=true) |
-| source digest | `f599a3e87e20d72887ba5e857ab4b0c2fa662deab512bc6acd99fe05e4ca050c` |
+| source digest | `c2d8d2d9ae36d848958815f552cecbb1341a76759415592c307b94e2a9938b75` |
 | 소스 저장소 루트·분석 루트 | `C:/midas/codes/utils/llm-usage-monitor` (같은 경로, 다른 역할) |
 | 프로젝트·manifest 루트 | 루트는 pnpm·Cargo workspace, 실제 앱 manifest는 `apps/node/package.json`, `apps/rust/Cargo.toml` |
 | package root | TS는 `apps/node/src` 모듈 트리, Rust crate는 `apps/rust/src/lib.rs` 및 Cargo의 bin 진입점 |
@@ -39,7 +39,7 @@ writing:
 
 기계 증거와 평가는 위 코드 revision 및 source digest를 기준으로 한다. 테스트·빌드 결과의 실행 범위는 [검증 기록](verification.md)에 명시되어 있다. 문서 편집 시 테스트를 재실행한 것으로 간주하지 않는다. 비동기 경로는 코드와 fixture 테스트에 근거하며 runtime trace가 아니다.
 
-[Coverage](architecture-evidence.md#evidence-coverage)는 production 138개 모듈을 포함하고 test/fixture 등 48개를 제외한다. 원시 관계 관측 14,208건에서 imports/calls/registers 13,174건을 선별하고 내부 관계 확인·self-edge 제외·중복 제거를 거쳐 정규화된 module dependency 299개를 얻었다. 내부 재분류 관측은 0건이며 별도로 더하지 않는다. 이는 런타임 호출 횟수가 아니다.
+[Coverage](architecture-evidence.md#evidence-coverage)는 production 138개 모듈을 포함하고 test/fixture 등 48개를 제외한다. 원시 관계 관측 14,212건에서 imports/calls/registers 13,178건을 선별하고 내부 관계 확인·self-edge 제외·중복 제거를 거쳐 정규화된 module dependency 299개를 얻었다. 내부 재분류 관측은 0건이며 별도로 더하지 않는다. 이는 런타임 호출 횟수가 아니다.
 
 [Diagnostics](architecture-evidence.md#evidence-diagnostics)의 `rust-src` 부재는 여전하다. [순환 후보](architecture-evidence.md#evidence-cycles) 3건을 확정 순환이나 제거해야 할 결함으로 보지 않는다. 기본 package 집계는 `apps/node`·`apps/rust`·공통 영역을 구분하며 앱 내부를 하나로 묶으므로 아래 책임 경계는 코드·정책을 추가 대조한 결과다. guard의 173개 모듈·270개 확정 의존과 이 보고서의 production 집계는 범위·관계 정의가 달라 직접 비교하지 않는다.
 

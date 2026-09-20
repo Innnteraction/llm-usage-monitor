@@ -34,6 +34,10 @@ pnpm test:architecture
 pnpm package
 ```
 
+Electron Packager의 공용 임시 폴더 충돌을 피하기 위해 여러 checkout의 Node 패키징은
+순차 실행한다. `pnpm install`의 postinstall이 Electron 런타임 준비를 완료하므로
+설치가 끝난 뒤 테스트·패키징을 실행한다.
+
 루트 명령은 Node 앱 명령으로 전달된다. `apps/node` 안에서는 같은 Node 명령을
 직접 실행할 수 있다. 일반 테스트는 unit·integration만 실행한다. 실계정 CLI를
 실행하는 smoke 테스트는 `test:smoke:*`, Rust가 필요한 교차 검증은 `test:shared-cache`로
@@ -79,6 +83,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1 -Check
 | 작업 문서·캡처·측정 결과 | `.work` (로컬 전용) |
 
 `.work`는 Git에 포함하지 않으며 없는 checkout에서도 빌드·테스트가 동작한다.
+기존의 다른 checkout을 업데이트할 때는 추적 해제 커밋 적용 전에 `.work`를 별도로 백업한다.
+현재 작업 사본의 기존 `.work` 파일은 추적 해제 시 그대로 보존했다.
 작업 기록을 제품의 필수 입력으로 참조하지 않는다. 공용 fixture 수정은 별도 검토하고
 진단 도구는 결과를 `.work`에 기록한다. 기존 루트 빌드 캐시는 자동 삭제하지 않는다.
 
