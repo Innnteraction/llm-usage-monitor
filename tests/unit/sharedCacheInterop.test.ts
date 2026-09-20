@@ -86,7 +86,7 @@ it("round-trips sanitized quota, rejects corrupt versions, and recovers after wr
   const root=await mkdtemp(path.join(tmpdir(),"quota-cross-fixture-"));
   const executable=path.resolve(`target/debug/cache-fixture${process.platform === "win32" ? ".exe" : ""}`);
   try {
-    const fixture=JSON.parse(await readFile(path.resolve(".work/parity-reference/snapshot.json"),"utf8"));
+    const fixture=JSON.parse(await readFile(path.resolve("shared/fixtures/snapshot.json"),"utf8"));
     const file=path.join(root,SNAPSHOT_CACHE_FILENAME);
     const cache=new SnapshotCache(file);
     await cache.save(fixture);

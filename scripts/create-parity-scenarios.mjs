@@ -2,7 +2,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
-const base = JSON.parse(readFileSync(path.join(root, ".work/parity-reference/snapshot.json"), "utf8"));
+const base = JSON.parse(readFileSync(path.join(root, "shared/fixtures/snapshot.json"), "utf8"));
 const output = path.join(root, ".work/parity-captures/fixtures");
 mkdirSync(output, { recursive: true });
 const statusPages = { codex: "https://status.openai.com", claude: "https://status.claude.com", antigravity: "https://status.cloud.google.com" };

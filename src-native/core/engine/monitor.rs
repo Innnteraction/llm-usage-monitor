@@ -163,7 +163,7 @@ mod monitor_tests {
     async fn cached_and_fast_results_arrive_before_slow_provider_and_shutdown_flushes() {
         let dir = tempfile::tempdir().unwrap();
         let mut fixture: AppSnapshot = serde_json::from_str(include_str!(
-            "../../../.work/parity-reference/snapshot.json"
+            "../../../shared/fixtures/snapshot.json"
         ))
         .unwrap();
         let mut old = fixture.providers[0].clone();

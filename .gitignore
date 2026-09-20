@@ -64,3 +64,7 @@ gitleaks-report*.json
 .work/parity-captures/
 .work/parity-reference/*.png
 .work/parity-reference/metrics.json
+
+# Local work plans, captures and diagnostics
+.work/
+.architecture-guard/

@@ -40,7 +40,7 @@ There are no prebuilt downloads in this installation flow. Use **Code → Downlo
 
 Simpler setup does not mean a smaller app package. No memory reduction percentage or build time is promised. Full UI parity and macOS live UI/login still require manual verification. The installer shows missing tools on this PC and asks you to choose; **there is no default variant**. Only one managed app is installed.
 
-Reference measurement: five samples of the same synthetic expanded view on Windows x64 gave a process-tree Working Set sum of 314–318MiB for Node and about 55MiB for Rust. This short sample includes shared-page double counting; see [conditions and limits](.work/SINGLE_INSTALL_RISKS.md#메모리-비교).
+Reference measurement: five samples of the same synthetic expanded view on Windows x64 gave a process-tree Working Set sum of 314–318MiB for Node and about 55MiB for Rust. This short sample includes shared-page double counting; see [conditions and limits](docs/verification.md#메모리-비교).
 
 ### 2. Check the environment, then install
 

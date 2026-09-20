@@ -47,4 +47,4 @@ Rust 중앙 상태는 quota 3개·장애 3개·토큰 2개 작업을 독립 실�
 
 quota는 정상 60초, 실패 60·120·240·480·900초이며 미래 retryAt이 우선한다. 장애는 operational 900초, 그 외 300초다. 토큰은 60초와 수동 갱신에 참여한다. 전체/개별 진행 표시는 실제 작업 집합으로 계산한다. 정상 종료는 신규 요청을 차단하고 실행 중 작업·마지막 저장을 정리한 뒤 잠금을 해제한다.
 
-공통 허구 quota fixture는 `.work/parity-reference/snapshot.json`, JSONL 생성·양방향 검증은 `tests/unit/sharedCacheInterop.test.ts`, Rust fixture 실행기는 `src-native/bin/cache_fixture.rs`에 있다.
+공통 허구 quota fixture는 `shared/fixtures/snapshot.json`, JSONL 생성·양방향 검증은 `tests/unit/sharedCacheInterop.test.ts`, Rust fixture 실행기는 `src-native/bin/cache_fixture.rs`에 있다.

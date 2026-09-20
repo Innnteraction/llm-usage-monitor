@@ -57,7 +57,7 @@ Legacy `pnpm deploy*` commands enter the Node installer. Quick deployment still 
 
 Vendor CLIs and credentials are not installed/modified by this installer. Install the CLIs you use from their official sources and sign in yourself. Claude also requires folder trust. Follow [provider setup](../README.md#provider-setup).
 
-The app installs in user space; build tools may need admin access. Actual login/reboot and macOS live UI checks are manual, not implied by automatic tests. See the [verification record](../.work/SINGLE_INSTALL_RISKS.md).
+The app installs in user space; build tools may need admin access. Actual login/reboot and macOS live UI checks are manual, not implied by automatic tests. See the [verification record](verification.md).
 
 Missing Homebrew requires separate consent. Missing Xcode/Metal opens Apple setup and stops; complete first launch, licensing and the Metal toolchain, then rerun. Ad-hoc signing is not notarization and the installer does not disable Gatekeeper.
 

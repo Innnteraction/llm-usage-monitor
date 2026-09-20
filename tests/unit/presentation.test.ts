@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import contract from "../fixtures/presentation-contract.json";
+import contract from "../../shared/fixtures/presentation-contract.json";
 import {
   formatQuotaCountdown,
   formatCompactCountdown,

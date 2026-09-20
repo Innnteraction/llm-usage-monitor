@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 const root = path.resolve(import.meta.dirname, "..");
-const fixturePath = path.join(root, ".work", "parity-reference", "snapshot.json");
+const fixturePath = path.join(root, "shared", "fixtures", "snapshot.json");
 const output = path.join(root, ".work", "parity-captures", "P0", new Date().toISOString().replace(/[:.]/g, "-"));
 
 if (process.argv.includes("--snapshot-only")) {

@@ -36,7 +36,7 @@ writing:
 | 증거 | [기계 분석 snapshot](architecture-evidence.md#evidence-snapshot) |
 | 재현 명령 | `analyze-architecture.ps1 -Root <repo> -Output <temp>/architecture-facts.json -EvidenceOutput <repo>/docs/architecture-evidence.md` |
 
-기계 증거와 평가는 위 코드 revision 및 source digest를 기준으로 한다. 테스트·빌드 결과의 실행 범위는 [검증 기록](../.work/ARCHITECTURE_IMPROVEMENT_CHECKLIST.md)에 명시되어 있다. 문서 편집 시 테스트를 재실행한 것으로 간주하지 않는다. 비동기 경로는 코드와 fixture 테스트에 근거하며 runtime trace가 아니다.
+기계 증거와 평가는 위 코드 revision 및 source digest를 기준으로 한다. 테스트·빌드 결과의 실행 범위는 [검증 기록](verification.md)에 명시되어 있다. 문서 편집 시 테스트를 재실행한 것으로 간주하지 않는다. 비동기 경로는 코드와 fixture 테스트에 근거하며 runtime trace가 아니다.
 
 [Coverage](architecture-evidence.md#evidence-coverage)는 production 124개 모듈을 포함하고 test/fixture 등 48개를 제외한다. 원시 관계 관측 13,727건에서 imports/calls/registers 12,721건을 선별하고 내부 관계 확인·self-edge 제외·중복 제거를 거쳐 정규화된 module dependency 297개를 얻었다. 내부 재분류 관측은 0건이며 별도로 더하지 않는다. 이는 런타임 호출 횟수가 아니다.
 
@@ -54,7 +54,7 @@ writing:
 | AA-011 | 평가 | 적합 | cache/jobs/reducer/monitor를 분리하고 JobKey로 작업을 식별한다. 구체 provider 조립과 일괄 수집 API는 engine에 남는다. | `src-native/core/engine.rs`, `engine/*.rs`, 부분 갱신·Stop 테스트 |
 | AA-012 | 평가 | 주의 | Windows 실제 설치 조정 함수와 양쪽 caller를 검증했다. Rust helper 실패·비정상 응답·timeout도 검증했다. OS 로그인·Mac 전환 전체는 미확인이다. | `scripts/test-install-entry.ps1`, `tests/unit/launchAtLogin.test.ts`, `src-native/shell/desktop.rs::startup_tests` |
 | AA-014 | 사실 | 확인 | UI는 정규화된 snapshot과 사용자 동작 API 경계를 유지한다. | `src/preload/index.ts`, `src-native/ui` 및 [경계 의존](architecture-evidence.md#evidence-boundary-dependencies) |
-| AA-015 | 사실 | 확인 | 부분 반영·실패 보존·교차 캐시·설치 복구 테스트가 Windows에서 통과했다. | [구현 검증 기록](../.work/ARCHITECTURE_IMPROVEMENT_CHECKLIST.md) |
+| AA-015 | 사실 | 확인 | 부분 반영·실패 보존·교차 캐시·설치 복구 테스트가 Windows에서 통과했다. | [구현 검증 기록](verification.md) |
 | AA-016 | 제안 | 권장 | 별도 서비스/FFI 없이 언어 내부 경계와 공통 계약 검증을 강화하는 방향을 유지한다. 전체 UI 표준화 완료를 뜻하지 않는다. | [검사 안내](../architecture/README.md) |
 
 ## 4. 현재 책임과 데이터 흐름

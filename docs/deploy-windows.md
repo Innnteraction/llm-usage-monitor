@@ -57,6 +57,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Unins
 
 설치기는 벤더 CLI나 인증정보를 설치·변경하지 않습니다. 사용할 CLI만 공식 안내로 설치하고 직접 로그인하세요. Claude는 전용 폴더 신뢰 승인이 추가로 필요합니다. [초기 설정](../README.ko.md#프로바이더-초기-설정)을 따르세요.
 
-앱 사용자 폴더 설치와 도구 설치 권한은 별개입니다. macOS 실기 로그인·화면과 Windows 실제 재부팅 검수는 자동 테스트 결과에 포함되지 않습니다. [검증 기록](../.work/SINGLE_INSTALL_RISKS.md)을 확인하세요.
+앱 사용자 폴더 설치와 도구 설치 권한은 별개입니다. macOS 실기 로그인·화면과 Windows 실제 재부팅 검수는 자동 테스트 결과에 포함되지 않습니다. [검증 기록](verification.md)을 확인하세요.
 
 도구 설치에는 기존 WinGet을 이용합니다. 없으면 공식 Node/Build Tools 설치 링크를 안내합니다. UAC와 재부팅 요청이 나올 수 있습니다. rustup 다운로드는 공식 HTTPS와 설치 프로그램 검증을 거칩니다.

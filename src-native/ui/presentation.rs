@@ -113,7 +113,7 @@ mod tests {
     #[test]
     fn electron_fixture_selection_and_stale_boundary() {
         let s: AppSnapshot =
-            serde_json::from_str(include_str!("../../.work/parity-reference/snapshot.json"))
+            serde_json::from_str(include_str!("../../shared/fixtures/snapshot.json"))
                 .unwrap();
         assert_eq!(
             primary_windows(&s.providers[0])

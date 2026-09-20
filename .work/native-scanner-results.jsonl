@@ -1,3 +1,0 @@
-{"pass":"cold","files":20000,"elapsedMs":10755.1077,"totalTokens":2400000}
-{"pass":"warm","files":20000,"elapsedMs":553.3268999999999,"totalTokens":2400000}
-{"pass":"append","files":20000,"elapsedMs":578.5447,"totalTokens":2400050}

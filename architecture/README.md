@@ -33,7 +33,7 @@ Rust 엔진은 `engine.rs`의 수집 어댑터, `engine/cache.rs`의 저장·잠
 현재 스킬의 Rust 분석은 제한된 문법 해석이며 전체 의미 기반 순환 부재를 보증하지 않는다.
 CI는 Rust 컴파일·테스트와 실제 Node↔Rust 캐시 교환을 추가 검증한다.
 
-`tests/fixtures/presentation-contract.json`은 시간대, pending, 미제공, 반올림 표시 규칙을
+`shared/fixtures/presentation-contract.json`은 시간대, pending, 미제공, 반올림 표시 규칙을
 양쪽에서 검증한다. CSS와 GPUI의 픽셀·애니메이션 동등성을 대신하지 않는다.
 Windows 설치 테스트는 실제 설치 조정 함수를 호출하되 OS 등록·도구 빌드를 대체한다.
 앱의 자동 시작 호출 테스트는 임시 설치 폴더의 허구 헬퍼를 실행한다.
