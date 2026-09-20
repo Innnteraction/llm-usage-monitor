@@ -4,7 +4,7 @@ import {
   createVendorHealthPoller,
   HEALTH_POLL_INCIDENT_INTERVAL_MS,
   HEALTH_POLL_NORMAL_INTERVAL_MS,
-} from "../../src/usage/vendorHealthPoller";
+} from "../../src/usage/index";
 
 describe("VendorHealthPoller", () => {
   beforeEach(() => {

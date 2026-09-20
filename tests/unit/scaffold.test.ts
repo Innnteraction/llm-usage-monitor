@@ -2,7 +2,7 @@ import type { SpawnOptions } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { buildClaudeSetupLaunch, openClaudeSetup } from "../../src/main/claudeSetup";
+import { buildClaudeSetupLaunch, openClaudeSetup } from "../../src/main/index";
 
 describe("development scaffold", () => {
   it("runs the unit test toolchain", () => {

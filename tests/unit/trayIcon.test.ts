@@ -49,7 +49,7 @@ import {
   createTrayIcon,
   EMBEDDED_TRAY_ICON_DATA_URL,
   EMBEDDED_TRAY_TEMPLATE_ICON_DATA_URL,
-} from "../../src/main/trayIcon";
+} from "../../src/main/index";
 
 describe("tray icon generator", () => {
   it("exports valid embedded data URLs", () => {

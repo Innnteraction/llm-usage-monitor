@@ -4,7 +4,7 @@ import {
   detectSystemLocale,
   getMessages,
   LOCALES,
-} from "../../src/shared/i18n/index";
+} from "../../src/shared/index";
 
 describe("i18n infrastructure", () => {
   it("defaults to English for safe and consistent layout baseline", () => {

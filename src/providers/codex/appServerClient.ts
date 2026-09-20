@@ -11,7 +11,7 @@ import {
   type CodexAccountResponse,
   type CodexRateLimitsResponse,
 } from "./protocol";
-import { resolveCliBinaryPath } from "../../main/platform/index";
+import { resolveCliBinaryPath } from "../../infrastructure/index";
 
 const INITIALIZE_METHOD = "initialize";
 const INITIALIZED_METHOD = "initialized";

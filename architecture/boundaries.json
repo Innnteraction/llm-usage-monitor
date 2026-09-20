@@ -1,0 +1,56 @@
+{
+  "main": [
+    "core",
+    "storage",
+    "infrastructure",
+    "local-usage",
+    "shared",
+    "usage",
+    "providers"
+  ],
+  "core": [
+    "storage",
+    "local-usage",
+    "shared",
+    "usage",
+    "providers"
+  ],
+  "storage": [
+    "shared"
+  ],
+  "infrastructure": [
+    "shared"
+  ],
+  "local-usage": [
+    "shared"
+  ],
+  "preload": [
+    "shared"
+  ],
+  "providers": [
+    "provider-codex",
+    "provider-claude",
+    "provider-antigravity",
+    "shared"
+  ],
+  "provider-codex": [
+    "shared",
+    "infrastructure"
+  ],
+  "provider-claude": [
+    "shared",
+    "infrastructure"
+  ],
+  "provider-antigravity": [
+    "shared",
+    "infrastructure"
+  ],
+  "renderer": [
+    "shared"
+  ],
+  "shared": [],
+  "usage": [
+    "shared"
+  ],
+  "declarations": []
+}

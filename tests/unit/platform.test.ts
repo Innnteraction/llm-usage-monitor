@@ -12,7 +12,7 @@ import {
   getPlatformFallbackDirectories,
   findCliBinaryPath,
   resolveCliBinaryPath,
-} from "../../src/main/platform/index";
+} from "../../src/main/index";
 import {
   isMacOS,
   isWindows,
@@ -20,7 +20,7 @@ import {
   getModifierKeyLabel,
   getModifierKeySymbol,
   isShortcutMatch,
-} from "../../src/shared/platform";
+} from "../../src/shared/index";
 
 describe("shared platform utilities", () => {
   describe("OS detection", () => {

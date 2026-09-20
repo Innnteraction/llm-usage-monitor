@@ -9,7 +9,7 @@ import {
   selectDisplayWindows,
   sourceNames,
   usageTone,
-} from "../../src/renderer/selectors";
+} from "../../src/renderer/index";
 
 describe("renderer selectors", () => {
   it("provides user-friendly source names including Antigravity CLI, IDE", () => {

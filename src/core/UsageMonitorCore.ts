@@ -29,8 +29,8 @@ import {
   SNAPSHOT_CACHE_FILENAME,
   SnapshotCache,
   sharedCacheDirectory,
-} from "../main/snapshotCache";
-import { createFakeUsageStore } from "../main/fakeUsage";
+} from "../storage/index";
+import { createFakeUsageStore } from "./fakeUsage";
 
 export const CLAUDE_SETUP_READY_MARKER = "claude-setup-ready-v1";
 

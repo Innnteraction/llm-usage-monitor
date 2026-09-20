@@ -11,7 +11,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { launchAtLogin } from "./launchAtLogin";
 import { UsageMonitorCore } from "../core/index";
-import { acquireSharedLock, sharedCacheDirectory } from "./snapshotCache";
+import { acquireSharedLock, sharedCacheDirectory } from "../storage/index";
 import type { AppSnapshot, ProviderId } from "../shared/index";
 import { openAntigravitySetup } from "./antigravitySetup";
 import { openClaudeSetup } from "./claudeSetup";

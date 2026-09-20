@@ -1,0 +1,30 @@
+name: Cross-runtime contracts and boundaries
+on:
+  workflow_dispatch:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --global pnpm@9.15.9
+      - run: pnpm install --frozen-lockfile
+      - run: rustup default stable
+      - run: pnpm check:architecture
+      - run: node --test scripts/test-architecture.mjs
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm test:shared-cache
+      - run: cargo test --locked --all-targets

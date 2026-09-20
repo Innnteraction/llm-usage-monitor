@@ -4,7 +4,7 @@ import {
   fetchClaudeStatus,
   fetchCodexStatus,
   fetchVendorServiceStatus,
-} from "../../src/usage/vendorHealthFetcher";
+} from "../../src/usage/index";
 
 describe("vendorHealthFetcher", () => {
   const mockClock = () => new Date("2026-09-17T10:00:00.000Z");

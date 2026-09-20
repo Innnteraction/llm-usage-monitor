@@ -5,7 +5,7 @@ import {
 import { mkdtemp, rmdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { resolveCliBinaryPath } from "../../main/platform/index";
+import { resolveCliBinaryPath } from "../../infrastructure/index";
 
 const VERSION_ARGS = ["--version"] as const;
 const USAGE_ARGS = [
