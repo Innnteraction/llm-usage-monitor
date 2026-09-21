@@ -621,6 +621,11 @@ fn main() {
                 },
                 |_, cx| cx.new(|_| TrayKeepAlive),
             )
+            .and_then(|host| {
+                host.update(cx, |_, window, _| {
+                    llm_usage_monitor_core::shell::desktop::keep_tray_host_hidden(window)
+                })?
+            })
             .is_err()
         {
             eprintln!("Could not initialize the tray host window.");

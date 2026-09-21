@@ -6,6 +6,159 @@ use std::{
     process::{Command, Stdio},
 };
 
+/// GPUI 0.2.2는 모니터 변경 시 숨김 창에도 ShowWindow를 호출할 수 있다.
+/// 트레이 수명 유지용 창에만 적용하며 GPUI의 창 소유권은 유지한다.
+#[cfg(target_os = "windows")]
+pub fn keep_tray_host_hidden(window: &gpui::Window) -> Result<()> {
+    let handle = HasWindowHandle::window_handle(window)
+        .map_err(|_| anyhow::anyhow!("window handle unavailable"))?;
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+        bail!("unsupported window platform");
+    };
+    // GPUI 창을 생성한 UI 스레드에서만 호출한다.
+    unsafe {
+        hidden_tray_host::install(windows::Win32::Foundation::HWND(handle.hwnd.get() as *mut _))
+    }
+}
+
+#[cfg(target_os = "windows")]
+mod hidden_tray_host {
+    use anyhow::{bail, Result};
+    use windows::Win32::{
+        Foundation::{HWND, LPARAM, LRESULT, WPARAM},
+        UI::{
+            Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
+            WindowsAndMessaging::*,
+        },
+    };
+
+    const SUBCLASS_ID: usize = 1;
+
+    unsafe extern "system" fn procedure(
+        hwnd: HWND,
+        message: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+        id: usize,
+        _: usize,
+    ) -> LRESULT {
+        match message {
+            WM_WINDOWPOSCHANGING => {
+                if let Some(position) = (lparam.0 as *mut WINDOWPOS).as_mut() {
+                    position.flags &= !SWP_SHOWWINDOW;
+                    position.flags |= SWP_NOACTIVATE;
+                }
+            }
+            WM_MOUSEACTIVATE => return LRESULT(MA_NOACTIVATE as isize),
+            WM_NCDESTROY => {
+                let _ = RemoveWindowSubclass(hwnd, Some(procedure), id);
+            }
+            _ => {}
+        }
+        DefSubclassProc(hwnd, message, wparam, lparam)
+    }
+
+    pub(super) unsafe fn install(hwnd: HWND) -> Result<()> {
+        if !SetWindowSubclass(hwnd, Some(procedure), SUBCLASS_ID, 0).as_bool() {
+            bail!("could not protect tray host visibility");
+        }
+        // show:false에서는 GPUI가 요청한 1×1 배치를 미루므로 실제 HWND에도 적용한다.
+        // ShowWindow 반환값은 성공 여부가 아니라 이전 표시 상태다.
+        let _ = ShowWindow(hwnd, SW_HIDE);
+        // OS 최소 크기 보정은 유지한다. 외곽을 1×1로 강제하면 GPUI의 그리기 영역이
+        // 사라져 DirectX 렌더러가 실패할 수 있으므로 숨김 여부를 불변 조건으로 삼는다.
+        SetWindowPos(
+            hwnd,
+            None,
+            0,
+            0,
+            1,
+            1,
+            SWP_NOZORDER | SWP_NOACTIVATE | SWP_HIDEWINDOW,
+        )?;
+        if IsWindowVisible(hwnd).as_bool() {
+            bail!("tray host remained visible");
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use windows::core::w;
+
+        struct TestWindow(HWND);
+        impl Drop for TestWindow {
+            fn drop(&mut self) {
+                unsafe {
+                    let _ = DestroyWindow(self.0);
+                }
+            }
+        }
+
+        unsafe fn window() -> TestWindow {
+            TestWindow(
+                CreateWindowExW(
+                    WS_EX_TOOLWINDOW,
+                    w!("STATIC"),
+                    w!("synthetic tray host"),
+                    WS_POPUP,
+                    0,
+                    0,
+                    100,
+                    100,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+                .unwrap(),
+            )
+        }
+
+        #[test]
+        fn native_show_requests_keep_host_hidden_without_affecting_other_windows() {
+            unsafe {
+                let host = window();
+                let popover = window();
+                install(host.0).unwrap();
+                let mut bounds = windows::Win32::Foundation::RECT::default();
+                GetWindowRect(host.0, &mut bounds).unwrap();
+                assert_eq!(
+                    (bounds.right - bounds.left, bounds.bottom - bounds.top),
+                    (1, 1)
+                );
+                for _ in 0..3 {
+                    // GPUI 모니터 복구 경로와 일반 표시 요청을 실제 OS에 전달한다.
+                    let _ = ShowWindow(host.0, SW_SHOWNORMAL);
+                    assert!(!IsWindowVisible(host.0).as_bool());
+                    SetWindowPos(
+                        host.0,
+                        None,
+                        0,
+                        0,
+                        1,
+                        1,
+                        SWP_SHOWWINDOW | SWP_NOZORDER | SWP_NOACTIVATE,
+                    )
+                    .unwrap();
+                    assert!(!IsWindowVisible(host.0).as_bool());
+                    let _ = ShowWindow(popover.0, SW_SHOWNOACTIVATE);
+                    assert!(IsWindowVisible(popover.0).as_bool());
+                    let _ = ShowWindow(popover.0, SW_HIDE);
+                    assert!(!IsWindowVisible(popover.0).as_bool());
+                    assert!(IsWindow(Some(host.0)).as_bool());
+                }
+                assert!(install(HWND(std::ptr::null_mut())).is_err());
+                // WM_NCDESTROY에서 subclass를 제거한 후 정상적으로 파괴된다.
+                let hwnd = host.0;
+                drop(host);
+                assert!(!IsWindow(Some(hwnd)).as_bool());
+            }
+        }
+    }
+}
+
 pub fn prefers_reduced_motion() -> bool {
     #[cfg(target_os = "windows")]
     {
