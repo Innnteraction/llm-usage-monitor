@@ -35,12 +35,12 @@ There are no prebuilt downloads in this installation flow. Use **Code → Downlo
 | UI | Existing web UI | Native UI |
 | Build tools | Node 24 and project-pinned pnpm | Rust/Cargo; MSVC/SDK on Windows or Xcode/Metal on macOS |
 | Initial setup | Relatively simple | More tooling and compilation work |
-| Runtime memory | Expected to be higher with Electron | Expected to be lower |
+| Measured runtime memory (Windows x64) | 314–318 MiB | About 55 MiB |
 | Installed files | Bundled Electron runtime and resources | Native executable and resources |
 
 Simpler setup does not mean a smaller app package. No memory reduction percentage or build time is promised. Full UI parity and macOS live UI/login still require manual verification. The installer shows missing tools on this PC and asks you to choose; **there is no default variant**. Only one managed app is installed.
 
-Reference measurement: five samples of the same synthetic expanded view on Windows x64 gave a process-tree Working Set sum of 314–318MiB for Node and about 55MiB for Rust. This short sample includes shared-page double counting; see [conditions and limits](docs/verification.md#메모리-비교).
+Measurement conditions (2026-09-20): five samples of the same synthetic expanded view on Windows x64, summing the process-tree Working Set. These values include shared-page double counting and vary by PC, driver, and data; they are not macOS measurements. See [conditions and limits](docs/verification.md#메모리-비교).
 
 ### 2. Check the environment, then install
 
