@@ -37,7 +37,7 @@ impl SystemTrayManager {
         let tray_menu = Menu::new();
 
         // 1. 비활성 헤더 라벨
-        let header = MenuItem::new("LLM Usage Monitor v0.12.0", false, None);
+        let header = MenuItem::new("LLM Usage Monitor v0.13.0", false, None);
         let _ = tray_menu.append(&header);
         let _ = tray_menu.append(&PredefinedMenuItem::separator());
 

@@ -1,6 +1,6 @@
 {
   "name": "llm-usage-monitor-workspace",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "license": "MIT",
   "private": true,
   "packageManager": "pnpm@9.15.9",

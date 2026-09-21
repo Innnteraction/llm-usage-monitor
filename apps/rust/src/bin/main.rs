@@ -284,7 +284,7 @@ impl Render for PopoverView {
                     )
                     .child(div().id("help").cursor_pointer().size(px(16.)).child(llm_usage_monitor_core::ui::icons::header_icon("Help",false,palette))
                         .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
-                        .tooltip(move |_,cx|llm_usage_monitor_core::ui::tooltip::tooltip("LLM Usage Monitor v0.12.0\nquota: account · tokens: this PC\nCtrl/⌘+Shift+C  Toggle compact mode\nCtrl/⌘+Shift+L  Toggle theme (dark/light)\nCtrl/⌘+Shift+P  Toggle pin (always on top)\nEsc  Close popover (stay in tray)".into(),palette,cx)))))
+                        .tooltip(move |_,cx|llm_usage_monitor_core::ui::tooltip::tooltip("LLM Usage Monitor v0.13.0\nquota: account · tokens: this PC\nCtrl/⌘+Shift+C  Toggle compact mode\nCtrl/⌘+Shift+L  Toggle theme (dark/light)\nCtrl/⌘+Shift+P  Toggle pin (always on top)\nEsc  Close popover (stay in tray)".into(),palette,cx)))))
             .children(self.state.lock().unwrap().ui_error.clone().map(|message|div().text_size(px(11.968)).text_color(palette.high).child(message)))
             .child(div().id("content").flex_1().min_h_0().overflow_y_scroll().track_scroll(&scroll).mt(px(if compact {8.} else {12.}))
                 .child(div().flex().flex_col().gap(px(7.)).flex_shrink_0().w_full()
