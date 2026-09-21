@@ -44,12 +44,16 @@ Codex, Claude Code, Antigravity(`agy`)의 5시간·주간 사용량 쿼터(Quota
 
 ### 2. 환경 확인 → 설치
 
-Windows x64, 64-bit PowerShell:
+Windows x64, 64-bit PowerShell 7 (`pwsh`):
+
+`pwsh`가 없다면 [Microsoft 설치 안내](https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows)를 따라 설치한 뒤 새 터미널을 여세요. `powershell`은 별도로 설치된 7 대신 Windows PowerShell 5.1을 실행합니다.
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Check
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
+pwsh -NoProfile -File .\scripts\install.ps1 -Check
+pwsh -NoProfile -File .\scripts\install.ps1
 ```
+
+실행 정책은 변경하지 않습니다. 스크립트 차단 메시지가 나오면 [실행 정책·다운로드 차단 안내](docs/deploy-windows.md#실행-정책과-다운로드-차단)를 확인하세요.
 
 macOS Apple Silicon / Intel:
 
@@ -72,9 +76,9 @@ Windows 시작 메뉴의 **LLM Usage Monitor**, macOS `~/Applications/LLM Usage 
 
 ```powershell
 # Windows: Rust로 변경 (Node는 -Variant node)
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Variant rust
+pwsh -NoProfile -File .\scripts\install.ps1 -Variant rust
 # 제거: 캐시·인증·개발 도구 보존
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Uninstall
+pwsh -NoProfile -File .\scripts\install.ps1 -Uninstall
 ```
 
 ```bash

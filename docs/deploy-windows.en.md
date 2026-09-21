@@ -4,7 +4,9 @@
 
 ## Choose a variant
 
-Supported targets: Windows x64 with 64-bit PowerShell 5.1+, and macOS Apple Silicon/Intel with system Bash. Linux, Windows ARM64 and WSL are excluded. Extract the source ZIP or clone the repository, then open the project directory. Git is optional for ZIP installations. No prebuilt app download is provided.
+Supported targets: Windows x64 with 64-bit PowerShell 7 (`pwsh`), and macOS Apple Silicon/Intel with system Bash. Linux, Windows ARM64 and WSL are excluded. Extract the source ZIP or clone the repository, then open the project directory. Git is optional for ZIP installations. No prebuilt app download is provided.
+
+If `pwsh` is unavailable, follow [Microsoft's installation guide](https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows), then open a new terminal. PowerShell 7 installs alongside Windows PowerShell 5.1; `powershell` still starts 5.1. The `WindowsPowerShell\v1.0` directory name does not mean version 1.0 is running. Check with `pwsh -NoProfile -Command '$PSVersionTable.PSVersion'`.
 
 Node/Electron has simpler build preparation but bundles a web runtime. Rust/GPUI is expected to use less runtime memory, with more initial tooling and compilation work. No memory reduction percentage, installed size or build time is promised. Full UI parity and macOS live verification remain separate work.
 
@@ -13,20 +15,28 @@ This platform needs Node 24/pnpm or Rust stable MSVC/Visual Studio 2022 C++ Buil
 ## Install
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Check
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
+pwsh -NoProfile -File .\scripts\install.ps1 -Check
+pwsh -NoProfile -File .\scripts\install.ps1
 ```
 
 The check is read-only. Installation asks for a variant, new-install startup preference, and consent. Missing tools, sources and possible administrator/reboot requirements are shown before installation. Updates preserve startup unless explicitly changed.
 
 ```powershell
 # Choose Rust and login startup; use node to choose Node
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Variant rust -AutoStart on
+pwsh -NoProfile -File .\scripts\install.ps1 -Variant rust -AutoStart on
 # Explicit unattended consent, no immediate app launch
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Variant rust -AutoStart off -NonInteractive -AcceptInstall -AcceptDependencies -NoStart
+pwsh -NoProfile -File .\scripts\install.ps1 -Variant rust -AutoStart off -NonInteractive -AcceptInstall -AcceptDependencies -NoStart
 ```
 
 Unattended mode requires variant and installation consent, plus dependency consent if tools are missing. New installs require an explicit on/off startup choice. OS permissions, licenses and reboots are not bypassed. Declining stops installation; prepare tools manually and rerun.
+
+## Execution policies and downloaded files
+
+The default commands and `pnpm deploy*` preserve your execution policy and do not use `ExecutionPolicy Bypass`. [PowerShell execution policies](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_execution_policies) control script execution conditions; they do not guarantee that code is safe. Switching to PowerShell 7 does not remove organizational policies or security software restrictions.
+
+- If ZIP sources are blocked under `RemoteSigned`, review their source and contents, then unblock the original ZIP in its file properties and extract it into a new directory, where organizational policy permits.
+- If `Restricted`, `AllSigned` or organizational policy blocks execution, ask your administrator for an approved method or signed scripts. The installer does not change global policies or bypass them automatically.
+- If security software still reports a warning, check its exact message, product name and blocked file path. The `v1.0` directory name alone does not identify the runtime version or the cause.
 
 ## Run, update and switch
 
@@ -39,7 +49,7 @@ Login startup uses one entry: `HKCU\Software\Microsoft\Windows\CurrentVersion\Ru
 ## Remove and recover
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Uninstall
+pwsh -NoProfile -File .\scripts\install.ps1 -Uninstall
 ```
 
 Quit first. Removal preserves shared caches, vendor credentials and build tools. Custom installation directories are not supported.

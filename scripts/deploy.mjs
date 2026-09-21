@@ -33,15 +33,21 @@ if (platform === "darwin") {
   });
 
   const child = spawn(
-    "powershell",
-    ["-ExecutionPolicy", "Bypass", "-File", scriptPath, ...winArgs],
+    "pwsh",
+    ["-NoProfile", "-File", scriptPath, ...winArgs],
     {
       cwd: projectRoot,
       stdio: "inherit",
     },
   );
+  child.on("error", (error) => {
+    console.error(error.code === "ENOENT"
+      ? "PowerShell 7 (pwsh) is required. Install Microsoft.PowerShell, then open a new terminal."
+      : "Could not start PowerShell 7 for deployment.");
+    process.exitCode = 1;
+  });
   child.on("close", (code) => {
-    process.exit(code ?? 0);
+    process.exit(code ?? 1);
   });
 } else {
   console.error(`Unsupported platform for deployment: ${platform}`);

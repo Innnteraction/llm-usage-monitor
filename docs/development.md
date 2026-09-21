@@ -69,9 +69,9 @@ node scripts/diagnostics/create-parity-scenarios.mjs
 Windows 설치기 검증은 실제 설치본과 레지스트리를 건드리지 않는다.
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/test-install.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/test-install-entry.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1 -Check
+pwsh -NoProfile -File scripts/tests/test-install.ps1
+pwsh -NoProfile -File scripts/tests/test-install-entry.ps1
+pwsh -NoProfile -File scripts/install.ps1 -Check
 ```
 
 | 산출물 | 경로 |

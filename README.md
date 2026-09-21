@@ -44,12 +44,16 @@ Measurement conditions (2026-09-20): five samples of the same synthetic expanded
 
 ### 2. Check the environment, then install
 
-Windows x64, 64-bit PowerShell:
+Windows x64, 64-bit PowerShell 7 (`pwsh`):
+
+If `pwsh` is unavailable, follow [Microsoft's installation guide](https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows), then open a new terminal. The `powershell` command starts Windows PowerShell 5.1 even when version 7 is installed alongside it.
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Check
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
+pwsh -NoProfile -File .\scripts\install.ps1 -Check
+pwsh -NoProfile -File .\scripts\install.ps1
 ```
+
+These commands preserve your execution policy. If a script is blocked, see [execution policies and downloaded files](docs/deploy-windows.en.md#execution-policies-and-downloaded-files).
 
 macOS Apple Silicon / Intel:
 
@@ -72,9 +76,9 @@ Quit through the tray menu and rerun the installer from the new source. Selectin
 
 ```powershell
 # Windows: switch to Rust (use -Variant node for Node)
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Variant rust
+pwsh -NoProfile -File .\scripts\install.ps1 -Variant rust
 # Remove app only; retain cache, credentials and build tools
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Uninstall
+pwsh -NoProfile -File .\scripts\install.ps1 -Uninstall
 ```
 
 ```bash

@@ -4,7 +4,9 @@
 
 ## 선택과 사전 조건
 
-Windows x64의 64-bit PowerShell 5.1 이상에서 실행합니다. Linux·Windows ARM64·WSL은 지원하지 않습니다. ZIP 압축을 푼 프로젝트 폴더에서 시작할 수 있고 Git은 필수가 아닙니다. 공개 빌드 패키지는 제공하지 않습니다.
+Windows x64의 64-bit PowerShell 7 (`pwsh`)에서 실행합니다. Linux·Windows ARM64·WSL은 지원하지 않습니다. ZIP 압축을 푼 프로젝트 폴더에서 시작할 수 있고 Git은 필수가 아닙니다. 공개 빌드 패키지는 제공하지 않습니다.
+
+`pwsh`가 없으면 [Microsoft 공식 안내](https://learn.microsoft.com/powershell/scripting/install/install-powershell-on-windows)에 따라 PowerShell 7을 설치하고 새 터미널을 여세요. Windows PowerShell 5.1과 함께 설치되며 `powershell` 명령은 계속 5.1을 실행합니다. `WindowsPowerShell\v1.0`이라는 경로 이름은 실제 버전이 1.0이라는 뜻이 아닙니다. `pwsh -NoProfile -Command '$PSVersionTable.PSVersion'`으로 실행 버전을 확인할 수 있습니다.
 
 Node는 웹 UI와 Electron 런타임을 포함하며 빌드 준비가 비교적 단순합니다. Rust는 네이티브 UI로 실행 메모리가 작을 것으로 예상되지만 최초 도구 설치와 컴파일 부담이 큽니다. 앱 용량·메모리 절감률을 보장하지 않습니다. 전체 UI 동등성과 macOS 실화면 검증은 진행 중입니다.
 
@@ -13,20 +15,28 @@ Node는 웹 UI와 Electron 런타임을 포함하며 빌드 준비가 비교적 
 ## 설치
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Check
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
+pwsh -NoProfile -File .\scripts\install.ps1 -Check
+pwsh -NoProfile -File .\scripts\install.ps1
 ```
 
 검사 명령은 도구·앱·자동 시작을 변경하지 않습니다. 설치 명령은 버전과 신규 자동 시작 여부를 묻고, 변경할 내용·설치 출처를 표시한 뒤 동의를 받습니다. 자동 시작을 지정하지 않은 업데이트는 기존 상태를 유지합니다.
 
 ```powershell
 # Rust 선택 + 자동 시작; node로 바꾸면 Node 설치
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Variant rust -AutoStart on
+pwsh -NoProfile -File .\scripts\install.ps1 -Variant rust -AutoStart on
 # 명시적 비대화형 동의: 도구 설치 및 앱 교체를 승인하는 옵션
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Variant rust -AutoStart off -NonInteractive -AcceptInstall -AcceptDependencies -NoStart
+pwsh -NoProfile -File .\scripts\install.ps1 -Variant rust -AutoStart off -NonInteractive -AcceptInstall -AcceptDependencies -NoStart
 ```
 
 비대화형은 버전·앱 변경 동의가 필수이며 도구 설치가 필요하면 도구 동의도 필수입니다. 신규 설치는 자동 시작 on/off를 명시해야 합니다. 운영체제의 관리자 권한·라이선스·재부팅 확인은 생략하지 않습니다. 누락 도구에 동의하지 않으면 멈추며 수동 준비 후 같은 명령으로 재개합니다.
+
+## 실행 정책과 다운로드 차단
+
+기본 명령과 `pnpm deploy*`는 `ExecutionPolicy Bypass`를 사용하지 않고 현재 정책을 따릅니다. [PowerShell 실행 정책](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_execution_policies)은 스크립트 실행 조건이며 악성 코드 안전성을 보증하지 않습니다. PowerShell 7로 바꾸어도 조직의 정책이나 보안 프로그램의 차단이 해제되는 것은 아닙니다.
+
+- ZIP으로 받은 소스가 `RemoteSigned`에서 차단되면 출처와 내용을 검토한 뒤, 원본 ZIP의 속성에서 **차단 해제**를 선택하고 새 폴더에 다시 압축을 풉니다. 조직 정책이 허용하는 경우에만 진행하세요.
+- `Restricted`·`AllSigned` 또는 조직 정책으로 차단되면 관리자에게 허용된 실행 방법이나 서명된 스크립트를 요청하세요. 설치기는 전역 정책을 변경하거나 자동으로 우회하지 않습니다.
+- 보안 프로그램 경고가 계속되면 경고 문구·제품명·차단한 파일 경로를 확인하세요. `v1.0` 경로만으로 구버전 실행이나 경고 원인을 판단하지 않습니다.
 
 ## 실행·업데이트·전환
 
@@ -39,7 +49,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Varia
 ## 제거·복구
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Uninstall
+pwsh -NoProfile -File .\scripts\install.ps1 -Uninstall
 ```
 
 종료 후 실행하세요. 앱·앱 소유 바로가기·자동 시작을 정리하며 캐시, 벤더 인증, Node/Rust/C++ 도구는 삭제하지 않습니다. 사용자 지정 설치 위치는 지원하지 않습니다.
