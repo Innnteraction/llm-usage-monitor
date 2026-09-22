@@ -7,7 +7,7 @@ use llm_usage_monitor_core::{
     core::{engine::{self, MonitorCommand}, types::*},
     shell::{
         position::{
-            calculate_popover_position, clamp_popover_height, clamp_window_position,
+            calculate_popover_position, clamp_window_position, resized_popover_geometry,
             Point as PosPoint, WindowRect, WindowSize,
         },
         tray::SystemTrayManager,
@@ -56,7 +56,6 @@ struct AppState {
     expanded: std::collections::HashSet<ProviderId>,
     expanded_errors: std::collections::HashSet<ProviderId>,
     desired_height: Option<f32>,
-    max_height: f32,
     work_area: WindowRect,
     anchor: PosPoint,
     custom_position: Option<PosPoint>,
@@ -68,6 +67,22 @@ struct AppState {
     reduced_motion: bool,
 }
 impl AppState {
+    fn refresh_work_area(&mut self, window: &Window) -> bool {
+        #[cfg(target_os = "windows")]
+        match llm_usage_monitor_core::shell::desktop::window_work_area(window) {
+            Ok(area) => {
+                self.work_area = area;
+            }
+            Err(_) => {
+                self.ui_error = Some("Failed to read current monitor work area.".into());
+                return false;
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        let _ = window;
+        true
+    }
+
     fn toggle_compact(&mut self) {
         self.compact = !self.compact;
         self.expanded.clear();
@@ -366,7 +381,6 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
     let area = native_geometry.map(|(_, work)| work).unwrap_or(area);
     let width = 480_f32.min(area.width);
     let height = 360_f32.min((area.height - 4.).max(100.));
-    state.lock().unwrap().max_height = (area.height - 4.).max(100.);
     let anchor = PosPoint::new(
         area.x + area.width - 140.,
         if cfg!(target_os = "macos") {
@@ -404,12 +418,15 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
     };
     let view_state = state.clone();
     match cx.open_window(options, move |window, cx| {
+        window.set_window_title("LLM Usage Monitor");
         cx.new(|cx| {
-            cx.observe_window_bounds(window, |this: &mut PopoverView, window, _| {
+            cx.observe_window_bounds(window, |this: &mut PopoverView, window, cx| {
                 let mut s = this.state.lock().unwrap();
                 if s.dragging {
                     let origin = window.bounds().origin;
                     s.custom_position = Some(PosPoint::new(origin.x.into(), origin.y.into()));
+                    s.refresh_work_area(window);
+                    cx.notify();
                 }
             })
             .detach();
@@ -582,7 +599,6 @@ fn main() {
             expanded: Default::default(),
             expanded_errors: Default::default(),
             desired_height: None,
-            max_height: 1000.,
             work_area: WindowRect::new(0.,0.,1920.,1080.),
             anchor: PosPoint::new(1780.,1080.),
             custom_position: None,
@@ -678,25 +694,26 @@ fn main() {
                     let resize = {
                         let mut s = state.lock().unwrap();
                         s.desired_height.take().and_then(|h| {
-                            s.window_handle
-                                .map(|handle| (handle, clamp_popover_height(Some(h),if h<304. {h.max(124.)} else {360.},s.max_height)))
+                            s.window_handle.map(|handle| (handle, h))
                         })
                     };
                     if let Some((handle, height)) = resize {
                         let _ = async_cx.update(|cx| {
-                            handle.update(cx, |view, window, _| {
-                                if (f32::from(window.bounds().size.height) - height).abs() > 1. {
-                                    let (width, pos) = {
-                                        let mut s = view.state.lock().unwrap();
-                                        s.dragging = false;
-                                        let width = 480_f32.min(s.work_area.width);
-                                        let dimensions = WindowSize::new(width,height.ceil());
-                                        let pos = s.custom_position.map(|p|clamp_window_position(p,dimensions,s.work_area))
-                                            .unwrap_or_else(||calculate_popover_position(s.anchor,s.work_area,dimensions));
-                                        (width, pos)
-                                    };
+                            handle.update(cx, |view, window, cx| {
+                                let (dimensions, pos) = {
+                                    let mut s = view.state.lock().unwrap();
+                                    if !s.refresh_work_area(window) {
+                                        cx.notify();
+                                        return;
+                                    }
+                                    resized_popover_geometry(height, s.custom_position, s.anchor, s.work_area)
+                                };
+                                let bounds = window.bounds();
+                                if (f32::from(bounds.size.height) - dimensions.height).abs() > 1.
+                                    || (f32::from(bounds.size.width) - dimensions.width).abs() > 1. {
+                                    view.state.lock().unwrap().dragging = false;
                                     // Bounds observers may acquire AppState again during OS calls.
-                                    window.resize(size(px(width),px(height.ceil())));
+                                    window.resize(size(px(dimensions.width),px(dimensions.height)));
                                     #[cfg(target_os="windows")]
                                     if llm_usage_monitor_core::shell::desktop::set_position(window,pos.x,pos.y).is_err() {
                                         view.state.lock().unwrap().ui_error=Some("Failed to update window position.".into());
@@ -860,7 +877,6 @@ mod tests {
             expanded: Default::default(),
             expanded_errors: Default::default(),
             desired_height: None,
-            max_height: 1000.,
             work_area: WindowRect::new(0., 0., 1920., 1080.),
             anchor: PosPoint::new(1780., 1080.),
             custom_position: None,

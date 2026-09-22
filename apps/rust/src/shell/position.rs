@@ -18,6 +18,19 @@ impl WindowRect {
             height,
         }
     }
+
+    /// Windows의 물리 작업영역을 현재 GPUI 창의 논리 좌표로 변환한다.
+    pub fn to_logical(self, scale: f32) -> Option<Self> {
+        if !scale.is_finite() || scale <= 0.0 || self.width <= 0.0 || self.height <= 0.0 {
+            return None;
+        }
+        Some(Self::new(
+            self.x / scale,
+            self.y / scale,
+            self.width / scale,
+            self.height / scale,
+        ))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -183,9 +196,107 @@ pub fn clamp_window_position(
     )
 }
 
+/// 사용자 기준점은 보정 결과로 덮어쓰지 않는다. 접으면 원래 위치로 돌아온다.
+pub fn resized_popover_geometry(
+    requested_height: f32,
+    custom_position: Option<Point>,
+    anchor: Point,
+    work_area: WindowRect,
+) -> (WindowSize, Point) {
+    let minimum = if requested_height < 304. {
+        requested_height.max(124.)
+    } else {
+        360.
+    };
+    let height = clamp_popover_height(
+        Some(requested_height),
+        minimum,
+        (work_area.height - 4.).max(1.),
+    );
+    let dimensions = WindowSize::new(480_f32.min(work_area.width), height);
+    let position = custom_position
+        .map(|p| clamp_window_position(p, dimensions, work_area))
+        .unwrap_or_else(|| calculate_popover_position(anchor, work_area, dimensions));
+    (dimensions, position)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resize_stays_on_secondary_monitor_at_each_dpi() {
+        // 물리 좌표로 오른쪽, 왼쪽, 위쪽 모니터와 하단 작업표시줄을 표현한다.
+        for physical in [
+            WindowRect::new(1920., 0., 2560., 1400.),
+            WindowRect::new(-2560., 0., 2560., 1400.),
+            WindowRect::new(0., -1440., 2560., 1400.),
+        ] {
+            for scale in [1., 1.25, 1.5, 2.] {
+                let area = physical.to_logical(scale).unwrap();
+                let origin = Point::new(area.x + 80., area.y + 60.);
+                // 최초 주 모니터 anchor가 남아 있어도 사용자 위치를 우선한다.
+                let anchor = Point::new(1780., 1080.);
+                for height in [124., 360., 500., 124., 360.] {
+                    let (dimensions, position) =
+                        resized_popover_geometry(height, Some(origin), anchor, area);
+                    assert_eq!(position, origin);
+                    assert!(position.x + dimensions.width <= area.x + area.width);
+                    assert!(position.y + dimensions.height <= area.y + area.height);
+                }
+                assert_eq!(area.x * scale, physical.x);
+                assert_eq!(area.y * scale, physical.y);
+                assert_eq!(area.height * scale, physical.height);
+            }
+        }
+    }
+
+    #[test]
+    fn edge_clamping_does_not_replace_dragged_origin() {
+        let area = WindowRect::new(-1600., 0., 1600., 860.);
+        let origin = Point::new(-600., 600.);
+        let anchor = Point::new(1780., 1080.);
+        for _ in 0..3 {
+            let (_, expanded) = resized_popover_geometry(720., Some(origin), anchor, area);
+            assert_eq!(expanded, Point::new(origin.x, 140.));
+            let (_, collapsed) = resized_popover_geometry(124., Some(origin), anchor, area);
+            assert_eq!(collapsed, origin);
+        }
+    }
+
+    #[test]
+    fn resize_uses_current_monitor_height_and_width() {
+        let anchor = Point::new(1780., 1080.);
+        for area in [
+            WindowRect::new(1920., 0., 1280., 720.),
+            WindowRect::new(-400., -600., 400., 600.),
+        ] {
+            let (dimensions, position) =
+                resized_popover_geometry(2000., Some(Point::new(area.x, area.y)), anchor, area);
+            assert_eq!(dimensions.height, area.height - 4.);
+            assert_eq!(dimensions.width, area.width.min(480.));
+            assert_eq!(position, Point::new(area.x, area.y));
+        }
+    }
+
+    #[test]
+    fn unmodified_window_keeps_tray_anchor() {
+        let area = WindowRect::new(0., 0., 1920., 1040.);
+        let anchor = Point::new(1780., 1060.);
+        for height in [124., 720., 360.] {
+            let (dimensions, position) = resized_popover_geometry(height, None, anchor, area);
+            assert_eq!(position.y + dimensions.height, 1040.);
+        }
+    }
+
+    #[test]
+    fn invalid_native_geometry_is_rejected() {
+        let area = WindowRect::new(1920., 0., 2560., 1400.);
+        for scale in [0., -1., f32::NAN, f32::INFINITY] {
+            assert!(area.to_logical(scale).is_none());
+        }
+        assert!(WindowRect::new(0., 0., 0., 100.).to_logical(1.).is_none());
+    }
 
     #[test]
     fn content_resize_keeps_bottom_anchor_and_custom_position_in_work_area() {

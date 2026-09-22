@@ -180,6 +180,42 @@ pub fn prefers_reduced_motion() -> bool {
 }
 
 #[cfg(target_os = "windows")]
+pub fn window_work_area(window: &gpui::Window) -> Result<super::position::WindowRect> {
+    use windows::Win32::{
+        Foundation::HWND,
+        Graphics::Gdi::{
+            GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+        },
+    };
+    let handle = HasWindowHandle::window_handle(window)
+        .map_err(|_| anyhow::anyhow!("window handle unavailable"))?;
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+        bail!("unsupported window platform");
+    };
+    // 모니터 선택은 물리 HWND에 맡기고, 좌표 변환은 GPUI와 같은 배율을 사용한다.
+    let mut info = MONITORINFO {
+        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    unsafe {
+        let monitor =
+            MonitorFromWindow(HWND(handle.hwnd.get() as *mut _), MONITOR_DEFAULTTONEAREST);
+        if !GetMonitorInfoW(monitor, &mut info).as_bool() {
+            bail!("window work area unavailable");
+        }
+    }
+    let r = info.rcWork;
+    super::position::WindowRect::new(
+        r.left as f32,
+        r.top as f32,
+        (r.right - r.left) as f32,
+        (r.bottom - r.top) as f32,
+    )
+    .to_logical(window.scale_factor())
+    .context("invalid window work area")
+}
+
+#[cfg(target_os = "windows")]
 pub fn set_position(window: &gpui::Window, x: f32, y: f32) -> Result<()> {
     use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::*};
     let handle = HasWindowHandle::window_handle(window)
