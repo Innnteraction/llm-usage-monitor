@@ -192,7 +192,7 @@ impl Render for PopoverView {
                         return;
                     }
                     UiAction::Setup(id, alternate) => {
-                        use llm_usage_monitor_core::shell::desktop::{open_setup, Setup};
+                        use llm_usage_monitor_core::shell::desktop::Setup;
                         let setup = match (id, alternate) {
                             (ProviderId::Claude, false) => Setup::ClaudeLogin,
                             (ProviderId::Claude, true) => Setup::ClaudeTrust,
@@ -200,7 +200,7 @@ impl Render for PopoverView {
                             (ProviderId::Antigravity, true) => Setup::AntigravitySwitch,
                             _ => return,
                         };
-                        if !s.demo && open_setup(setup).is_err() {
+                        if !s.demo && open_setup_terminal(setup).is_err() {
                             s.ui_error = Some("Failed to open setup terminal.".into());
                         }
                         cx.notify();
@@ -315,6 +315,22 @@ impl Render for PopoverView {
                         else { for (index,p) in snap.providers.iter().enumerate() {children.push(render_quota_card(p,index,palette,now,expanded.contains(&p.provider_id),events.clone(),reduced_motion,snap.refreshing.contains(&p.provider_id)).into_any_element());} }
                         children
                     } else {vec![div().text_size(px(11.968)).child("Loading quota…").into_any_element()]})))
+    }
+}
+fn open_setup_terminal(setup: llm_usage_monitor_core::shell::desktop::Setup) -> anyhow::Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        use llm_usage_monitor_core::{providers::CliCommand, shell::desktop::{open_setup_with_cli, Setup}};
+        let (name, override_key) = match setup {
+            Setup::ClaudeLogin | Setup::ClaudeTrust => ("claude", "CLAUDE_CLI_PATH"),
+            Setup::AntigravityLogin | Setup::AntigravitySwitch => ("agy", "ANTIGRAVITY_CLI_PATH"),
+        };
+        let cli = CliCommand::new(std::env::var_os(override_key).unwrap_or_else(|| name.into()));
+        open_setup_with_cli(setup, &cli.program, &cli.path)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        llm_usage_monitor_core::shell::desktop::open_setup(setup)
     }
 }
 

@@ -108,3 +108,58 @@ Defensive checks inside `publishState` guard against destroyed windows, loading 
      - Validates absolute paths directly if provided.
      - For relative/bare commands, queries `PATH` first; if unresolved, systematically traverses platform fallback directories and returns the verified absolute path of the executable.
   4. Both the Codex Provider (`appServerClient.ts`) and the Antigravity Provider (`processRunner.ts`) route execution through this unified resolver.
+
+---
+
+## 5. macOS Rust installation: CLI works in a terminal but quota stays stale
+
+On 2026-10-09, an Apple Silicon macOS Rust 0.13.1 installation kept all three quota
+providers stale while local token collection continued. The automatically started
+app inherited only `/usr/bin:/bin:/usr/sbin:/sbin`. Codex was installed in Homebrew,
+and Claude and Antigravity in `~/.local/bin`; the Rust collectors could not find them.
+Version checks failed under that PATH and succeeded with app-local fallback paths.
+An absolute path alone is insufficient for the npm Codex wrapper: its child still
+needs `node` on PATH. Other stale states can have different causes.
+
+The updated Rust app respects `CODEX_CLI_PATH`, `CLAUDE_CLI_PATH`, and
+`ANTIGRAVITY_CLI_PATH`, then searches the inherited PATH and standard macOS
+locations: `/opt/homebrew/bin`, `/opt/homebrew/sbin`, `/usr/local/bin`, `~/.local/bin`,
+and `~/.cargo/bin`. An invalid explicit path does not select another installation.
+The selected executable's parent and missing standard paths are also added to each
+child's PATH. Setup buttons use the same selection. Shell configuration and the
+LaunchAgent's global environment remain untouched.
+
+Claude 2.1.294 AX mode uses a standalone `$` input prompt. The collector requires
+the Claude banner and a known input prompt, and rejects unknown trailing screens.
+It sends no input to login, trust, or unknown startup dialogs. Only a complete
+`/usage` response with valid session and overall weekly windows followed by graceful
+exit is fresh. Failures preserve the last successful values as stale.
+
+Build the updated source, quit the existing app through its tray, and update with
+`bash scripts/install.sh --variant rust`. Open the installation from Finder and
+refresh; check that providers become fresh and their last successful times advance.
+If automatic startup is enabled, repeat the check after the next login.
+
+To verify collection under the restricted GUI PATH, run from the repository root:
+
+```bash
+cargo build --locked --release --bin test-collector
+env PATH=/usr/bin:/bin:/usr/sbin:/sbin ./target/release/test-collector
+```
+
+This requires Rust/Cargo and macOS build tools and invokes real vendor CLIs. Output
+contains only normalized provider status, error codes, required-window presence,
+and elapsed time; it excludes quota values, resets, account identifiers, token
+counts, and raw screens. Exit code 0 means all providers succeeded; 1 means a
+collection failed. Codex's missing 5h window is supported. The probe uses an isolated
+temporary cache and does not alter the installed app's shared cache.
+
+For remaining failures, sign in through the vendor CLI for `not_authenticated`, or
+use `prepare folder` and approve only the dedicated probe folder for
+`workspace_trust_required`. Network, rate-limit, timeout, unsupported output, and
+process errors remain distinct. Do not delete credentials or caches to repair PATH.
+
+Implementation and synthetic regression tests:
+[CLI environment](apps/rust/src/providers/cli.rs),
+[Claude probe](apps/rust/src/providers/claude.rs),
+[sanitized collector](apps/rust/tools/test_collector.rs).

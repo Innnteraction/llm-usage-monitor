@@ -139,3 +139,68 @@ Remove-Item Env:LLM_USAGE_MONITOR_GPU_SANDBOX
      - 절대 경로가 전달된 경우 해당 파일 유효성 검사.
      - 상대/파일명인 경우 `PATH` 환경변수를 먼저 검색하고, 미발견 시 플랫폼 fallback 디렉터리를 순회하여 실제 존재하는 바이너리의 절대 경로를 반환.
   4. Codex Provider(`appServerClient.ts`) 및 Antigravity Provider(`processRunner.ts`)가 이 공통 resolver를 거쳐 프로세스를 기동하도록 통합.
+
+---
+
+## 5. macOS Rust 설치본: 터미널에서는 CLI가 있는데 quota는 stale
+
+### 증상과 확인된 원인
+
+2026-10-09 Apple Silicon macOS에서 Rust 0.13.1 설치본의 세 provider quota가 모두
+`stale`인 반면 로컬 토큰 캐시는 갱신되는 현상을 확인했다. 자동 시작된 앱의 PATH는
+`/usr/bin:/bin:/usr/sbin:/sbin`뿐이었다. Codex는 Homebrew, Claude와 Antigravity는
+`~/.local/bin`에 있어 기존 Rust 수집기가 실행 파일을 발견하지 못했다.
+
+같은 제한된 PATH에서 세 CLI의 버전 조회가 모두 실패했고, 앱 전용 표준 경로를
+보충하면 모두 성공했다. Codex npm wrapper는 절대 경로만 지정해도 내부 `node`를
+찾지 못해 실패하므로 자식 프로세스의 PATH 보완도 필요하다. 이 조건으로 재현된
+장애이며 모든 `stale` 상태가 같은 원인이라는 뜻은 아니다.
+
+### 수정 동작
+
+수정된 Rust 앱은 `CODEX_CLI_PATH`, `CLAUDE_CLI_PATH`, `ANTIGRAVITY_CLI_PATH` 설정을
+우선 사용한다. 기본 이름은 기존 PATH에서 찾고, macOS에서는 `/opt/homebrew/bin`,
+`/opt/homebrew/sbin`, `/usr/local/bin`, `~/.local/bin`, `~/.cargo/bin`을 추가로 탐색한다.
+명시한 경로가 잘못되면 다른 설치본으로 전환하지 않는다.
+
+선택한 CLI의 부모 디렉터리와 누락된 표준 경로를 자식 PATH에도 추가한다.
+사용자의 shell 설정과 LaunchAgent의 전역 환경은 수정하지 않는다. 로그인·폴더 준비
+버튼도 앱이 선택한 CLI와 실행 환경을 보이는 Terminal에 전달한다.
+
+Claude 2.1.294의 접근성 모드는 화살표 대신 독립된 `$` 입력 프롬프트를 사용한다.
+수집기는 Claude 배너와 알려진 입력 프롬프트를 함께 확인하고, 뒤에 알 수 없는 화면이
+이어지면 명령을 보내지 않는다. 로그인·trust 대기에도 입력하지 않는다. `/usage` 응답에서
+유효한 5시간·전체 주간 창을 확인하고 정상 종료해야 `fresh`가 된다. 불완전한 화면,
+수집 실패나 종료 실패는 마지막 성공값을 `stale`로 유지한다. 실제 값과 reset,
+계정 식별자와 원본 화면은 진단 출력에 포함하지 않는다.
+
+### 복구 확인
+
+1. 이 수정이 포함된 소스로 Rust 앱을 빌드하고, 기존 앱을 트레이에서 종료한 뒤
+   `bash scripts/install.sh --variant rust`로 업데이트한다. 기존 자동 시작 선택을 유지한다.
+2. Finder에서 설치 앱을 열고 새로고침한다. 마지막 성공 시각이 갱신되고 사용하려는
+   provider가 `fresh`로 바뀌는지 확인한다.
+3. 자동 시작을 사용한다면 다음 로그인에서 같은 결과를 확인한다.
+
+GUI와 같은 제한된 PATH에서도 실행할 수 있는지 별도로 확인하려면 저장소 루트에서 실행한다.
+Rust/Cargo와 macOS 빌드 도구가 필요하고, 실제 벤더 CLI를 호출하는 검사다.
+
+```bash
+cargo build --locked --release --bin test-collector
+env PATH=/usr/bin:/bin:/usr/sbin:/sbin ./target/release/test-collector
+```
+
+출력은 provider 상태·오류 코드·필수 창 존재 여부와 소요 시간으로 제한한다.
+각 provider가 정상 수집되면 종료 코드 0, 하나라도 실패하면 1이다.
+Codex가 5시간 창을 제공하지 않는 상태는 실패로 취급하지 않는다.
+진단은 임시 캐시를 사용하며 설치 앱의 공유 캐시를 변경하지 않는다.
+
+경로 복구 후에도 실패하면 오류에 따라 조치한다. `not_authenticated`는 해당 CLI에서
+로그인하고, `workspace_trust_required`는 앱의 `prepare folder`로 빈 probe 폴더만 직접
+승인한다. `network`, `rate_limited`, `timeout`, `unsupported_output`, `process_failed`는
+각각 네트워크·요청 제한·응답 지연·출력 불일치·프로세스 실행 또는 종료 실패를 뜻한다.
+인증 파일이나 캐시 삭제로 해결을 시도하지 않는다.
+
+관련 구현과 허구 회귀 테스트는 [CLI 실행 환경](apps/rust/src/providers/cli.rs),
+[Claude PTY 수집기](apps/rust/src/providers/claude.rs),
+[정제된 진단 도구](apps/rust/tools/test_collector.rs)에 있다.

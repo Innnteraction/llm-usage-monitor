@@ -27,6 +27,7 @@ const MAX_CAPTURE_CHARS: usize = 512 * 1024;
 const STARTUP_IDLE: Duration = Duration::from_millis(5000);
 const RESPONSE_IDLE: Duration = Duration::from_millis(1500);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(25);
+const EXIT_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone)]
 pub struct ClaudeParsedWindow {
@@ -71,7 +72,7 @@ impl ClaudeProvider {
         // 1. Run PTY probe in blocking thread (portable-pty is synchronous)
         let pty_res = tokio::task::spawn_blocking(move || run_claude_pty_probe(&cmd)).await;
 
-        let (status, usage_screen) = match pty_res {
+        let probe = match pty_res {
             Ok(res) => res,
             Err(_) => {
                 return failure_snapshot(
@@ -82,8 +83,8 @@ impl ClaudeProvider {
             }
         };
 
-        if status != "supported" {
-            let (code, msg) = match status.as_str() {
+        if probe.status != "supported" {
+            let (code, msg) = match probe.status {
                 "not_installed" => (
                     "not_installed",
                     "Install the Claude Code CLI to view quota.",
@@ -100,6 +101,18 @@ impl ClaudeProvider {
                     "timeout",
                     "Claude Code CLI did not respond before the timeout.",
                 ),
+                "process_failed" => (
+                    "process_failed",
+                    "Claude Code CLI stopped during quota refresh.",
+                ),
+                "rate_limited" => (
+                    "rate_limited",
+                    "Claude Code usage request was rate limited.",
+                ),
+                "network" => (
+                    "network",
+                    "Claude Code could not fetch usage. Check the network connection.",
+                ),
                 _ => (
                     "unsupported_output",
                     "Claude Code CLI returned an unsupported quota response.",
@@ -109,7 +122,7 @@ impl ClaudeProvider {
         }
 
         // 2. Parse usage screen into QuotaWindows
-        let parsed_windows = parse_claude_usage_screen(&usage_screen, fetched_at);
+        let parsed_windows = probe.quota_windows;
         let mut quota_windows = Vec::new();
 
         for w in parsed_windows {
@@ -191,155 +204,302 @@ fn resolve_claude_probe_dir() -> PathBuf {
     base.join("LLM Usage Monitor").join("claude-probe")
 }
 
-fn run_claude_pty_probe(command_name: &str) -> (String, String) {
-    let pty_system = native_pty_system();
-    let pty_pair = match pty_system.openpty(PtySize {
+struct ClaudeProbeResult {
+    status: &'static str,
+    quota_windows: Vec<ClaudeParsedWindow>,
+}
+impl ClaudeProbeResult {
+    fn failure(status: &'static str) -> Self {
+        Self {
+            status,
+            quota_windows: Vec::new(),
+        }
+    }
+}
+
+#[derive(Default)]
+struct ScreenCapture {
+    // Keep bytes until decoding so UTF-8 and ANSI sequences can span PTY reads.
+    raw: Vec<u8>,
+    revision: u64,
+    closed: bool,
+}
+impl ScreenCapture {
+    fn append(&mut self, bytes: &[u8]) {
+        self.raw.extend_from_slice(bytes);
+        if self.raw.len() > MAX_CAPTURE_CHARS {
+            self.raw.drain(..self.raw.len() - MAX_CAPTURE_CHARS);
+        }
+        self.revision += 1;
+    }
+    fn text(&self) -> String {
+        String::from_utf8_lossy(&strip_ansi_escapes::strip(&self.raw)).replace('\r', "\n")
+    }
+}
+
+fn screen_failure(screen: &str) -> Option<&'static str> {
+    let lower = screen.to_lowercase();
+    if [
+        "not logged in",
+        "not authenticated",
+        "run /login",
+        "please log in",
+        "authentication required",
+    ]
+    .iter()
+    .any(|s| lower.contains(s))
+    {
+        Some("not_authenticated")
+    } else if [
+        "trust this folder",
+        "trust this directory",
+        "workspace trust",
+        "do you trust",
+    ]
+    .iter()
+    .any(|s| lower.contains(s))
+    {
+        Some("blocked_prompt")
+    } else if lower.contains("rate limit") || lower.contains("http 429") {
+        Some("rate_limited")
+    } else if [
+        "failed to fetch usage",
+        "could not fetch usage",
+        "error fetching usage",
+        "network error",
+    ]
+    .iter()
+    .any(|s| lower.contains(s))
+    {
+        Some("network")
+    } else if [
+        "enter to confirm",
+        "press enter",
+        "select an option",
+        "choose an option",
+    ]
+    .iter()
+    .any(|s| lower.contains(s))
+    {
+        Some("unsupported_output")
+    } else {
+        None
+    }
+}
+
+fn startup_ready(screen: &str) -> bool {
+    // AX mode in Claude 2.1.294 uses '$'. Require the Claude banner, a standalone
+    // input prompt and only its known footer, rather than an arbitrary symbol/idle.
+    if !screen.to_lowercase().contains("claude code") {
+        return false;
+    }
+    let lines: Vec<_> = screen
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    let Some(prompt) = lines
+        .iter()
+        .rposition(|line| matches!(*line, ">" | "❯" | "$"))
+    else {
+        return false;
+    };
+    lines[prompt + 1..]
+        .iter()
+        .all(|line| *line == "? for shortcuts")
+}
+
+fn complete_usage_windows(screen: &str, now: DateTime<Utc>) -> Option<Vec<ClaudeParsedWindow>> {
+    let lower = screen.to_lowercase();
+    if let Some(index) = lower.rfind("refreshing") {
+        let after = &lower[index + "refreshing".len()..];
+        // AX mode appends the refreshed panel instead of removing the spinner.
+        if !after.contains("current week")
+            || !(after.contains("used") || after.contains("remaining") || after.contains("left"))
+        {
+            return None;
+        }
+    }
+    let windows = parse_claude_usage_screen(screen, now);
+    (windows.iter().any(|w| w.kind == QuotaKind::FiveHour)
+        && windows.iter().any(|w| w.kind == QuotaKind::Weekly))
+    .then_some(windows)
+}
+
+fn run_claude_pty_probe(command_name: &str) -> ClaudeProbeResult {
+    run_claude_pty_probe_at(
+        command_name,
+        &resolve_claude_probe_dir(),
+        PROBE_TIMEOUT,
+        STARTUP_IDLE,
+        RESPONSE_IDLE,
+    )
+}
+
+fn run_claude_pty_probe_at(
+    command_name: &str,
+    probe_dir: &std::path::Path,
+    timeout: Duration,
+    startup_idle: Duration,
+    response_idle: Duration,
+) -> ClaudeProbeResult {
+    let cli = super::CliCommand::new(command_name);
+    // Windows portable-pty resolves PATHEXT (e.g. claude.exe) itself.
+    #[cfg(unix)]
+    if !cli.program.is_file() {
+        return ClaudeProbeResult::failure("not_installed");
+    }
+    if fs::create_dir_all(probe_dir).is_err() {
+        return ClaudeProbeResult::failure("process_failed");
+    }
+    let pty_pair = match native_pty_system().openpty(PtySize {
         rows: 40,
         cols: 120,
         pixel_width: 0,
         pixel_height: 0,
     }) {
         Ok(pair) => pair,
-        Err(_) => return ("process_failed".to_string(), String::new()),
+        Err(_) => return ClaudeProbeResult::failure("process_failed"),
     };
-
-    let probe_dir = resolve_claude_probe_dir();
-    let _ = fs::create_dir_all(&probe_dir);
-
-    let mut cmd = CommandBuilder::new(command_name);
+    // Acquire both streams before spawning so a stream error cannot leak a child.
+    let mut reader = match pty_pair.master.try_clone_reader() {
+        Ok(reader) => reader,
+        Err(_) => return ClaudeProbeResult::failure("process_failed"),
+    };
+    let mut writer = match pty_pair.master.take_writer() {
+        Ok(writer) => writer,
+        Err(_) => return ClaudeProbeResult::failure("process_failed"),
+    };
+    let mut cmd = CommandBuilder::new(&cli.program);
     for arg in CLAUDE_SAFE_SESSION_ARGS {
         cmd.arg(arg);
     }
-    cmd.cwd(&probe_dir);
+    cmd.cwd(probe_dir);
+    cmd.env("PATH", &cli.path);
     cmd.env("CLAUDE_CODE_SAFE_MODE", "1");
     cmd.env("NO_COLOR", "1");
     cmd.env("TERM", "xterm-256color");
-
     let mut child = match pty_pair.slave.spawn_command(cmd) {
-        Ok(c) => c,
-        Err(_) => return ("not_installed".to_string(), String::new()),
+        Ok(child) => child,
+        Err(error) => {
+            let missing = error.chain().any(|cause| {
+                cause
+                    .downcast_ref::<std::io::Error>()
+                    .is_some_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+            });
+            return ClaudeProbeResult::failure(if missing {
+                "not_installed"
+            } else {
+                "process_failed"
+            });
+        }
     };
-
     drop(pty_pair.slave);
 
-    let mut reader = match pty_pair.master.try_clone_reader() {
-        Ok(r) => r,
-        Err(_) => return ("process_failed".to_string(), String::new()),
-    };
-    let mut writer = match pty_pair.master.take_writer() {
-        Ok(w) => w,
-        Err(_) => return ("process_failed".to_string(), String::new()),
-    };
-
-    let screen_text = Arc::new(std::sync::Mutex::new(String::new()));
-    let screen_text_clone = Arc::clone(&screen_text);
+    let capture = Arc::new(std::sync::Mutex::new(ScreenCapture::default()));
+    let reader_capture = Arc::clone(&capture);
     let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let done_clone = Arc::clone(&done);
-
-    // Spawn dedicated background reader thread
-    let _reader_thread = std::thread::spawn(move || {
-        let mut raw_buf = [0u8; 4096];
-        while !done_clone.load(std::sync::atomic::Ordering::Relaxed) {
-            match reader.read(&mut raw_buf) {
-                Ok(n) if n > 0 => {
-                    let clean = strip_ansi_escapes::strip(&raw_buf[..n]);
-                    let chunk = String::from_utf8_lossy(&clean);
-                    let mut guard = screen_text_clone.lock().unwrap();
-                    guard.push_str(&chunk);
-                    if guard.len() > MAX_CAPTURE_CHARS {
-                        let mut excess = guard.len() - MAX_CAPTURE_CHARS;
-                        while !guard.is_char_boundary(excess) {
-                            excess += 1;
-                        }
-                        guard.drain(..excess);
-                    }
-                }
+    let reader_done = Arc::clone(&done);
+    let reader_thread = std::thread::spawn(move || {
+        let mut buffer = [0u8; 4096];
+        while !reader_done.load(std::sync::atomic::Ordering::Relaxed) {
+            match reader.read(&mut buffer) {
+                Ok(n) if n > 0 => reader_capture.lock().unwrap().append(&buffer[..n]),
                 _ => break,
             }
         }
+        reader_capture.lock().unwrap().closed = true;
     });
 
-    let start_time = Instant::now();
+    let started = Instant::now();
     let mut sent_usage = false;
-    let mut status = "process_failed".to_string();
-    let mut last_len = 0;
-    let mut idle_start = Instant::now();
-
-    while start_time.elapsed() < PROBE_TIMEOUT {
-        std::thread::sleep(Duration::from_millis(100));
-
-        let current_text = {
-            let guard = screen_text.lock().unwrap();
-            guard.clone()
+    let mut revision = 0;
+    let mut idle_since = Instant::now();
+    let mut result = ClaudeProbeResult::failure("timeout");
+    while started.elapsed() < timeout {
+        std::thread::sleep(Duration::from_millis(50));
+        let (screen, current_revision, closed) = {
+            let capture = capture.lock().unwrap();
+            (capture.text(), capture.revision, capture.closed)
         };
-
-        if current_text.len() != last_len {
-            last_len = current_text.len();
-            idle_start = Instant::now();
+        if current_revision != revision {
+            revision = current_revision;
+            idle_since = Instant::now();
         }
-
-        let lower = current_text.to_lowercase();
-        if lower.contains("not logged in")
-            || lower.contains("not authenticated")
-            || lower.contains("run /login")
-        {
-            status = "not_authenticated".to_string();
+        if let Some(status) = screen_failure(&screen) {
+            result = ClaudeProbeResult::failure(status);
             break;
         }
-        if lower.contains("trust this folder")
-            || lower.contains("workspace trust")
-            || lower.contains("do you trust")
-        {
-            status = "blocked_prompt".to_string();
+        if closed || !matches!(child.try_wait(), Ok(None)) {
+            result = ClaudeProbeResult::failure("process_failed");
             break;
         }
-
         if !sent_usage {
-            // Check if startup reached prompt or idle
-            if idle_start.elapsed() >= STARTUP_IDLE
-                || current_text.contains('>')
-                || current_text.contains("shortcuts")
-            {
-                sent_usage = true;
-                let _ = writer.write_all(b"/usage\r");
-                let _ = writer.flush();
-                idle_start = Instant::now();
-            }
-        } else {
-            // Check if /usage output has arrived
-            let has_5h =
-                lower.contains("session") || lower.contains("5h") || lower.contains("5-hour");
-            let has_week = lower.contains("week");
-            let has_percent = current_text.contains('%');
-            let is_refreshing = lower.contains("refreshing");
-
-            if has_5h && has_week && has_percent && !is_refreshing {
-                if idle_start.elapsed() >= RESPONSE_IDLE {
-                    status = "supported".to_string();
+            if startup_ready(&screen) && idle_since.elapsed() >= response_idle {
+                // Startup quota-like text must never be used as the /usage response.
+                capture.lock().unwrap().raw.clear();
+                if writer
+                    .write_all(b"/usage\r")
+                    .and_then(|_| writer.flush())
+                    .is_err()
+                {
+                    result = ClaudeProbeResult::failure("process_failed");
                     break;
                 }
-            } else if idle_start.elapsed() >= Duration::from_secs(6) && has_percent {
-                status = "supported".to_string();
+                sent_usage = true;
+                idle_since = Instant::now();
+            } else if !screen.is_empty() && idle_since.elapsed() >= startup_idle {
+                result = ClaudeProbeResult::failure("unsupported_output");
+                break;
+            }
+        } else if idle_since.elapsed() >= response_idle {
+            if let Some(windows) = complete_usage_windows(&screen, Utc::now()) {
+                result = ClaudeProbeResult {
+                    status: "supported",
+                    quota_windows: windows,
+                };
+                break;
+            }
+            if !screen.is_empty() && !screen.to_lowercase().contains("refreshing") {
+                result = ClaudeProbeResult::failure("unsupported_output");
                 break;
             }
         }
     }
 
-    if start_time.elapsed() >= PROBE_TIMEOUT {
-        status = "timeout".to_string();
+    // Only a recognized, complete usage panel may receive exit commands.
+    // Login, trust and unknown dialogs receive no input, including /exit.
+    if result.status == "supported" {
+        let exited = (|| -> std::io::Result<bool> {
+            writer.write_all(b"\x1b")?;
+            writer.flush()?;
+            std::thread::sleep(Duration::from_millis(150));
+            writer.write_all(b"/exit\r")?;
+            writer.flush()?;
+            let exiting = Instant::now();
+            while exiting.elapsed() < EXIT_TIMEOUT {
+                if let Some(status) = child.try_wait()? {
+                    return Ok(status.success());
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Ok(false)
+        })()
+        .unwrap_or(false);
+        if !exited {
+            result = ClaudeProbeResult::failure("process_failed");
+        }
     }
-
-    // Graceful exit
-    let _ = writer.write_all(b"\x1b");
-    std::thread::sleep(Duration::from_millis(150));
-    let _ = writer.write_all(b"/exit\r");
-    let _ = writer.flush();
-
     done.store(true, std::sync::atomic::Ordering::Relaxed);
-    let _ = child.kill();
-
-    let final_text = screen_text.lock().unwrap().clone();
-    (status, final_text)
+    if matches!(child.try_wait(), Ok(None)) {
+        let _ = child.kill();
+    }
+    let _ = child.wait();
+    drop(writer);
+    drop(pty_pair.master);
+    // Child exit closes the slave; reap the reader instead of accumulating threads.
+    let _ = reader_thread.join();
+    result
 }
 
 pub fn parse_claude_usage_screen(screen: &str, now: DateTime<Utc>) -> Vec<ClaudeParsedWindow> {
@@ -395,6 +555,175 @@ pub fn parse_claude_usage_screen(screen: &str, now: DateTime<Utc>) -> Vec<Claude
     result
 }
 
+#[cfg(test)]
+mod probe_tests {
+    use super::*;
+
+    const READY: &str = "Claude Code v0.0.0\n❯\n? for shortcuts\n";
+    const READY_AX: &str = "Claude Code v0.0.0\nExample model\n/synthetic-probe\nSafe mode: customizations disabled\neffort: default\n$\n";
+    const USAGE: &str = "Current session\n23% used\nCurrent week (all models)\n41% used\n";
+
+    #[test]
+    fn only_a_known_prompt_can_start_usage_and_dialogs_take_priority() {
+        assert!(startup_ready(READY));
+        assert!(startup_ready(READY_AX));
+        for unknown in ["", ">", "$", "Loading > please wait", "An idle dialog"] {
+            assert!(!startup_ready(unknown));
+        }
+        assert!(!startup_ready(&format!(
+            "{READY}Unexpected confirmation dialog"
+        )));
+        assert!(!startup_ready(&format!(
+            "{READY_AX}Unexpected confirmation dialog"
+        )));
+        for (dialog, expected) in [
+            ("Do you trust this folder?", "blocked_prompt"),
+            ("Please log in. Run /login", "not_authenticated"),
+            ("Select an option. Enter to confirm", "unsupported_output"),
+            ("HTTP 429 rate limit reached", "rate_limited"),
+            ("Failed to fetch usage", "network"),
+        ] {
+            assert_eq!(screen_failure(&format!("{READY}{dialog}")), Some(expected));
+        }
+    }
+
+    #[test]
+    fn incomplete_invalid_or_refreshing_screens_never_succeed() {
+        for screen in [
+            "❯ /usage",
+            "Current session\n23% used",
+            "Current session\n101% used\nCurrent week\n41% used",
+            "Current session\n-2% used\nCurrent week\n41% used",
+            "Current session\n23% used\nCurrent week (Fable)\n41% used",
+            "Current session\n0% used\nCurrent week\n0% used\nRefreshing…\nEsc to cancel",
+        ] {
+            assert!(complete_usage_windows(screen, Utc::now()).is_none());
+        }
+        assert!(complete_usage_windows(USAGE, Utc::now()).is_some());
+        assert!(complete_usage_windows(&format!("Refreshing…\n{USAGE}"), Utc::now()).is_some());
+    }
+
+    #[test]
+    fn capture_preserves_utf8_and_ansi_across_reads_and_counts_bounded_updates() {
+        let input = format!("\x1b[32m{READY}{USAGE}\x1b[0m");
+        let mut capture = ScreenCapture::default();
+        for byte in input.bytes() {
+            capture.append(&[byte]);
+        }
+        assert_eq!(capture.text(), format!("{READY}{USAGE}"));
+        // A former prompt followed by another screen must not trigger input.
+        assert!(!startup_ready(&capture.text()));
+        assert!(complete_usage_windows(&capture.text(), Utc::now()).is_some());
+        let mut startup = ScreenCapture::default();
+        for byte in format!("\x1b[32m{READY}\x1b[0m").bytes() {
+            startup.append(&[byte]);
+        }
+        assert!(startup_ready(&startup.text()));
+        capture.append(&vec![b'a'; MAX_CAPTURE_CHARS]);
+        let revision = capture.revision;
+        capture.append(b"b");
+        assert_eq!(capture.raw.len(), MAX_CAPTURE_CHARS);
+        assert_eq!(capture.revision, revision + 1);
+    }
+
+    #[cfg(unix)]
+    fn fake_probe(startup: &str, response: &str, behavior: &str) -> (ClaudeProbeResult, Vec<u8>) {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("synthetic claude");
+        let log = dir.path().join("input");
+        let source = format!(
+            r#"#!/usr/bin/python3
+import os, tty
+tty.setraw(0)
+log = open({}, 'ab', buffering=0)
+os.write(1, {}.encode())
+if {} == 'early_exit':
+    os._exit(1)
+line = b''
+while True:
+    value = os.read(0, 1)
+    if not value:
+        break
+    log.write(value)
+    if value == b'\x1b':
+        continue
+    line += value
+    if value == b'\r':
+        if line == b'/usage\r':
+            os.write(1, {}.encode())
+        elif line == b'/exit\r' and {} != 'ignore_exit':
+            os._exit(0)
+        line = b''
+"#,
+            serde_json::to_string(&log.to_str().unwrap()).unwrap(),
+            serde_json::to_string(startup).unwrap(),
+            serde_json::to_string(behavior).unwrap(),
+            serde_json::to_string(response).unwrap(),
+            serde_json::to_string(behavior).unwrap(),
+        );
+        fs::write(&script, source).unwrap();
+        fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
+        let result = run_claude_pty_probe_at(
+            script.to_str().unwrap(),
+            &dir.path().join("probe"),
+            Duration::from_secs(3),
+            Duration::from_millis(150),
+            Duration::from_millis(100),
+        );
+        (result, fs::read(log).unwrap_or_default())
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn real_pty_sends_only_usage_then_graceful_exit_on_success() {
+        for startup in [READY, READY_AX] {
+            let (result, input) = fake_probe(startup, USAGE, "normal");
+            assert_eq!(result.status, "supported");
+            assert_eq!(result.quota_windows.len(), 2);
+            assert_eq!(input, b"/usage\r\x1b/exit\r");
+        }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn real_pty_never_answers_login_trust_or_unknown_dialogs() {
+        for (startup, expected) in [
+            ("Do you trust this folder?", "blocked_prompt"),
+            ("Please log in. Run /login", "not_authenticated"),
+            ("Unexpected > dialog", "unsupported_output"),
+            ("Select an option. Enter to confirm", "unsupported_output"),
+        ] {
+            let (result, input) = fake_probe(startup, USAGE, "normal");
+            assert_eq!(result.status, expected);
+            assert!(result.quota_windows.is_empty());
+            assert!(input.is_empty());
+        }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn real_pty_rejects_partial_usage_ignores_startup_values_and_reaps_failures() {
+        let (result, input) = fake_probe(
+            &format!("{USAGE}{READY}"),
+            "Current session\n23% used",
+            "normal",
+        );
+        assert_eq!(result.status, "unsupported_output");
+        assert_eq!(input, b"/usage\r");
+        let (result, input) = fake_probe(READY, "", "normal");
+        assert_eq!(result.status, "timeout");
+        assert_eq!(input, b"/usage\r");
+        let (result, input) = fake_probe("", "", "early_exit");
+        assert_eq!(result.status, "process_failed");
+        assert!(input.is_empty());
+        let (result, input) = fake_probe(READY, USAGE, "ignore_exit");
+        assert_eq!(result.status, "process_failed");
+        assert!(result.quota_windows.is_empty());
+        assert_eq!(input, b"/usage\r\x1b/exit\r");
+    }
+}
+
 fn classify_header(line: &str) -> Option<(QuotaKind, String)> {
     let lower = line.to_lowercase();
     let re_5h = Regex::new(
@@ -426,7 +755,7 @@ fn classify_header(line: &str) -> Option<(QuotaKind, String)> {
 
 fn parse_percent(block: &[&str]) -> Option<f64> {
     let re_explicit = Regex::new(
-        r"(?i)(?:^|[^\d+])(\d+(?:\.\d+)?)\s*%(?:\s+\d+(?:\.\d+)?\s*%)?\s*(used|remaining|left)\b",
+        r"(?i)(?:^|[^\d.+-])([+-]?\d+(?:\.\d+)?)\s*%(?:\s+\d+(?:\.\d+)?\s*%)?\s*(used|remaining|left)\b",
     )
     .ok()?;
     for line in block {
@@ -452,7 +781,7 @@ fn parse_percent(block: &[&str]) -> Option<f64> {
         }
     }
 
-    let re_any = Regex::new(r"(?i)(?:^|[^\d+])(\d+(?:\.\d+)?)\s*%").ok()?;
+    let re_any = Regex::new(r"(?i)(?:^|[^\d.+-])([+-]?\d+(?:\.\d+)?)\s*%").ok()?;
     for line in block {
         if is_promo_line(line) {
             continue;

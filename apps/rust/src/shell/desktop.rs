@@ -414,26 +414,71 @@ pub fn setup_command(action: Setup) -> Result<Command> {
     }
     #[cfg(target_os = "macos")]
     {
-        let script=match action {
-            Setup::ClaudeLogin=>"claude auth login --claudeai".into(),
-            Setup::ClaudeTrust=>format!("cd '{}' && claude --safe-mode --ax-screen-reader --restricted --strict-mcp-config --tools ''",probe_dir().to_string_lossy().replace('\'',"'\\''")),
-            Setup::AntigravityLogin=>"agy".into(),
-            Setup::AntigravitySwitch=>"echo '=== Antigravity Account Switch ===' && echo 'To switch accounts, run /logout and then sign in with your desired Google Account.' && agy".into(),
+        let program = match action {
+            Setup::ClaudeLogin | Setup::ClaudeTrust => "claude",
+            Setup::AntigravityLogin | Setup::AntigravitySwitch => "agy",
         };
-        let mut cmd = Command::new("osascript");
-        cmd.args([
-            "-e",
-            &format!(
-                "tell application \"Terminal\" to do script \"{}\"",
-                script.replace('\\', "\\\\").replace('"', "\\\"")
-            ),
-            "-e",
-            "tell application \"Terminal\" to activate",
-        ]);
-        return Ok(cmd);
+        return setup_command_with_cli(
+            action,
+            std::path::Path::new(program),
+            &std::env::var_os("PATH").unwrap_or_default(),
+        );
     }
     #[allow(unreachable_code)]
     Err(anyhow::anyhow!("unsupported platform"))
+}
+
+#[cfg(target_os = "macos")]
+fn shell_quote(value: &std::ffi::OsStr) -> Result<String> {
+    let value = value.to_str().context("unsupported terminal path encoding")?;
+    Ok(format!("'{}'", value.replace('\'', "'\\''")))
+}
+
+/// The app chooses the CLI; the shell only renders fixed setup actions.
+#[cfg(target_os = "macos")]
+pub fn setup_command_with_cli(
+    action: Setup,
+    program: &std::path::Path,
+    cli_path: &std::ffi::OsStr,
+) -> Result<Command> {
+    let launch = format!("env PATH={} {}", shell_quote(cli_path)?, shell_quote(program.as_os_str())?);
+    let script = match action {
+        Setup::ClaudeLogin => format!("{launch} auth login --claudeai"),
+        Setup::ClaudeTrust => format!(
+            "cd {} && {launch} --safe-mode --ax-screen-reader --restricted --strict-mcp-config --tools ''",
+            shell_quote(probe_dir().as_os_str())?,
+        ),
+        Setup::AntigravityLogin => launch,
+        Setup::AntigravitySwitch => format!("echo '=== Antigravity Account Switch ===' && echo 'To switch accounts, run /logout and then sign in with your desired Google Account.' && {launch}"),
+    };
+    let mut cmd = Command::new("/usr/bin/osascript");
+    cmd.args([
+        "-e",
+        &format!(
+            "tell application \"Terminal\" to do script \"{}\"",
+            script.replace('\\', "\\\\").replace('"', "\\\""),
+        ),
+        "-e",
+        "tell application \"Terminal\" to activate",
+    ]);
+    Ok(cmd)
+}
+
+#[cfg(target_os = "macos")]
+pub fn open_setup_with_cli(
+    action: Setup,
+    program: &std::path::Path,
+    cli_path: &std::ffi::OsStr,
+) -> Result<()> {
+    if matches!(action, Setup::ClaudeTrust) {
+        std::fs::create_dir_all(probe_dir())?;
+    }
+    setup_command_with_cli(action, program, cli_path)?
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+    Ok(())
 }
 pub fn open_setup(action: Setup) -> Result<()> {
     if matches!(action, Setup::ClaudeTrust) {
@@ -449,6 +494,37 @@ pub fn open_setup(action: Setup) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn terminal_setup_uses_the_selected_cli_and_its_path() {
+        let program = std::path::Path::new("/synthetic folder/claude");
+        let path = std::ffi::OsStr::new("/usr/bin:/synthetic runtime/bin");
+        for action in [Setup::ClaudeLogin, Setup::ClaudeTrust, Setup::AntigravityLogin, Setup::AntigravitySwitch] {
+            let command = setup_command_with_cli(action, program, path).unwrap();
+            assert_eq!(command.get_program(), "/usr/bin/osascript");
+            let args: Vec<_> = command.get_args().map(|arg| arg.to_string_lossy()).collect();
+            assert!(args[1].contains("env PATH='/usr/bin:/synthetic runtime/bin' '/synthetic folder/claude'"));
+            assert!(!args[1].contains("--dangerously-skip-permissions"));
+            if matches!(action, Setup::ClaudeTrust) {
+                assert!(args[1].contains("--safe-mode --ax-screen-reader --restricted --strict-mcp-config --tools ''"));
+            }
+            if matches!(action, Setup::ClaudeLogin) {
+                assert!(args[1].contains("auth login --claudeai"));
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn terminal_paths_are_literal_shell_arguments() {
+        for value in ["/space and quote/'/cli", "/literal/$(printf injected)/`printf injected`/$PATH", "한글 path"] {
+            let quoted = shell_quote(std::ffi::OsStr::new(value)).unwrap();
+            let result = Command::new("/bin/sh").args(["-c", &format!("printf '%s' {quoted}")]).output().unwrap();
+            assert!(result.status.success());
+            assert_eq!(String::from_utf8(result.stdout).unwrap(), value);
+        }
+    }
     #[test]
     fn external_url_rejects_non_web_and_embedded_credentials() {
         for url in [
