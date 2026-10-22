@@ -6,9 +6,24 @@ use llm_usage_monitor_core::core::{
 #[tokio::main]
 async fn main() {
     let args: Vec<_> = std::env::args().collect();
-    assert_eq!(args.len(), 4, "usage: cache-fixture scan|lock|quota|incomplete-write CACHE ROOT");
+    assert_eq!(args.len(), 4, "usage: cache-fixture scan|lock|quota|incomplete-write|instance-server|instance-request CACHE ROOT_OR_INTENT");
     let dir = std::path::PathBuf::from(&args[2]);
     assert_ne!(dir, cache::directory(), "fixture requires isolated storage");
+    if args[1] == "instance-server" {
+        use llm_usage_monitor_core::shell::instance::InstanceServer;
+        use std::io::Write;
+        let (_server, _requests) = InstanceServer::start(cache::acquire_lock(&dir).unwrap()).unwrap();
+        println!("ready");
+        std::io::stdout().flush().unwrap();
+        let mut stop = String::new();
+        std::io::stdin().read_line(&mut stop).unwrap();
+        return;
+    }
+    if args[1] == "instance-request" {
+        use llm_usage_monitor_core::shell::instance::request_existing;
+        println!("{:?}", request_existing(cache::lock_port(&dir), args[3] == "show"));
+        return;
+    }
     if args[1] == "quota" {
         let providers = cache::load(&dir);
         cache::save(&dir, &providers).ok();

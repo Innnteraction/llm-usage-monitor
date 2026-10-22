@@ -2,6 +2,20 @@
 
 # Development & Runtime Troubleshooting
 
+## Windows Start menu launch and icon
+
+The installed Start menu shortcut uses `--show`; login startup uses `--start-hidden`.
+Launching the same variant again shows its existing window. Duplicate login startup
+requests leave it hidden. If the other variant is running, quit it from the tray first.
+
+An unrecognized lock owner may be an older app without activation support or another
+program using the port. Permission errors are reported separately. The lock is a live
+TCP listener, so deleting shared cache files does not release it.
+
+After quitting the app, reinstall the desired variant with `scripts/install.ps1` to
+recreate the shortcut and its explicit installed `app-icon.ico` reference. Existing
+login startup settings are preserved by default.
+
 ## 1. Default Development Workflow (v0.9.2 Onwards)
 
 `pnpm dev` packages the current source code via Electron Forge and executes the resulting binary under `apps/node/out/`. It does not copy files into the user installation directory. After saving code changes, terminate the app via the tray menu or `Ctrl+C` and restart it. If packaging fails, previous build artifacts are never launched.

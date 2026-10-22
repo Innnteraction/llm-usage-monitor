@@ -99,6 +99,7 @@ try {
         else { Copy-Item -LiteralPath $artifact -Destination (Join-Path $stage 'llm-usage-monitor.exe'); $executable = 'llm-usage-monitor.exe' }
         if (-not (Test-Path -LiteralPath (Join-Path $stage $executable))) { throw 'Built application validation failed.' }
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'startup.ps1') -Destination $stage
+        Copy-Item -LiteralPath (Join-Path $projectRoot 'assets/icons/app-icon.ico') -Destination $stage
         $revision = 'source-zip'
         if (Get-Command git -ErrorAction SilentlyContinue) { $candidate = & git -C $projectRoot rev-parse --short HEAD 2>$null; if ($LASTEXITCODE -eq 0) { $revision = $candidate } }
         @{schemaVersion=1;appId='llm-usage-monitor';variant=$Variant;version=$appVersion;revision=$revision;executable=$executable} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'install-info.json') -Encoding UTF8
@@ -116,6 +117,8 @@ try {
                 $shortcut = $shell.CreateShortcut($links[0])
                 $shortcut.TargetPath = Join-Path $installRoot $executable
                 $shortcut.WorkingDirectory = $installRoot
+                $shortcut.Arguments = '--show'
+                $shortcut.IconLocation = (Join-Path $installRoot 'app-icon.ico') + ',0'
                 $shortcut.Save()
             }
         }

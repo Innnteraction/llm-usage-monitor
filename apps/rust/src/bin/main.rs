@@ -11,6 +11,7 @@ use llm_usage_monitor_core::{
             Point as PosPoint, WindowRect, WindowSize,
         },
         tray::SystemTrayManager,
+        instance::{self, ExistingInstance, InstanceServer},
     },
     ui::{
         compact::render_compact,
@@ -555,6 +556,17 @@ fn startup_hidden(args: &[String], demo: bool) -> bool {
     args.iter().any(|a| a == "--start-hidden") || (!demo && !args.iter().any(|a| a == "--show"))
 }
 
+fn show_instance_error(message: &str) {
+    #[cfg(windows)]
+    unsafe {
+        use windows::{core::{w, PCWSTR}, Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK, MB_ICONINFORMATION}};
+        let text: Vec<u16> = message.encode_utf16().chain(Some(0)).collect();
+        MessageBoxW(None, PCWSTR(text.as_ptr()), w!("LLM Usage Monitor"), MB_OK | MB_ICONINFORMATION);
+    }
+    #[cfg(not(windows))]
+    { let _ = std::process::Command::new("osascript").args(["-e", &format!("display alert \"LLM Usage Monitor\" message \"{message}\"")]).status(); }
+}
+
 fn main() {
     let entered = Instant::now();
     let args: Vec<String> = std::env::args().collect();
@@ -576,18 +588,29 @@ fn main() {
     let _shared_lock = if !demo {
         match llm_usage_monitor_core::core::engine::cache::acquire_lock(&llm_usage_monitor_core::core::engine::cache::directory()) {
             Ok(lock) => Some(lock),
-            Err(_) => {
-                #[cfg(windows)]
-                unsafe {
-                    use windows::{core::w, Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK, MB_ICONINFORMATION}};
-                    MessageBoxW(None, w!("Another version is running or the shared instance lock is unavailable. Quit the running app and try again."), w!("LLM Usage Monitor"), MB_OK | MB_ICONINFORMATION);
+            Err(error) => {
+                let result = if error.kind() == std::io::ErrorKind::AddrInUse {
+                    instance::request_existing(
+                        llm_usage_monitor_core::core::engine::cache::lock_port(&llm_usage_monitor_core::core::engine::cache::directory()),
+                        !args.iter().any(|arg| arg == "--start-hidden"),
+                    )
+                } else { ExistingInstance::Unavailable };
+                if result != ExistingInstance::Accepted {
+                    show_instance_error(instance::failure_message(error.kind(), result));
                 }
-                #[cfg(not(windows))]
-                { let _ = std::process::Command::new("osascript").args(["-e", "display alert \"LLM Usage Monitor\" message \"Another version is running or the shared lock is unavailable.\""]).status(); }
                 return;
             }
         }
     } else { None };
+    let (_instance_server, instance_requests) = if let Some(lock) = &_shared_lock {
+        match lock.try_clone().and_then(InstanceServer::start) {
+            Ok((server, requests)) => (Some(server), Some(requests)),
+            Err(_) => {
+                show_instance_error("실행 요청 수신을 준비하지 못했습니다. 앱을 다시 실행하세요.");
+                return;
+            }
+        }
+    } else { (None, None) };
     let fixed_now = fixture.as_ref().map(|s| s.updated_at);
     let hidden = startup_hidden(&args, demo);
     let hide_after = args.iter().find_map(|a| {
@@ -725,6 +748,10 @@ fn main() {
                 let mut last_poll = Instant::now();
                 let mut last_render = Instant::now();
                 loop {
+                    if instance_requests.as_ref().is_some_and(|requests| requests.try_recv().is_ok()) {
+                        let state = state.clone();
+                        let _ = async_cx.update(move |cx| open_popover(state, cx));
+                    }
                     if !hidden_once
                         && hide_after.is_some_and(|seconds| start.elapsed().as_secs() >= seconds)
                     {

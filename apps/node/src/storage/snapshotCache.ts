@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { homedir } from "node:os";
 import { createHash, randomUUID } from "node:crypto";
-import { createServer, type Server } from "node:net";
+import { createServer, type Server, type Socket } from "node:net";
 import { z } from "zod";
 import {
   providerSnapshotSchema,
@@ -20,8 +20,11 @@ export const sharedLockPort = (directory: string): number => {
   if (process.platform === "win32") key = key.replace(/[A-Z]/g, (c) => c.toLowerCase());
   return 49152 + createHash("sha256").update(key).digest().readUInt16BE(0) % 16384;
 };
-export const acquireSharedLock = (directory: string): Promise<Server> => new Promise((resolve, reject) => {
-  const server = createServer((socket) => socket.destroy());
+export const acquireSharedLock = (
+  directory: string,
+  onConnection: (socket: Socket) => void = (socket) => { socket.destroy(); },
+): Promise<Server> => new Promise((resolve, reject) => {
+  const server = createServer(onConnection);
   server.once("error", reject);
   server.listen({ host: "127.0.0.1", port: sharedLockPort(directory), exclusive: true }, () => resolve(server));
 });

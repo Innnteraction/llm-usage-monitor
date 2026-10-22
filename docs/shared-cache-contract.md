@@ -6,6 +6,20 @@ Windows는 `%LOCALAPPDATA%\llm-usage-monitor\shared`, macOS는 `~/Library/Applic
 
 실제 실행은 캐시 접근·수집 전에 127.0.0.1 TCP listener를 획득한다. 절대 경로의 구분자를 `/`로 바꾸고 Windows ASCII 대문자만 소문자로 바꾼 UTF-8 문자열을 SHA-256으로 해시한다. 앞 2바이트의 big-endian 값으로 `49152 + value % 16384` 포트를 계산한다. 종료 작업과 캐시 저장이 끝날 때까지 listener를 유지한다. 같은 포트를 쓰는 다른 프로그램도 안전하게 실행 거부로 처리한다. demo는 격리된 허구 데이터만 사용한다.
 
+## 재실행 요청
+
+동일 listener에서 `llm-usage-monitor/1 <node|rust> <show|hidden>\n` 한 줄을 받는다.
+같은 구현이면 `llm-usage-monitor/1 <실행 중인 구현> ok\n`으로 응답하며, `show`만
+기존 UI에 창 표시를 요청한다. `ok`는 요청 수락이며 렌더링 완료를 보장하지 않는다.
+다른 구현이면 `llm-usage-monitor/1 <실행 중인 구현> different\n`으로 응답하고 창을
+변경하지 않는다. Node의 동일 구현 재실행은 Electron의 `second-instance`도 사용한다.
+
+요청·응답은 최대 64바이트이며 연결·읽기·쓰기 대기를 제한한다(단계별 최대 1.5초).
+앱 식별은 프로토콜 호환성 확인이며 인증 수단이 아니다. 이 채널에는 창 표시 외의 명령,
+계정정보·snapshot·인증정보를 추가하지 않는다. UI 준비 전 요청은 보관하며 Rust의 중복
+표시 요청은 하나로 합친다. 잘못된 응답·구버전의 무응답·포트 권한 오류는 성공으로
+처리하지 않고 사용자에게 구분해 안내한다. 캐시 파일 삭제로 잠금을 해제하지 않는다.
+
 ## quota-v2.json
 
 최상위는 `{schemaVersion: 2, providers: [...]}`이다. provider에는 `providerId`, `status`, `fetchedAt`, `lastSuccessfulAt`, `quotaWindows`만 저장한다. quotaWindow는 기존 정규화 계약을 사용한다. 계정명·authKind·오류·토큰·장애 응답은 저장하지 않는다.

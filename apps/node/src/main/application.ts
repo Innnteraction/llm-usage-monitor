@@ -10,6 +10,7 @@ import {
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { launchAtLogin } from "./launchAtLogin";
+import { handleInstanceConnection, instanceFailureMessage, isHiddenLaunch, requestExistingInstance } from "./instance";
 import { UsageMonitorCore } from "../core/index";
 import { acquireSharedLock, sharedCacheDirectory } from "../storage/index";
 import type { AppSnapshot, ProviderId } from "../shared/index";
@@ -290,7 +291,16 @@ export const startApplication = (): void => {
     }
   };
 
-  app.on("second-instance", () => { void showWindow(); });
+  let instanceReady = false;
+  let pendingShowRequest = false;
+  const requestShowWindow = (): void => {
+    if (isQuitting) return;
+    if (instanceReady) { void showWindow(); }
+    else { pendingShowRequest = true; }
+  };
+  app.on("second-instance", (_event, argv) => {
+    if (!isHiddenLaunch(argv)) requestShowWindow();
+  });
   app.on("activate", () => { void showWindow(); });
   app.on("before-quit", (event) => {
     isQuitting = true;
@@ -306,10 +316,15 @@ export const startApplication = (): void => {
     const useFakeProviders = process.env.LLM_USAGE_MONITOR_E2E === "1";
     if (!useFakeProviders) {
       try {
-        const sharedLock = await acquireSharedLock(sharedCacheDirectory());
+        const sharedLock = await acquireSharedLock(sharedCacheDirectory(),
+          (socket) => handleInstanceConnection(socket, requestShowWindow));
         app.once("will-quit", () => sharedLock.close());
-      } catch {
-        dialog.showErrorBox("LLM Usage Monitor", "Another version is running or the shared instance lock is unavailable. Quit the running app and try again.");
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        const result = code === "EADDRINUSE"
+          ? await requestExistingInstance(sharedCacheDirectory(), !isHiddenLaunch(process.argv))
+          : "unavailable";
+        if (result !== "accepted") dialog.showErrorBox("LLM Usage Monitor", instanceFailureMessage(code, result));
         app.quit();
         return;
       }
@@ -492,16 +507,14 @@ export const startApplication = (): void => {
       }
     });
 
-    const isAutostart =
-      process.argv.includes("--start-hidden") ||
-      process.argv.includes("--hidden") ||
-      process.argv.includes("--autostart");
+    const isAutostart = isHiddenLaunch(process.argv);
     const shouldShowInitially =
       keepVisibleForTest ||
       isDevMode ||
-      (process.platform === "darwin" ? !isAutostart : !setupWasReady);
+      (!isAutostart && (process.argv.includes("--show") || process.platform === "darwin" || !setupWasReady));
 
-    if (shouldShowInitially) {
+    instanceReady = true;
+    if (shouldShowInitially || pendingShowRequest) {
       void showWindow(keepVisibleForTest);
     } else {
       scheduleIdleUnload(keepVisibleForTest);

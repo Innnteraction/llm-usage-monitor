@@ -5,22 +5,51 @@ import { executablePath } from "./appPath";
 // 같은 package를 개발용 Electron / packaged EXE로 비교한다. hmr은 Forge 기동 후 실행한다.
 const mode = process.env.LLM_USAGE_MONITOR_RUNTIME_MODE ?? "packaged";
 const sandbox = process.env.LLM_USAGE_MONITOR_GPU_SANDBOX ?? "1";
-const launch = (profile: string, dev = true) => electron.launch({
+const launch = (profile: string, dev = true, extraArgs: string[] = [], keepVisible = true) => electron.launch({
   chromiumSandbox: true,
   executablePath: process.env.LLM_USAGE_MONITOR_RUNTIME_EXECUTABLE ??
     (mode === "packaged" ? executablePath : undefined),
-  args: mode === "packaged" ? [] : [mode === "hmr" ? path.resolve(".") : path.resolve(
+  args: [...(mode === "packaged" ? [] : [mode === "hmr" ? path.resolve(".") : path.resolve(
     "out", `LLM Usage Monitor-${process.platform}-${process.arch}`,
     ...(process.platform === "darwin" ? ["LLM Usage Monitor.app", "Contents", "Resources"] : ["resources"]),
     "app.asar",
-  )],
+  )]), ...extraArgs],
   env: {
     ...process.env,
     LLM_USAGE_MONITOR_DEV: dev ? "1" : "0",
     LLM_USAGE_MONITOR_E2E: "1",
+    LLM_USAGE_MONITOR_E2E_KEEP_VISIBLE: keepVisible ? "1" : "0",
     LLM_USAGE_MONITOR_E2E_USER_DATA: profile,
     LLM_USAGE_MONITOR_GPU_SANDBOX: sandbox,
   },
+});
+
+test("manual launch opens the window and hidden second instances do not reveal it", async () => {
+  const app = await launch(test.info().outputPath("manual profile"), false, ["--show"], false);
+  try {
+    const page = await app.firstWindow();
+    await expect(page.getByRole("heading", { name: "Codex" })).toBeVisible();
+    await app.evaluate(({ BrowserWindow, app }) => {
+      BrowserWindow.getAllWindows()[0]!.hide();
+      app.emit("second-instance", {}, ["app.exe", "--start-hidden"], "", {});
+    });
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some(w => w.isVisible()))).toBe(false);
+    await app.evaluate(({ app }) => app.emit("second-instance", {}, ["app.exe", "--show"], "", {}));
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some(w => w.isVisible()))).toBe(true);
+  } finally { await app.close(); }
+});
+
+test("login startup stays hidden until a manual activation", async () => {
+  const app = await launch(test.info().outputPath("login profile"), false, ["--start-hidden"], false);
+  try {
+    const page = await app.firstWindow();
+    // The renderer bridge is registered during initialization, before tray setup
+    // completes synchronously in the same main-process turn.
+    await expect.poll(() => page.evaluate(() => window.usageMonitor.getState().then(s => s.providers.length)).catch(() => 0)).toBeGreaterThan(0);
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some(w => w.isVisible()))).toBe(false);
+    await app.evaluate(({ app }) => app.emit("second-instance", {}, ["app.exe", "--show"], "", {}));
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some(w => w.isVisible()))).toBe(true);
+  } finally { await app.close(); }
 });
 
 for (let iteration = 1; iteration <= 5; iteration++) {

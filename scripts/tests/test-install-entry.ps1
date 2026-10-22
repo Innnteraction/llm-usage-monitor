@@ -29,9 +29,9 @@ try {
         $shell = New-Object PSObject
         $shell | Add-Member ScriptMethod CreateShortcut {
             param($File)
-            $target = if (Test-Path -LiteralPath $File) { [IO.File]::ReadAllText($File) } else { '' }
-            $link = [pscustomobject]@{ File=$File; TargetPath=$target; WorkingDirectory='' }
-            $link | Add-Member ScriptMethod Save { [IO.File]::WriteAllText($this.File,$this.TargetPath) }
+            $link = if (Test-Path -LiteralPath $File) { Get-Content -LiteralPath $File -Raw | ConvertFrom-Json }
+                else { [pscustomobject]@{ File=$File; TargetPath=''; WorkingDirectory=''; Arguments=''; IconLocation='' } }
+            $link | Add-Member ScriptMethod Save { [IO.File]::WriteAllText($this.File,($this | ConvertTo-Json)) }
             return $link
         }
         return $shell
@@ -56,12 +56,19 @@ try {
         $info = Get-Content -LiteralPath (Join-Path $root 'install-info.json') -Raw | ConvertFrom-Json
         Assert ($info.variant -eq $expected) 'Installed manifest variant'
         Assert ($global:entryTest_registry.Count -eq 1) 'Only one startup entry'
-        Assert ([IO.File]::ReadAllText($global:entryTest_linkPaths[0]) -eq (Join-Path $root $info.executable)) 'Shortcut follows replacement'
+        $shortcut = Get-Content -LiteralPath $global:entryTest_linkPaths[0] -Raw | ConvertFrom-Json
+        Assert ($shortcut.TargetPath -eq (Join-Path $root $info.executable)) 'Shortcut follows replacement'
+        Assert ($shortcut.Arguments -eq '--show') 'Manual launch shows the window'
+        Assert ($shortcut.WorkingDirectory -eq $root) 'Shortcut working directory'
+        Assert ($shortcut.IconLocation -eq ((Join-Path $root 'app-icon.ico') + ',0')) 'Stable installed icon'
+        Assert (Test-Path -LiteralPath (Join-Path $root 'app-icon.ico')) 'Icon installed'
+        Assert ($global:entryTest_registry['LLM Usage Monitor'] -eq ('"' + $shortcut.TargetPath + '" --start-hidden')) 'Login stays hidden'
         Assert (@(Get-ChildItem -LiteralPath (Split-Path -Parent $root) -Directory).Count -eq 1) 'Only one managed app'
     }
     foreach ($failure in @('buildFailure','registrationFailure')) {
         $oldManifest = [IO.File]::ReadAllText((Join-Path $root 'install-info.json'))
         $oldRegistration = $global:entryTest_registry['LLM Usage Monitor']
+        $oldShortcut = [IO.File]::ReadAllText($global:entryTest_linkPaths[0])
         Set-Variable -Name ('entryTest_'+$failure) -Value $true -Scope Global
         $failed=$false
         try { Invoke-ManagedInstall -Variant rust -AcceptInstall -NonInteractive -AutoStart preserve -NoStart } catch { $failed=$true }
@@ -69,7 +76,7 @@ try {
         Assert $failed 'Expected synthetic failure'
         Assert ([IO.File]::ReadAllText((Join-Path $root 'install-info.json')) -eq $oldManifest) 'Previous app preserved'
         Assert ($global:entryTest_registry['LLM Usage Monitor'] -eq $oldRegistration) 'Previous startup preserved'
-        Assert ([IO.File]::ReadAllText($global:entryTest_linkPaths[0]) -eq (Join-Path $root 'LLM Usage Monitor.exe')) 'Previous shortcut preserved'
+        Assert ([IO.File]::ReadAllText($global:entryTest_linkPaths[0]) -eq $oldShortcut) 'Previous shortcut and icon preserved'
     }
     Invoke-ManagedInstall -Uninstall -AcceptInstall -NonInteractive -NoStart
     Assert (-not (Test-Path -LiteralPath $root)) 'Uninstalled app'
