@@ -5,7 +5,6 @@ use crate::core::types::{
 use chrono::{DateTime, Utc};
 use regex::Regex;
 use serde::Deserialize;
-use std::env;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
@@ -71,7 +70,7 @@ impl Default for AntigravityProvider {
 
 impl AntigravityProvider {
     pub fn new() -> Self {
-        let command_name = env::var("ANTIGRAVITY_CLI_PATH").unwrap_or_else(|_| "agy".to_string());
+        let command_name = super::resolve_cli_binary("antigravity", Some("ANTIGRAVITY_CLI_PATH"));
         Self { command_name }
     }
 

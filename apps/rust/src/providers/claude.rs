@@ -3,10 +3,10 @@ use crate::core::types::{
     QuotaWindow, SnapshotStatus,
 };
 use chrono::{DateTime, Datelike, Duration as ChronoDuration, Local, TimeZone, Utc};
+#[cfg(not(target_os = "windows"))]
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use regex::Regex;
 use serde::Deserialize;
-use std::env;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -57,7 +57,7 @@ impl Default for ClaudeProvider {
 
 impl ClaudeProvider {
     pub fn new() -> Self {
-        let command_name = env::var("CLAUDE_CLI_PATH").unwrap_or_else(|_| "claude".to_string());
+        let command_name = super::resolve_cli_binary("claude", Some("CLAUDE_CLI_PATH"));
         Self { command_name }
     }
 
@@ -197,11 +197,320 @@ impl ClaudeProvider {
 }
 
 fn resolve_claude_probe_dir() -> PathBuf {
-    if let Ok(dir) = env::var("CLAUDE_PROBE_DIRECTORY") {
-        return PathBuf::from(dir);
+    super::resolve_claude_probe_dir()
+}
+
+const EXIT_WAIT_TIMEOUT: Duration = Duration::from_millis(1500);
+
+#[cfg(target_os = "windows")]
+mod win_hidden_pty {
+    use std::ffi::OsStr;
+    use std::fs::File;
+    use std::io::{Read, Write};
+    use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::io::FromRawHandle;
+    use std::path::Path;
+    use std::time::Duration;
+    use windows::core::{PCWSTR, PWSTR};
+    use windows::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE, WAIT_OBJECT_0, WAIT_TIMEOUT};
+    use windows::Win32::System::Console::{ClosePseudoConsole, CreatePseudoConsole, COORD, HPCON};
+    use windows::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+    use windows::Win32::System::Pipes::CreatePipe;
+    use windows::Win32::System::Threading::{
+        CreateProcessW, DeleteProcThreadAttributeList, InitializeProcThreadAttributeList,
+        TerminateProcess, UpdateProcThreadAttribute, WaitForSingleObject,
+        CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST,
+        PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, STARTF_USESHOWWINDOW,
+        STARTF_USESTDHANDLES, STARTUPINFOEXW,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::SW_HIDE;
+
+    pub(super) enum SpawnError {
+        NotInstalled,
+        ProcessFailed,
     }
-    let base = dirs::data_local_dir().unwrap_or_else(|| env::temp_dir());
-    base.join("LLM Usage Monitor").join("claude-probe")
+
+    pub(super) struct HiddenConPtySession {
+        hpc: HPCON,
+        job: HANDLE,
+        process: HANDLE,
+    }
+
+    unsafe impl Send for HiddenConPtySession {}
+
+    impl HiddenConPtySession {
+        pub(super) fn is_alive(&self) -> bool {
+            unsafe { WaitForSingleObject(self.process, 0) == WAIT_TIMEOUT }
+        }
+
+        pub(super) fn wait_or_terminate(&mut self, timeout: Duration) {
+            unsafe {
+                let waited = WaitForSingleObject(self.process, timeout.as_millis() as u32);
+                if waited != WAIT_OBJECT_0 {
+                    let _ = TerminateProcess(self.process, 1);
+                }
+            }
+        }
+    }
+
+    impl Drop for HiddenConPtySession {
+        fn drop(&mut self) {
+            unsafe {
+                let _ = TerminateProcess(self.process, 1);
+                if !self.job.is_invalid() {
+                    let _ = CloseHandle(self.job);
+                }
+                ClosePseudoConsole(self.hpc);
+                if !self.process.is_invalid() {
+                    let _ = CloseHandle(self.process);
+                }
+            }
+        }
+    }
+
+    fn append_quoted_wide(arg: &OsStr, cmdline: &mut Vec<u16>) {
+        let wide: Vec<u16> = arg.encode_wide().collect();
+        let needs_quotes = wide.is_empty()
+            || wide
+                .iter()
+                .any(|&c| c == b' ' as u16 || c == b'\t' as u16 || c == b'\n' as u16 || c == b'"' as u16);
+        if !needs_quotes {
+            cmdline.extend_from_slice(&wide);
+            return;
+        }
+        cmdline.push(b'"' as u16);
+        let mut i = 0;
+        while i < wide.len() {
+            let mut backslashes = 0;
+            while i < wide.len() && wide[i] == b'\\' as u16 {
+                i += 1;
+                backslashes += 1;
+            }
+            if i == wide.len() {
+                cmdline.extend(std::iter::repeat_n(b'\\' as u16, backslashes * 2));
+                break;
+            } else if wide[i] == b'"' as u16 {
+                cmdline.extend(std::iter::repeat_n(b'\\' as u16, backslashes * 2 + 1));
+                cmdline.push(b'"' as u16);
+            } else {
+                cmdline.extend(std::iter::repeat_n(b'\\' as u16, backslashes));
+                cmdline.push(wide[i]);
+            }
+            i += 1;
+        }
+        cmdline.push(b'"' as u16);
+    }
+
+    fn build_environment_block() -> Vec<u16> {
+        let mut vars: std::collections::BTreeMap<String, (std::ffi::OsString, std::ffi::OsString)> =
+            std::collections::BTreeMap::new();
+        for (k, v) in std::env::vars_os() {
+            let upper = k.to_string_lossy().to_uppercase();
+            if upper == "CLAUDECODE" {
+                continue;
+            }
+            vars.insert(upper, (k, v));
+        }
+        for (k, v) in [
+            ("CLAUDE_CODE_SAFE_MODE", "1"),
+            ("NO_COLOR", "1"),
+            ("TERM", "xterm-256color"),
+        ] {
+            vars.insert(
+                k.to_string(),
+                (std::ffi::OsString::from(k), std::ffi::OsString::from(v)),
+            );
+        }
+        let mut block = Vec::new();
+        for (_, (k, v)) in vars {
+            block.extend(k.encode_wide());
+            block.push(b'=' as u16);
+            block.extend(v.encode_wide());
+            block.push(0);
+        }
+        block.push(0);
+        block
+    }
+
+    pub(super) fn spawn(
+        command: &str,
+        args: &[&str],
+        cwd: &Path,
+    ) -> Result<(Box<dyn Read + Send>, Box<dyn Write + Send>, HiddenConPtySession), SpawnError> {
+        unsafe {
+            let mut pty_in_read = INVALID_HANDLE_VALUE;
+            let mut pty_in_write = INVALID_HANDLE_VALUE;
+            let mut pty_out_read = INVALID_HANDLE_VALUE;
+            let mut pty_out_write = INVALID_HANDLE_VALUE;
+
+            CreatePipe(&mut pty_in_read, &mut pty_in_write, None, 0)
+                .map_err(|_| SpawnError::ProcessFailed)?;
+            if CreatePipe(&mut pty_out_read, &mut pty_out_write, None, 0).is_err() {
+                let _ = CloseHandle(pty_in_read);
+                let _ = CloseHandle(pty_in_write);
+                return Err(SpawnError::ProcessFailed);
+            }
+
+            let hpc = match CreatePseudoConsole(
+                COORD { X: 120, Y: 40 },
+                pty_in_read,
+                pty_out_write,
+                0,
+            ) {
+                Ok(hpc) => hpc,
+                Err(_) => {
+                    let _ = CloseHandle(pty_in_read);
+                    let _ = CloseHandle(pty_in_write);
+                    let _ = CloseHandle(pty_out_read);
+                    let _ = CloseHandle(pty_out_write);
+                    return Err(SpawnError::ProcessFailed);
+                }
+            };
+            let _ = CloseHandle(pty_in_read);
+            let _ = CloseHandle(pty_out_write);
+
+            let job = CreateJobObjectW(None, None).unwrap_or(INVALID_HANDLE_VALUE);
+            if !job.is_invalid() {
+                let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+                info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+                let _ = SetInformationJobObject(
+                    job,
+                    JobObjectExtendedLimitInformation,
+                    (&info as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+                    std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                );
+            }
+
+            let mut attr_size: usize = 0;
+            let _ = InitializeProcThreadAttributeList(None, 1, None, &mut attr_size);
+            let mut attr_buf = vec![0u8; attr_size.max(1)];
+            let attr_list = LPPROC_THREAD_ATTRIBUTE_LIST(attr_buf.as_mut_ptr().cast());
+            if InitializeProcThreadAttributeList(Some(attr_list), 1, None, &mut attr_size).is_err()
+            {
+                let _ = CloseHandle(pty_in_write);
+                let _ = CloseHandle(pty_out_read);
+                if !job.is_invalid() {
+                    let _ = CloseHandle(job);
+                }
+                ClosePseudoConsole(hpc);
+                return Err(SpawnError::ProcessFailed);
+            }
+
+            if UpdateProcThreadAttribute(
+                attr_list,
+                0,
+                PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE as usize,
+                Some(hpc.0 as *const std::ffi::c_void),
+                std::mem::size_of::<HPCON>(),
+                None,
+                None,
+            )
+            .is_err()
+            {
+                DeleteProcThreadAttributeList(attr_list);
+                let _ = CloseHandle(pty_in_write);
+                let _ = CloseHandle(pty_out_read);
+                if !job.is_invalid() {
+                    let _ = CloseHandle(job);
+                }
+                ClosePseudoConsole(hpc);
+                return Err(SpawnError::ProcessFailed);
+            }
+
+            let mut si = STARTUPINFOEXW::default();
+            si.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as u32;
+            si.StartupInfo.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+            si.StartupInfo.wShowWindow = SW_HIDE.0 as u16;
+            si.StartupInfo.hStdInput = INVALID_HANDLE_VALUE;
+            si.StartupInfo.hStdOutput = INVALID_HANDLE_VALUE;
+            si.StartupInfo.hStdError = INVALID_HANDLE_VALUE;
+            si.lpAttributeList = attr_list;
+
+            let is_batch = command
+                .rsplit(['/', '\\'])
+                .next()
+                .unwrap_or(command)
+                .to_ascii_lowercase();
+            let is_batch = is_batch.ends_with(".cmd") || is_batch.ends_with(".bat");
+
+            let mut cmdline = Vec::<u16>::new();
+            if is_batch {
+                let comspec = std::env::var_os("ComSpec")
+                    .unwrap_or_else(|| std::ffi::OsString::from("cmd.exe"));
+                append_quoted_wide(&comspec, &mut cmdline);
+                cmdline.extend("/d /s /c \"".encode_utf16());
+                append_quoted_wide(OsStr::new(command), &mut cmdline);
+                for arg in args {
+                    cmdline.push(b' ' as u16);
+                    append_quoted_wide(OsStr::new(arg), &mut cmdline);
+                }
+                cmdline.push(b'"' as u16);
+            } else {
+                append_quoted_wide(OsStr::new(command), &mut cmdline);
+                for arg in args {
+                    cmdline.push(b' ' as u16);
+                    append_quoted_wide(OsStr::new(arg), &mut cmdline);
+                }
+            }
+            cmdline.push(0);
+
+            let mut env_block = build_environment_block();
+            let cwd_wide: Option<Vec<u16>> = cwd.is_dir().then(|| {
+                let mut v: Vec<u16> = cwd.as_os_str().encode_wide().collect();
+                v.push(0);
+                v
+            });
+
+            let mut pi = PROCESS_INFORMATION::default();
+            let create_res = CreateProcessW(
+                PCWSTR::null(),
+                Some(PWSTR(cmdline.as_mut_ptr())),
+                None,
+                None,
+                false,
+                EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
+                Some(env_block.as_mut_ptr().cast()),
+                cwd_wide
+                    .as_ref()
+                    .map(|c| PCWSTR(c.as_ptr()))
+                    .unwrap_or(PCWSTR::null()),
+                &si.StartupInfo,
+                &mut pi,
+            );
+            DeleteProcThreadAttributeList(attr_list);
+
+            if create_res.is_err() {
+                let _ = CloseHandle(pty_in_write);
+                let _ = CloseHandle(pty_out_read);
+                if !job.is_invalid() {
+                    let _ = CloseHandle(job);
+                }
+                ClosePseudoConsole(hpc);
+                return Err(SpawnError::NotInstalled);
+            }
+
+            let _ = CloseHandle(pi.hThread);
+            if !job.is_invalid() {
+                let _ = AssignProcessToJobObject(job, pi.hProcess);
+            }
+
+            let reader = Box::new(File::from_raw_handle(pty_out_read.0 as _));
+            let writer = Box::new(File::from_raw_handle(pty_in_write.0 as _));
+            Ok((
+                reader,
+                writer,
+                HiddenConPtySession {
+                    hpc,
+                    job,
+                    process: pi.hProcess,
+                },
+            ))
+        }
+    }
 }
 
 struct ClaudeProbeResult {
@@ -343,7 +652,8 @@ fn run_claude_pty_probe_at(
     startup_idle: Duration,
     response_idle: Duration,
 ) -> ClaudeProbeResult {
-    let cli = super::CliCommand::new(command_name);
+    let resolved_command = super::resolve_command_path(command_name);
+    let cli = super::CliCommand::new(&resolved_command);
     // Windows portable-pty resolves PATHEXT (e.g. claude.exe) itself.
     #[cfg(unix)]
     if !cli.program.is_file() {
@@ -352,6 +662,23 @@ fn run_claude_pty_probe_at(
     if fs::create_dir_all(probe_dir).is_err() {
         return ClaudeProbeResult::failure("process_failed");
     }
+
+    #[cfg(target_os = "windows")]
+    let (mut reader, mut writer, mut session) = match win_hidden_pty::spawn(
+        &cli.program.to_string_lossy(),
+        CLAUDE_SAFE_SESSION_ARGS,
+        probe_dir,
+    ) {
+        Ok(parts) => parts,
+        Err(win_hidden_pty::SpawnError::NotInstalled) => {
+            return ClaudeProbeResult::failure("not_installed");
+        }
+        Err(win_hidden_pty::SpawnError::ProcessFailed) => {
+            return ClaudeProbeResult::failure("process_failed");
+        }
+    };
+
+    #[cfg(not(target_os = "windows"))]
     let pty_pair = match native_pty_system().openpty(PtySize {
         rows: 40,
         cols: 120,
@@ -361,24 +688,35 @@ fn run_claude_pty_probe_at(
         Ok(pair) => pair,
         Err(_) => return ClaudeProbeResult::failure("process_failed"),
     };
-    // Acquire both streams before spawning so a stream error cannot leak a child.
+    #[cfg(not(target_os = "windows"))]
     let mut reader = match pty_pair.master.try_clone_reader() {
         Ok(reader) => reader,
         Err(_) => return ClaudeProbeResult::failure("process_failed"),
     };
+    #[cfg(not(target_os = "windows"))]
     let mut writer = match pty_pair.master.take_writer() {
         Ok(writer) => writer,
         Err(_) => return ClaudeProbeResult::failure("process_failed"),
     };
+    #[cfg(not(target_os = "windows"))]
     let mut cmd = CommandBuilder::new(&cli.program);
+    #[cfg(not(target_os = "windows"))]
     for arg in CLAUDE_SAFE_SESSION_ARGS {
         cmd.arg(arg);
     }
+    #[cfg(not(target_os = "windows"))]
     cmd.cwd(probe_dir);
+    #[cfg(not(target_os = "windows"))]
     cmd.env("PATH", &cli.path);
+    #[cfg(not(target_os = "windows"))]
     cmd.env("CLAUDE_CODE_SAFE_MODE", "1");
+    #[cfg(not(target_os = "windows"))]
     cmd.env("NO_COLOR", "1");
+    #[cfg(not(target_os = "windows"))]
     cmd.env("TERM", "xterm-256color");
+    #[cfg(not(target_os = "windows"))]
+    cmd.env_remove("CLAUDECODE");
+    #[cfg(not(target_os = "windows"))]
     let mut child = match pty_pair.slave.spawn_command(cmd) {
         Ok(child) => child,
         Err(error) => {
@@ -394,6 +732,7 @@ fn run_claude_pty_probe_at(
             });
         }
     };
+    #[cfg(not(target_os = "windows"))]
     drop(pty_pair.slave);
 
     let capture = Arc::new(std::sync::Mutex::new(ScreenCapture::default()));
@@ -430,7 +769,12 @@ fn run_claude_pty_probe_at(
             result = ClaudeProbeResult::failure(status);
             break;
         }
-        if closed || !matches!(child.try_wait(), Ok(None)) {
+        #[cfg(target_os = "windows")]
+        let process_stopped = !session.is_alive();
+        #[cfg(not(target_os = "windows"))]
+        let process_stopped = !matches!(child.try_wait(), Ok(None));
+
+        if closed || process_stopped {
             result = ClaudeProbeResult::failure("process_failed");
             break;
         }
@@ -478,8 +822,17 @@ fn run_claude_pty_probe_at(
             writer.flush()?;
             let exiting = Instant::now();
             while exiting.elapsed() < EXIT_TIMEOUT {
-                if let Some(status) = child.try_wait()? {
-                    return Ok(status.success());
+                #[cfg(target_os = "windows")]
+                {
+                    if !session.is_alive() {
+                        return Ok(true);
+                    }
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    if let Some(status) = child.try_wait()? {
+                        return Ok(status.success());
+                    }
                 }
                 std::thread::sleep(Duration::from_millis(50));
             }
@@ -491,12 +844,21 @@ fn run_claude_pty_probe_at(
         }
     }
     done.store(true, std::sync::atomic::Ordering::Relaxed);
-    if matches!(child.try_wait(), Ok(None)) {
-        let _ = child.kill();
+    #[cfg(target_os = "windows")]
+    {
+        session.wait_or_terminate(EXIT_WAIT_TIMEOUT);
+        drop(writer);
+        drop(session);
     }
-    let _ = child.wait();
-    drop(writer);
-    drop(pty_pair.master);
+    #[cfg(not(target_os = "windows"))]
+    {
+        if matches!(child.try_wait(), Ok(None)) {
+            let _ = child.kill();
+        }
+        let _ = child.wait();
+        drop(writer);
+        drop(pty_pair.master);
+    }
     // Child exit closes the slave; reap the reader instead of accumulating threads.
     let _ = reader_thread.join();
     result
@@ -1116,5 +1478,42 @@ mod tests {
                 assert_eq!(parse_reset_in_timezone(&[invalid], now, zone), None);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn missing_cli_is_unavailable() {
+        let s = ClaudeProvider::with_command("nonexistent-llm-monitor-fixture-command".into())
+            .fetch_quota()
+            .await;
+        assert_eq!(s.error.unwrap().code, "not_installed");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn hidden_conpty_captures_output_and_terminates_cleanly() {
+        let temp = tempfile::tempdir().unwrap();
+        let (mut reader, writer, mut session) = win_hidden_pty::spawn(
+            "cmd.exe",
+            &["/d", "/s", "/c", "echo hidden-pty-ok"],
+            temp.path(),
+        )
+        .unwrap_or_else(|_| panic!("failed to spawn cmd.exe in hidden ConPTY"));
+
+        session.wait_or_terminate(Duration::from_secs(3));
+        drop(writer);
+        drop(session);
+
+        let mut buf = [0u8; 512];
+        let mut collected = String::new();
+        while let Ok(n) = reader.read(&mut buf) {
+            if n == 0 {
+                break;
+            }
+            collected.push_str(&String::from_utf8_lossy(&buf[..n]));
+            if collected.contains("hidden-pty-ok") {
+                break;
+            }
+        }
+        assert!(collected.contains("hidden-pty-ok"));
     }
 }

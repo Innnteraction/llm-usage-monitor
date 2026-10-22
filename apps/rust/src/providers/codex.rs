@@ -6,7 +6,6 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::env;
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -74,7 +73,7 @@ impl Default for CodexProvider {
 
 impl CodexProvider {
     pub fn new() -> Self {
-        let command_name = env::var("CODEX_CLI_PATH").unwrap_or_else(|_| "codex".to_string());
+        let command_name = super::resolve_cli_binary("codex", Some("CODEX_CLI_PATH"));
         Self { command_name }
     }
 

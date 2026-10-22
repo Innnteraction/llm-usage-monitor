@@ -41,6 +41,9 @@ fn startup_mark(phase: &'static str) {
     }
 }
 
+const POPOVER_OPEN_GRACE: Duration = Duration::from_millis(400);
+const TRAY_BLUR_COOLDOWN: Duration = Duration::from_millis(250);
+
 struct AppState {
     window_handle: Option<WindowHandle<PopoverView>>,
     pinned: bool,
@@ -62,11 +65,28 @@ struct AppState {
     dragging: bool,
     ui_error: Option<String>,
     demo: bool,
+    opened_at: Option<Instant>,
     hidden_since: Option<Instant>,
     scroll: gpui::ScrollHandle,
     reduced_motion: bool,
 }
 impl AppState {
+    fn should_close_on_deactivate(&self, is_window_active: bool, now: Instant) -> bool {
+        !is_window_active
+            && !self.pinned
+            && !self.dragging
+            && self
+                .opened_at
+                .is_none_or(|opened| now.saturating_duration_since(opened) >= POPOVER_OPEN_GRACE)
+    }
+
+    fn should_ignore_tray_toggle_open(&self, now: Instant) -> bool {
+        self.window_handle.is_none()
+            && self
+                .hidden_since
+                .is_some_and(|hidden| now.saturating_duration_since(hidden) < TRAY_BLUR_COOLDOWN)
+    }
+
     fn refresh_work_area(&mut self, window: &Window) -> bool {
         #[cfg(target_os = "windows")]
         match llm_usage_monitor_core::shell::desktop::window_work_area(window) {
@@ -249,9 +269,12 @@ impl Render for PopoverView {
                     return;
                 }
                 if key.key == "escape" {
-                    if !this.state.lock().unwrap().pinned {
-                        this.state.lock().unwrap().window_handle = None;
-                        this.state.lock().unwrap().hidden_since = Some(Instant::now());
+                    let mut s = this.state.lock().unwrap();
+                    if !s.pinned {
+                        s.window_handle = None;
+                        s.opened_at = None;
+                        s.hidden_since = Some(Instant::now());
+                        drop(s);
                         window.remove_window();
                     }
                     return;
@@ -337,6 +360,7 @@ fn open_setup_terminal(setup: llm_usage_monitor_core::shell::desktop::Setup) -> 
 fn close_popover(state: &Arc<Mutex<AppState>>, cx: &mut App) {
     let handle = {
         let mut s = state.lock().unwrap();
+        s.opened_at = None;
         s.hidden_since = Some(Instant::now());
         s.window_handle.take()
     };
@@ -348,6 +372,7 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
     startup_mark("popover-request");
     let existing = state.lock().unwrap().window_handle;
     if let Some(handle) = existing {
+        state.lock().unwrap().opened_at = Some(Instant::now());
         if handle
             .update(cx, |_, window, _| window.activate_window())
             .is_ok()
@@ -411,6 +436,7 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
         s.work_area = area;
         s.anchor = anchor;
         s.dragging = false;
+        s.opened_at = Some(Instant::now());
         s.custom_position
             .map(|p| clamp_window_position(p, WindowSize::new(width, height), area))
             .unwrap_or_else(|| {
@@ -448,8 +474,9 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
             .detach();
             cx.observe_window_activation(window, |this: &mut PopoverView, window, _| {
                 let mut s = this.state.lock().unwrap();
-                if !window.is_window_active() && !s.pinned {
+                if s.should_close_on_deactivate(window.is_window_active(), Instant::now()) {
                     s.window_handle = None;
+                    s.opened_at = None;
                     s.hidden_since = Some(Instant::now());
                     drop(s);
                     window.remove_window();
@@ -465,6 +492,7 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
             }
             let focus = cx.focus_handle();
             window.focus(&focus);
+            window.activate_window();
             PopoverView {
                 state: view_state,
                 focus,
@@ -621,6 +649,7 @@ fn main() {
             dragging: false,
             ui_error: None,
             demo,
+            opened_at: None,
             hidden_since: None,
             scroll: gpui::ScrollHandle::new(),
             reduced_motion: llm_usage_monitor_core::shell::desktop::prefers_reduced_motion(),
@@ -727,12 +756,25 @@ fn main() {
                                 let bounds = window.bounds();
                                 if (f32::from(bounds.size.height) - dimensions.height).abs() > 1.
                                     || (f32::from(bounds.size.width) - dimensions.width).abs() > 1. {
-                                    view.state.lock().unwrap().dragging = false;
+                                    let (pinned, in_open_grace) = {
+                                        let mut s = view.state.lock().unwrap();
+                                        s.dragging = false;
+                                        (
+                                            s.pinned,
+                                            s.opened_at.is_some_and(|t| t.elapsed() < POPOVER_OPEN_GRACE),
+                                        )
+                                    };
                                     // Bounds observers may acquire AppState again during OS calls.
                                     window.resize(size(px(dimensions.width),px(dimensions.height)));
                                     #[cfg(target_os="windows")]
                                     if llm_usage_monitor_core::shell::desktop::set_position(window,pos.x,pos.y).is_err() {
                                         view.state.lock().unwrap().ui_error=Some("Failed to update window position.".into());
+                                    }
+                                    if pinned {
+                                        let _ = llm_usage_monitor_core::shell::desktop::set_topmost(window, true);
+                                    }
+                                    if in_open_grace {
+                                        window.activate_window();
                                     }
                                 }
                             })
@@ -748,10 +790,16 @@ fn main() {
                         {
                             let state = state.clone();
                             let _ = async_cx.update(move |cx| {
-                                let open = state.lock().unwrap().window_handle.is_some();
+                                let (open, ignore_reopen) = {
+                                    let s = state.lock().unwrap();
+                                    (
+                                        s.window_handle.is_some(),
+                                        s.should_ignore_tray_toggle_open(Instant::now()),
+                                    )
+                                };
                                 if open {
                                     close_popover(&state, cx);
-                                } else {
+                                } else if !ignore_reopen {
                                     open_popover(state, cx);
                                 }
                             });
@@ -899,6 +947,7 @@ mod tests {
             dragging: false,
             ui_error: None,
             demo: true,
+            opened_at: None,
             hidden_since: None,
             scroll: gpui::ScrollHandle::new(),
             reduced_motion: false,
@@ -921,5 +970,20 @@ mod tests {
         state.expanded_errors.insert(ProviderId::Codex);
         state.toggle_compact();
         assert!(state.expanded.is_empty() && state.expanded_errors.is_empty());
+
+        let now = Instant::now();
+        state.pinned = false;
+        state.opened_at = Some(now - Duration::from_millis(100));
+        assert!(!state.should_close_on_deactivate(false, now));
+        state.opened_at = Some(now - POPOVER_OPEN_GRACE);
+        assert!(state.should_close_on_deactivate(false, now));
+        assert!(!state.should_close_on_deactivate(true, now));
+        state.pinned = true;
+        assert!(!state.should_close_on_deactivate(false, now));
+
+        state.hidden_since = Some(now - Duration::from_millis(100));
+        assert!(state.should_ignore_tray_toggle_open(now));
+        state.hidden_since = Some(now - TRAY_BLUR_COOLDOWN);
+        assert!(!state.should_ignore_tray_toggle_open(now));
     }
 }
