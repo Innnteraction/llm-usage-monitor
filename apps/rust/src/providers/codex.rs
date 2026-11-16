@@ -6,10 +6,10 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+#[cfg(not(target_os = "windows"))]
 use std::process::Stdio;
 use std::time::Duration;
-use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{ChildStdin, ChildStdout};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
 const FIVE_HOUR_MINUTES: i64 = 5 * 60;
 const WEEKLY_MINUTES: i64 = 7 * 24 * 60;
@@ -85,33 +85,76 @@ impl CodexProvider {
         let fetched_at = Utc::now();
 
         // 1. Spawn codex app-server --stdio
-        let mut child = match super::background_command(&self.command_name)
-            .args(["app-server", "--stdio"])
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-        {
-            Ok(child) => child,
-            Err(e) => {
-                let code = if e.kind() == std::io::ErrorKind::NotFound {
-                    "not_installed"
-                } else {
-                    "process_failed"
-                };
-                return failure_snapshot(fetched_at, code, "Install the Codex CLI to view quota.");
+        #[cfg(target_os = "windows")]
+        let result = {
+            let resolved = super::resolve_command_path(&self.command_name);
+            let cli = super::CliCommand::new(&resolved);
+            let probe_dir = super::resolve_claude_probe_dir();
+            let _ = std::fs::create_dir_all(&probe_dir);
+            match super::win_hidden_process::spawn_hidden_stdio(
+                cli.program.as_os_str(),
+                &["app-server", "--stdio"],
+                &probe_dir,
+                &cli.path,
+            ) {
+                Ok((child, stdin, stdout)) => {
+                    let mut reader = BufReader::new(stdout);
+                    let mut writer = stdin;
+                    let res = self.execute_rpc_session(&mut reader, &mut writer).await;
+                    child.kill();
+                    res
+                }
+                Err(super::win_hidden_process::HiddenExecError::NotInstalled) => {
+                    return failure_snapshot(
+                        fetched_at,
+                        "not_installed",
+                        "Install the Codex CLI to view quota.",
+                    );
+                }
+                Err(_) => {
+                    return failure_snapshot(
+                        fetched_at,
+                        "process_failed",
+                        "Install the Codex CLI to view quota.",
+                    );
+                }
             }
         };
 
-        let stdin = child.stdin.take().unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let mut reader = BufReader::new(stdout);
-        let mut writer = stdin;
+        #[cfg(not(target_os = "windows"))]
+        let result = {
+            let mut child = match super::background_command(&self.command_name)
+                .args(["app-server", "--stdio"])
+                .kill_on_drop(true)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .spawn()
+            {
+                Ok(child) => child,
+                Err(e) => {
+                    let code = if e.kind() == std::io::ErrorKind::NotFound {
+                        "not_installed"
+                    } else {
+                        "process_failed"
+                    };
+                    return failure_snapshot(
+                        fetched_at,
+                        code,
+                        "Install the Codex CLI to view quota.",
+                    );
+                }
+            };
 
-        let result = self.execute_rpc_session(&mut reader, &mut writer).await;
+            let stdin = child.stdin.take().unwrap();
+            let stdout = child.stdout.take().unwrap();
+            let mut reader = BufReader::new(stdout);
+            let mut writer = stdin;
 
-        let _ = child.kill().await;
+            let res = self.execute_rpc_session(&mut reader, &mut writer).await;
+            let _ = child.kill().await;
+            res
+        };
 
         match result {
             Ok((account, rate_limits)) => {
@@ -121,11 +164,15 @@ impl CodexProvider {
         }
     }
 
-    async fn execute_rpc_session(
+    async fn execute_rpc_session<R, W>(
         &self,
-        reader: &mut BufReader<ChildStdout>,
-        writer: &mut ChildStdin,
-    ) -> Result<(CodexAccountResponse, CodexRateLimitsResponse), (String, String)> {
+        reader: &mut R,
+        writer: &mut W,
+    ) -> Result<(CodexAccountResponse, CodexRateLimitsResponse), (String, String)>
+    where
+        R: AsyncBufRead + Unpin,
+        W: AsyncWrite + Unpin,
+    {
         // Step 1: initialize
         let init_req = json!({
             "id": 1,
@@ -184,7 +231,10 @@ impl CodexProvider {
     }
 }
 
-async fn send_json(writer: &mut ChildStdin, val: &Value) -> Result<(), (String, String)> {
+async fn send_json<W: AsyncWrite + Unpin>(
+    writer: &mut W,
+    val: &Value,
+) -> Result<(), (String, String)> {
     let mut line = serde_json::to_string(val).map_err(|_| {
         (
             "unexpected".to_string(),

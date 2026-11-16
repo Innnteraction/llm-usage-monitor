@@ -2,6 +2,8 @@ pub mod antigravity;
 pub mod claude;
 pub mod codex;
 mod cli;
+#[cfg(target_os = "windows")]
+mod win_hidden_process;
 
 pub use antigravity::AntigravityProvider;
 pub use claude::ClaudeProvider;
@@ -163,20 +165,98 @@ pub(crate) fn resolve_command_path(command: &str) -> String {
         })
 }
 
+#[cfg(not(target_os = "windows"))]
 /// Background collection must never create a Windows console window.
 fn background_command(program: &str) -> tokio::process::Command {
     let resolved = resolve_command_path(program);
     let cli = CliCommand::new(&resolved);
     let mut command = tokio::process::Command::new(&cli.program);
     command.env("PATH", &cli.path);
-    #[cfg(windows)]
-    command.creation_flags(0x08000000); // CREATE_NO_WINDOW
     let probe_dir = resolve_claude_probe_dir();
     if std::fs::create_dir_all(&probe_dir).is_ok() {
         command.current_dir(probe_dir);
     }
     command.kill_on_drop(true);
     command
+}
+
+pub(crate) struct BackgroundOutput {
+    pub(crate) success: bool,
+    pub(crate) stdout: Vec<u8>,
+    pub(crate) stderr: Vec<u8>,
+}
+
+pub(crate) enum BackgroundExecError {
+    NotInstalled,
+    TimedOut,
+    Failed,
+}
+
+pub(crate) async fn run_background_output(
+    program: &str,
+    args: &[&str],
+    timeout: std::time::Duration,
+    capture_stderr: bool,
+) -> Result<BackgroundOutput, BackgroundExecError> {
+    #[cfg(target_os = "windows")]
+    {
+        let resolved = resolve_command_path(program);
+        let cli = CliCommand::new(&resolved);
+        let probe_dir = resolve_claude_probe_dir();
+        let _ = std::fs::create_dir_all(&probe_dir);
+        let args_owned: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
+        match win_hidden_process::run_hidden_output(
+            cli.program.into_os_string(),
+            args_owned,
+            probe_dir,
+            cli.path,
+            timeout,
+            capture_stderr,
+        )
+        .await
+        {
+            Ok(out) => Ok(BackgroundOutput {
+                success: out.success,
+                stdout: out.stdout,
+                stderr: out.stderr,
+            }),
+            Err(win_hidden_process::HiddenExecError::NotInstalled) => {
+                Err(BackgroundExecError::NotInstalled)
+            }
+            Err(win_hidden_process::HiddenExecError::TimedOut) => {
+                Err(BackgroundExecError::TimedOut)
+            }
+            Err(win_hidden_process::HiddenExecError::Failed) => {
+                Err(BackgroundExecError::Failed)
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut command = background_command(program);
+        command
+            .args(args)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(if capture_stderr {
+                std::process::Stdio::piped()
+            } else {
+                std::process::Stdio::null()
+            });
+        match tokio::time::timeout(timeout, command.output()).await {
+            Ok(Ok(out)) => Ok(BackgroundOutput {
+                success: out.status.success(),
+                stdout: out.stdout,
+                stderr: out.stderr,
+            }),
+            Ok(Err(e)) if e.kind() == std::io::ErrorKind::NotFound => {
+                Err(BackgroundExecError::NotInstalled)
+            }
+            Ok(Err(_)) => Err(BackgroundExecError::Failed),
+            Err(_) => Err(BackgroundExecError::TimedOut),
+        }
+    }
 }
 
 #[cfg(test)]

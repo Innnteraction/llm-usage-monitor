@@ -1,0 +1,12 @@
+diff --git a/lib/windowsPtyAgent.js b/lib/windowsPtyAgent.js
+--- a/lib/windowsPtyAgent.js
++++ b/lib/windowsPtyAgent.js
+@@ -181,7 +181,7 @@
+     WindowsPtyAgent.prototype._getConsoleProcessList = function () {
+         var _this = this;
+         return new Promise(function (resolve) {
+-            var agent = child_process_1.fork(path.join(__dirname, 'conpty_console_list_agent'), [_this._innerPid.toString()]);
++            var agent = child_process_1.fork(path.join(__dirname, 'conpty_console_list_agent'), [_this._innerPid.toString()], { silent: true, windowsHide: true });
+             agent.on('message', function (message) {
+                 clearTimeout(timeout);
+                 resolve(message.consoleProcessList);

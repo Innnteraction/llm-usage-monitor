@@ -8,7 +8,6 @@ use serde::Deserialize;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
-use std::process::Stdio;
 use std::time::Duration;
 
 const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
@@ -82,33 +81,30 @@ impl AntigravityProvider {
         let fetched_at = Utc::now();
 
         // 1. Verify CLI executable & version
-        let version_result = tokio::time::timeout(
+        let version_output = match super::run_background_output(
+            &self.command_name,
+            &["--version"],
             VERSION_TIMEOUT,
-            super::background_command(&self.command_name)
-                .kill_on_drop(true)
-                .arg("--version")
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .output(),
+            true,
         )
-        .await;
-
-        let version_output = match version_result {
-            Ok(Ok(output)) => output,
-            Ok(Err(e)) => {
-                let code = if e.kind() == std::io::ErrorKind::NotFound {
-                    "not_installed"
-                } else {
-                    "process_failed"
-                };
+        .await
+        {
+            Ok(output) => output,
+            Err(super::BackgroundExecError::NotInstalled) => {
                 return failure_snapshot(
                     fetched_at,
-                    code,
+                    "not_installed",
                     "Install the Antigravity CLI to view quota.",
                 );
             }
-            Err(_) => {
+            Err(super::BackgroundExecError::Failed) => {
+                return failure_snapshot(
+                    fetched_at,
+                    "process_failed",
+                    "Install the Antigravity CLI to view quota.",
+                );
+            }
+            Err(super::BackgroundExecError::TimedOut) => {
                 return failure_snapshot(
                     fetched_at,
                     "timeout",
@@ -117,42 +113,37 @@ impl AntigravityProvider {
             }
         };
 
-        if !version_output.status.success() {
+        if !version_output.success {
             let stderr = String::from_utf8_lossy(&version_output.stderr);
             let (code, msg) = classify_error(&stderr);
             return failure_snapshot(fetched_at, code, msg);
         }
 
         // 2. Fetch usage
-        let usage_result = tokio::time::timeout(
+        let usage_output = match super::run_background_output(
+            &self.command_name,
+            &[
+                "--print",
+                "/usage",
+                "--output-format",
+                "json",
+                "--print-timeout",
+                "20s",
+            ],
             USAGE_TIMEOUT,
-            super::background_command(&self.command_name)
-                .kill_on_drop(true)
-                .args([
-                    "--print",
-                    "/usage",
-                    "--output-format",
-                    "json",
-                    "--print-timeout",
-                    "20s",
-                ])
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .output(),
+            true,
         )
-        .await;
-
-        let usage_output = match usage_result {
-            Ok(Ok(output)) => output,
-            Ok(Err(_)) => {
+        .await
+        {
+            Ok(output) => output,
+            Err(super::BackgroundExecError::NotInstalled | super::BackgroundExecError::Failed) => {
                 return failure_snapshot(
                     fetched_at,
                     "process_failed",
                     "Antigravity CLI stopped during quota refresh.",
                 );
             }
-            Err(_) => {
+            Err(super::BackgroundExecError::TimedOut) => {
                 return failure_snapshot(
                     fetched_at,
                     "timeout",
@@ -164,7 +155,7 @@ impl AntigravityProvider {
         let stdout_str = String::from_utf8_lossy(&usage_output.stdout);
         let stderr_str = String::from_utf8_lossy(&usage_output.stderr);
 
-        if !usage_output.status.success() {
+        if !usage_output.success {
             let (code, msg) = classify_error(&stderr_str);
             return failure_snapshot(fetched_at, code, msg);
         }

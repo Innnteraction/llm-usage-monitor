@@ -10,7 +10,6 @@ use serde::Deserialize;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -174,21 +173,16 @@ impl ClaudeProvider {
     }
 
     async fn read_auth_status(&self) -> Option<ClaudeAuthStatusJson> {
-        let output = tokio::time::timeout(
+        let output = super::run_background_output(
+            &self.command_name,
+            &["auth", "status", "--json"],
             Duration::from_secs(5),
-            super::background_command(&self.command_name)
-                .kill_on_drop(true)
-                .args(["auth", "status", "--json"])
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::null())
-                .output(),
+            false,
         )
         .await
-        .ok()?
         .ok()?;
 
-        if output.status.success() {
+        if output.success {
             serde_json::from_slice(&output.stdout).ok()
         } else {
             None
@@ -204,6 +198,9 @@ const EXIT_WAIT_TIMEOUT: Duration = Duration::from_millis(1500);
 
 #[cfg(target_os = "windows")]
 mod win_hidden_pty {
+    use super::super::win_hidden_process::{
+        build_command_line, build_environment_block, hidden_desktop_ptr,
+    };
     use std::ffi::OsStr;
     use std::fs::File;
     use std::io::{Read, Write};
@@ -212,7 +209,9 @@ mod win_hidden_pty {
     use std::path::Path;
     use std::time::Duration;
     use windows::core::{PCWSTR, PWSTR};
-    use windows::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE, WAIT_OBJECT_0, WAIT_TIMEOUT};
+    use windows::Win32::Foundation::{
+        CloseHandle, HANDLE, INVALID_HANDLE_VALUE, WAIT_OBJECT_0, WAIT_TIMEOUT,
+    };
     use windows::Win32::System::Console::{ClosePseudoConsole, CreatePseudoConsole, COORD, HPCON};
     use windows::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
@@ -261,6 +260,7 @@ mod win_hidden_pty {
         fn drop(&mut self) {
             unsafe {
                 let _ = TerminateProcess(self.process, 1);
+                let _ = WaitForSingleObject(self.process, 250);
                 if !self.job.is_invalid() {
                     let _ = CloseHandle(self.job);
                 }
@@ -272,74 +272,11 @@ mod win_hidden_pty {
         }
     }
 
-    fn append_quoted_wide(arg: &OsStr, cmdline: &mut Vec<u16>) {
-        let wide: Vec<u16> = arg.encode_wide().collect();
-        let needs_quotes = wide.is_empty()
-            || wide
-                .iter()
-                .any(|&c| c == b' ' as u16 || c == b'\t' as u16 || c == b'\n' as u16 || c == b'"' as u16);
-        if !needs_quotes {
-            cmdline.extend_from_slice(&wide);
-            return;
-        }
-        cmdline.push(b'"' as u16);
-        let mut i = 0;
-        while i < wide.len() {
-            let mut backslashes = 0;
-            while i < wide.len() && wide[i] == b'\\' as u16 {
-                i += 1;
-                backslashes += 1;
-            }
-            if i == wide.len() {
-                cmdline.extend(std::iter::repeat_n(b'\\' as u16, backslashes * 2));
-                break;
-            } else if wide[i] == b'"' as u16 {
-                cmdline.extend(std::iter::repeat_n(b'\\' as u16, backslashes * 2 + 1));
-                cmdline.push(b'"' as u16);
-            } else {
-                cmdline.extend(std::iter::repeat_n(b'\\' as u16, backslashes));
-                cmdline.push(wide[i]);
-            }
-            i += 1;
-        }
-        cmdline.push(b'"' as u16);
-    }
-
-    fn build_environment_block() -> Vec<u16> {
-        let mut vars: std::collections::BTreeMap<String, (std::ffi::OsString, std::ffi::OsString)> =
-            std::collections::BTreeMap::new();
-        for (k, v) in std::env::vars_os() {
-            let upper = k.to_string_lossy().to_uppercase();
-            if upper == "CLAUDECODE" {
-                continue;
-            }
-            vars.insert(upper, (k, v));
-        }
-        for (k, v) in [
-            ("CLAUDE_CODE_SAFE_MODE", "1"),
-            ("NO_COLOR", "1"),
-            ("TERM", "xterm-256color"),
-        ] {
-            vars.insert(
-                k.to_string(),
-                (std::ffi::OsString::from(k), std::ffi::OsString::from(v)),
-            );
-        }
-        let mut block = Vec::new();
-        for (_, (k, v)) in vars {
-            block.extend(k.encode_wide());
-            block.push(b'=' as u16);
-            block.extend(v.encode_wide());
-            block.push(0);
-        }
-        block.push(0);
-        block
-    }
-
     pub(super) fn spawn(
         command: &str,
         args: &[&str],
         cwd: &Path,
+        env_path: Option<&OsStr>,
     ) -> Result<(Box<dyn Read + Send>, Box<dyn Write + Send>, HiddenConPtySession), SpawnError> {
         unsafe {
             let mut pty_in_read = INVALID_HANDLE_VALUE;
@@ -423,6 +360,7 @@ mod win_hidden_pty {
 
             let mut si = STARTUPINFOEXW::default();
             si.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as u32;
+            si.StartupInfo.lpDesktop = PWSTR(hidden_desktop_ptr().0.cast_mut());
             si.StartupInfo.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
             si.StartupInfo.wShowWindow = SW_HIDE.0 as u16;
             si.StartupInfo.hStdInput = INVALID_HANDLE_VALUE;
@@ -430,35 +368,16 @@ mod win_hidden_pty {
             si.StartupInfo.hStdError = INVALID_HANDLE_VALUE;
             si.lpAttributeList = attr_list;
 
-            let is_batch = command
-                .rsplit(['/', '\\'])
-                .next()
-                .unwrap_or(command)
-                .to_ascii_lowercase();
-            let is_batch = is_batch.ends_with(".cmd") || is_batch.ends_with(".bat");
-
-            let mut cmdline = Vec::<u16>::new();
-            if is_batch {
-                let comspec = std::env::var_os("ComSpec")
-                    .unwrap_or_else(|| std::ffi::OsString::from("cmd.exe"));
-                append_quoted_wide(&comspec, &mut cmdline);
-                cmdline.extend("/d /s /c \"".encode_utf16());
-                append_quoted_wide(OsStr::new(command), &mut cmdline);
-                for arg in args {
-                    cmdline.push(b' ' as u16);
-                    append_quoted_wide(OsStr::new(arg), &mut cmdline);
-                }
-                cmdline.push(b'"' as u16);
-            } else {
-                append_quoted_wide(OsStr::new(command), &mut cmdline);
-                for arg in args {
-                    cmdline.push(b' ' as u16);
-                    append_quoted_wide(OsStr::new(arg), &mut cmdline);
-                }
-            }
-            cmdline.push(0);
-
-            let mut env_block = build_environment_block();
+            let mut cmdline = build_command_line(OsStr::new(command), args);
+            let mut env_block = build_environment_block(
+                env_path,
+                &[
+                    ("CLAUDE_CODE_SAFE_MODE", "1"),
+                    ("NO_COLOR", "1"),
+                    ("TERM", "xterm-256color"),
+                ],
+                &["CLAUDECODE"],
+            );
             let cwd_wide: Option<Vec<u16>> = cwd.is_dir().then(|| {
                 let mut v: Vec<u16> = cwd.as_os_str().encode_wide().collect();
                 v.push(0);
@@ -668,6 +587,7 @@ fn run_claude_pty_probe_at(
         &cli.program.to_string_lossy(),
         CLAUDE_SAFE_SESSION_ARGS,
         probe_dir,
+        Some(&cli.path),
     ) {
         Ok(parts) => parts,
         Err(win_hidden_pty::SpawnError::NotInstalled) => {
@@ -1496,6 +1416,7 @@ mod tests {
             "cmd.exe",
             &["/d", "/s", "/c", "echo hidden-pty-ok"],
             temp.path(),
+            None,
         )
         .unwrap_or_else(|_| panic!("failed to spawn cmd.exe in hidden ConPTY"));
 

@@ -1,7 +1,6 @@
 import { execFile } from "node:child_process";
 import { z } from "zod";
 import {
-  resolveCliBinary,
   type ProviderAuthKind,
   type ProviderSnapshot,
 } from "../../shared/index";
@@ -10,6 +9,7 @@ import {
   normalizeClaudeSnapshot,
   type ClaudeAccountContext,
 } from "./normalize";
+import { resolveCliBinaryPath } from "../../infrastructure/index";
 import { runClaudeUsageProbe, type ClaudePtyProbeResult } from "./ptyProbe";
 
 export interface ClaudeQuotaProviderOptions {
@@ -69,7 +69,7 @@ const classifyClaudeAuthKind = (
 };
 
 export function readClaudeAccountContext(
-  command = resolveCliBinary("claude"),
+  command = resolveCliBinaryPath("claude"),
 ): Promise<ClaudeAccountContext | undefined> {
   return new Promise((resolve) => {
     execFile(

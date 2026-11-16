@@ -42,5 +42,10 @@
     "test:architecture": "pnpm --dir apps/node test:architecture",
     "test:smoke:antigravity": "pnpm --dir apps/node test:smoke:antigravity",
     "check:versions": "node scripts/check-versions.mjs"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "node-pty@1.1.0": "patches/node-pty@1.1.0.patch"
+    }
   }
 }
