@@ -1,6 +1,14 @@
 use crate::core::types::{ProviderId, ProviderSnapshot, SnapshotStatus};
 use chrono::Utc;
 
+pub const DEFAULT_UPDATE_INTERVAL_MINUTES: u64 = 1;
+pub const MIN_UPDATE_INTERVAL_MINUTES: u64 = 1;
+pub const MAX_UPDATE_INTERVAL_MINUTES: u64 = 10;
+
+pub fn clamp_update_interval_minutes(minutes: u64) -> u64 {
+    minutes.clamp(MIN_UPDATE_INTERVAL_MINUTES, MAX_UPDATE_INTERVAL_MINUTES)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum JobKey {
     CodexQuota,
@@ -56,8 +64,10 @@ pub(super) struct Job {
     pub(super) generation: u64,
     pub(super) in_flight: bool,
     pub(super) queued: bool,
+    pub(super) manual_due: bool,
     pub(super) failures: usize,
     pub(super) due: std::time::Instant,
+    pub(super) last_completed: Option<std::time::Instant>,
 }
 impl Job {
     pub(super) fn new() -> Self {
@@ -65,8 +75,10 @@ impl Job {
             generation: 0,
             in_flight: false,
             queued: false,
+            manual_due: false,
             failures: 0,
             due: std::time::Instant::now(),
+            last_completed: None,
         }
     }
     pub(super) fn request(&mut self) {
@@ -77,9 +89,13 @@ impl Job {
         }
     }
 }
-pub(super) fn quota_delay(p: &ProviderSnapshot, failures: usize) -> std::time::Duration {
+pub(super) fn quota_delay(
+    p: &ProviderSnapshot,
+    failures: usize,
+    interval: std::time::Duration,
+) -> std::time::Duration {
     if p.status == SnapshotStatus::Fresh {
-        return std::time::Duration::from_secs(60);
+        return interval;
     }
     if let Some(delay) = p
         .error

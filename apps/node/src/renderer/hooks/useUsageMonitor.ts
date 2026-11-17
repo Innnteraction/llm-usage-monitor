@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  DEFAULT_PAUSE_WHEN_HIDDEN,
+  DEFAULT_UPDATE_INTERVAL_MINUTES,
+  clampUpdateIntervalMinutes,
   isMacOS,
   isShortcutMatch,
   type AntigravitySetupAction,
   type AppSnapshot,
   type ClaudeSetupAction,
+  type UserPreferences,
 } from "../../shared/index";
 import { isEditableTarget } from "../selectors";
 
@@ -23,17 +27,72 @@ export const useUsageMonitor = () => {
   );
   const [themeOverride, setThemeOverride] = useState<"light" | "dark">();
   const [alwaysOnTop, setAlwaysOnTop] = useState(false);
+  const [updateIntervalMinutes, setUpdateIntervalMinutes] = useState(
+    DEFAULT_UPDATE_INTERVAL_MINUTES,
+  );
+  const [pauseWhenHidden, setPauseWhenHidden] = useState(
+    DEFAULT_PAUSE_WHEN_HIDDEN,
+  );
 
   const previousSnapshot = useRef<AppSnapshot | undefined>(undefined);
   const tokenVisibilityInFlight = useRef(false);
   const effectiveTheme = themeOverride ?? systemTheme;
 
-  // Always on top state synchronization
+  // Always on top & user preferences synchronization
   useEffect(() => {
+    const applyPreferences = (prefs: UserPreferences): void => {
+      if (typeof prefs.alwaysOnTop === "boolean") {
+        setAlwaysOnTop(prefs.alwaysOnTop);
+      }
+      if (typeof prefs.updateIntervalMinutes === "number") {
+        setUpdateIntervalMinutes(
+          clampUpdateIntervalMinutes(prefs.updateIntervalMinutes),
+        );
+      }
+      if (typeof prefs.pauseWhenHidden === "boolean") {
+        setPauseWhenHidden(prefs.pauseWhenHidden);
+      }
+    };
     void window.usageMonitor
       .getAlwaysOnTop()
       .then(setAlwaysOnTop)
       .catch(() => undefined);
+    void window.usageMonitor
+      .getPreferences()
+      .then(applyPreferences)
+      .catch(() => undefined);
+    return window.usageMonitor.subscribePreferences?.(applyPreferences);
+  }, []);
+
+  const changeUpdateInterval = useCallback((minutes: number): void => {
+    const clamped = clampUpdateIntervalMinutes(minutes);
+    setUpdateIntervalMinutes((prev) => {
+      void window.usageMonitor
+        .setUpdateInterval(clamped)
+        .then((prefs) => {
+          if (typeof prefs.updateIntervalMinutes === "number") {
+            setUpdateIntervalMinutes(
+              clampUpdateIntervalMinutes(prefs.updateIntervalMinutes),
+            );
+          }
+        })
+        .catch(() => setUpdateIntervalMinutes(prev));
+      return clamped;
+    });
+  }, []);
+
+  const togglePauseWhenHidden = useCallback((enabled: boolean): void => {
+    setPauseWhenHidden((prev) => {
+      void window.usageMonitor
+        .setPauseWhenHidden(enabled)
+        .then((prefs) => {
+          if (typeof prefs.pauseWhenHidden === "boolean") {
+            setPauseWhenHidden(prefs.pauseWhenHidden);
+          }
+        })
+        .catch(() => setPauseWhenHidden(prev));
+      return enabled;
+    });
   }, []);
 
   const toggleAlwaysOnTop = useCallback((): void => {
@@ -253,6 +312,10 @@ export const useUsageMonitor = () => {
     toggleTheme,
     alwaysOnTop,
     toggleAlwaysOnTop,
+    updateIntervalMinutes,
+    changeUpdateInterval,
+    pauseWhenHidden,
+    togglePauseWhenHidden,
     refresh,
     openClaudeSetup,
     openAntigravitySetup,

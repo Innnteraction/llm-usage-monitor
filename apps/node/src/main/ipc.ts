@@ -19,7 +19,9 @@ import {
   refreshResultSchema,
   setAlwaysOnTopPayloadSchema,
   setLaunchAtLoginPayloadSchema,
+  setPauseWhenHiddenPayloadSchema,
   setTokensVisiblePayloadSchema,
+  setUpdateIntervalPayloadSchema,
   userPreferencesSchema,
   type AntigravitySetupAction,
   type AppSnapshot,
@@ -33,6 +35,8 @@ export interface IpcDependencies {
   refresh(providerId?: ProviderId): Promise<void>;
   getPreferences(): Promise<UserPreferences>;
   setLaunchAtLogin(enabled: boolean): Promise<UserPreferences>;
+  setUpdateInterval?(minutes: number): Promise<UserPreferences>;
+  setPauseWhenHidden?(enabled: boolean): Promise<UserPreferences>;
   setTokensVisible(visible: boolean, contentHeight?: number): Promise<void>;
   openClaudeSetup(action: ClaudeSetupAction): Promise<{ opened: boolean }>;
   openAntigravitySetup(action: AntigravitySetupAction): Promise<{ opened: boolean }>;
@@ -103,6 +107,28 @@ export const registerIpcHandlers = (
     );
   });
 
+  ipcMain.handle(IPC_CHANNELS.setUpdateInterval, async (event, ...args) => {
+    assertTrustedSender(event, windowTarget);
+    const { minutes } = singlePayload(setUpdateIntervalPayloadSchema, args);
+    if (!dependencies.setUpdateInterval) {
+      return userPreferencesSchema.parse(await dependencies.getPreferences());
+    }
+    return userPreferencesSchema.parse(
+      await dependencies.setUpdateInterval(minutes),
+    );
+  });
+
+  ipcMain.handle(IPC_CHANNELS.setPauseWhenHidden, async (event, ...args) => {
+    assertTrustedSender(event, windowTarget);
+    const { enabled } = singlePayload(setPauseWhenHiddenPayloadSchema, args);
+    if (!dependencies.setPauseWhenHidden) {
+      return userPreferencesSchema.parse(await dependencies.getPreferences());
+    }
+    return userPreferencesSchema.parse(
+      await dependencies.setPauseWhenHidden(enabled),
+    );
+  });
+
   ipcMain.handle(IPC_CHANNELS.setTokensVisible, async (event, ...args) => {
     assertTrustedSender(event, windowTarget);
     const { visible, contentHeight } = singlePayload(setTokensVisiblePayloadSchema, args);
@@ -150,30 +176,38 @@ export const registerIpcHandlers = (
     return openExternalUrlResultSchema.parse({ opened: true });
   });
 
+  const sendToWindow = (channel: string, payload: unknown, requireVisible: boolean): void => {
+    const window = resolveWindow(windowTarget);
+    if (
+      window &&
+      !(typeof window.isDestroyed === "function" && window.isDestroyed()) &&
+      (!requireVisible || typeof window.isVisible !== "function" || window.isVisible()) &&
+      !window.webContents.isDestroyed() &&
+      !(typeof window.webContents.isLoading === "function" && window.webContents.isLoading()) &&
+      !(typeof window.webContents.isCrashed === "function" && window.webContents.isCrashed())
+    ) {
+      try {
+        window.webContents.send(channel, payload);
+      } catch {
+        // Render frame was navigating, reloading, or disposed before WebFrameMain could be accessed.
+      }
+    }
+  };
+
   return {
     publishState(snapshot: AppSnapshot): void {
-      const safeSnapshot = appSnapshotSchema.parse(snapshot);
-      const window = resolveWindow(windowTarget);
-      if (
-        window &&
-        !(typeof window.isDestroyed === "function" && window.isDestroyed()) &&
-        (typeof window.isVisible !== "function" || window.isVisible()) &&
-        !window.webContents.isDestroyed() &&
-        !(typeof window.webContents.isLoading === "function" && window.webContents.isLoading()) &&
-        !(typeof window.webContents.isCrashed === "function" && window.webContents.isCrashed())
-      ) {
-        try {
-          window.webContents.send(IPC_CHANNELS.stateChanged, safeSnapshot);
-        } catch {
-          // Render frame was navigating, reloading, or disposed before WebFrameMain could be accessed.
-        }
-      }
+      sendToWindow(IPC_CHANNELS.stateChanged, appSnapshotSchema.parse(snapshot), true);
+    },
+    publishPreferences(preferences: UserPreferences): void {
+      sendToWindow(IPC_CHANNELS.preferencesChanged, userPreferencesSchema.parse(preferences), false);
     },
     dispose(): void {
       ipcMain.removeHandler(IPC_CHANNELS.getState);
       ipcMain.removeHandler(IPC_CHANNELS.refresh);
       ipcMain.removeHandler(IPC_CHANNELS.getPreferences);
       ipcMain.removeHandler(IPC_CHANNELS.setLaunchAtLogin);
+      ipcMain.removeHandler(IPC_CHANNELS.setUpdateInterval);
+      ipcMain.removeHandler(IPC_CHANNELS.setPauseWhenHidden);
       ipcMain.removeHandler(IPC_CHANNELS.setTokensVisible);
       ipcMain.removeHandler(IPC_CHANNELS.openClaudeSetup);
       ipcMain.removeHandler(IPC_CHANNELS.openAntigravitySetup);

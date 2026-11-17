@@ -25,6 +25,10 @@ export const App = () => {
     toggleTheme,
     alwaysOnTop,
     toggleAlwaysOnTop,
+    updateIntervalMinutes,
+    changeUpdateInterval,
+    pauseWhenHidden,
+    togglePauseWhenHidden,
     refresh,
     openClaudeSetup,
     openAntigravitySetup,
@@ -70,6 +74,10 @@ export const App = () => {
         onToggleTheme={toggleTheme}
         alwaysOnTop={alwaysOnTop}
         onToggleAlwaysOnTop={toggleAlwaysOnTop}
+        updateIntervalMinutes={updateIntervalMinutes}
+        onChangeUpdateInterval={changeUpdateInterval}
+        pauseWhenHidden={pauseWhenHidden}
+        onTogglePauseWhenHidden={togglePauseWhenHidden}
       />
 
       {activeIncidents.length > 0 && !compactMode ? (

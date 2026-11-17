@@ -36,6 +36,9 @@ pub fn initial_snapshot() -> AppSnapshot {
 #[derive(Clone, Copy)]
 pub enum MonitorCommand {
     Refresh,
+    SetQuotaInterval(std::time::Duration),
+    Pause,
+    Resume,
     Stop,
 }
 pub struct LiveMonitor {
@@ -52,7 +55,23 @@ pub fn start_live(
     directory: PathBuf,
     output: std::sync::mpsc::Sender<AppSnapshot>,
 ) -> LiveMonitor {
-    start_monitor(runtime, directory, output, None)
+    start_monitor(
+        runtime,
+        directory,
+        output,
+        None,
+        std::time::Duration::from_secs(60),
+        false,
+    )
+}
+pub fn start_live_with_options(
+    runtime: &tokio::runtime::Handle,
+    directory: PathBuf,
+    output: std::sync::mpsc::Sender<AppSnapshot>,
+    quota_interval: std::time::Duration,
+    initially_paused: bool,
+) -> LiveMonitor {
+    start_monitor(runtime, directory, output, None, quota_interval, initially_paused)
 }
 pub fn start_fixture(
     runtime: &tokio::runtime::Handle,
@@ -60,13 +79,22 @@ pub fn start_fixture(
     output: std::sync::mpsc::Sender<AppSnapshot>,
     fixture: AppSnapshot,
 ) -> LiveMonitor {
-    start_monitor(runtime, directory, output, Some(fixture))
+    start_monitor(
+        runtime,
+        directory,
+        output,
+        Some(fixture),
+        std::time::Duration::from_secs(60),
+        false,
+    )
 }
 fn start_monitor(
     runtime: &tokio::runtime::Handle,
     directory: PathBuf,
     output: std::sync::mpsc::Sender<AppSnapshot>,
     fixture: Option<AppSnapshot>,
+    mut quota_interval: std::time::Duration,
+    mut paused: bool,
 ) -> LiveMonitor {
     let (commands, mut requests) = tokio::sync::mpsc::unbounded_channel();
     let task = runtime.spawn(async move {
@@ -96,7 +124,9 @@ fn start_monitor(
             if !stopping {
                 if let Some(engine) = &engine {
                     for (key, job) in JobKey::ALL.into_iter().zip(jobs.iter_mut()) {
-                        if !job.in_flight && job.due <= std::time::Instant::now() {
+                        let due_now = (!paused && job.due <= std::time::Instant::now()) || job.manual_due;
+                        if !job.in_flight && due_now {
+                            job.manual_due = false;
                             job.in_flight=true; job.generation+=1;
                             let generation=job.generation;
                             let engine=std::sync::Arc::<UsageMonitorEngine>::clone(engine);
@@ -106,12 +136,48 @@ fn start_monitor(
                     }
                 }
             }
-            snapshot.refreshing = if engine.is_none() && !stopping {PROVIDERS.to_vec()} else {PROVIDERS.into_iter().filter(|provider| JobKey::ALL.into_iter().any(|key| key.provider()==*provider && jobs[key.slot()].in_flight)).collect()};
+            snapshot.refreshing = if engine.is_none() && !stopping && !paused {PROVIDERS.to_vec()} else {PROVIDERS.into_iter().filter(|provider| JobKey::ALL.into_iter().any(|key| key.provider()==*provider && jobs[key.slot()].in_flight)).collect()};
             if last_sent.as_ref()!=Some(&snapshot) {let _=output.send(snapshot.clone()); last_sent=Some(snapshot.clone());}
             if stopping && tasks.is_empty() {break;}
             tokio::select! {
                 command=requests.recv(), if !stopping => {
-                    match command { Some(MonitorCommand::Refresh) => {for job in &mut jobs {job.request();}}, _ => {stopping=true;for job in &mut jobs {job.queued=false;}} }
+                    match command {
+                        Some(MonitorCommand::Refresh) => {
+                            for job in &mut jobs {
+                                if paused {
+                                    job.manual_due = true;
+                                } else {
+                                    job.request();
+                                }
+                            }
+                        }
+                        Some(MonitorCommand::SetQuotaInterval(next)) => {
+                            quota_interval = next;
+                            let now = std::time::Instant::now();
+                            for (key, job) in JobKey::ALL.into_iter().zip(jobs.iter_mut()) {
+                                if key.is_quota()
+                                    && !job.in_flight
+                                    && snapshot.providers[key.provider_index()].status == SnapshotStatus::Fresh
+                                {
+                                    let base = job.last_completed.unwrap_or(now);
+                                    job.due = base + quota_interval;
+                                }
+                            }
+                        }
+                        Some(MonitorCommand::Pause) => {
+                            paused = true;
+                            for job in &mut jobs {
+                                job.queued = false;
+                            }
+                        }
+                        Some(MonitorCommand::Resume) => {
+                            paused = false;
+                            for job in &mut jobs {
+                                job.request();
+                            }
+                        }
+                        _ => {stopping=true;for job in &mut jobs {job.queued=false;}}
+                    }
                 }
                 event=tasks.join_next_with_id(), if !tasks.is_empty() => {
                     let event=match event {
@@ -134,8 +200,9 @@ fn start_monitor(
                             apply_result(&mut snapshot,key,result);
                             if key.is_quota() && snapshot.providers[key.provider_index()].status==SnapshotStatus::Fresh {received_quota[key.provider_index()]=true;}
                             let job=&mut jobs[key.slot()]; job.in_flight=false;
+                            job.last_completed=Some(std::time::Instant::now());
                             let delay=if key.is_quota() {
-                                let p=&snapshot.providers[key.provider_index()]; let delay=quota_delay(p,job.failures);
+                                let p=&snapshot.providers[key.provider_index()]; let delay=quota_delay(p,job.failures,quota_interval);
                                 job.failures=if p.status==SnapshotStatus::Fresh {0} else {job.failures.saturating_add(1)};delay
                             } else if !key.is_local() {
                                 let normal=snapshot.providers[key.provider_index()].service_status.as_ref().is_some_and(|s|s.indicator==crate::core::types::ServiceHealthIndicator::Operational);
@@ -219,15 +286,54 @@ mod monitor_tests {
         fresh.status = SnapshotStatus::Fresh;
         fresh.last_successful_at = Some(Utc::now());
         apply_result(&mut snapshot, JobKey::CodexQuota, Collected::Quota(fresh));
-        assert_eq!(quota_delay(&snapshot.providers[0], 4).as_secs(), 60);
+        assert_eq!(quota_delay(&snapshot.providers[0], 4, std::time::Duration::from_secs(60)).as_secs(), 60);
+        assert_eq!(quota_delay(&snapshot.providers[0], 0, std::time::Duration::from_secs(300)).as_secs(), 300);
         apply_result(&mut snapshot, JobKey::CodexQuota, Collected::Failed);
         assert_eq!(snapshot.providers[0].status, SnapshotStatus::Stale);
-        assert_eq!(quota_delay(&snapshot.providers[0], 3).as_secs(), 480);
+        assert_eq!(quota_delay(&snapshot.providers[0], 3, std::time::Duration::from_secs(300)).as_secs(), 480);
         let mut missing = snapshot.providers[0].clone();
         missing.status = SnapshotStatus::Fresh;
         missing.error = None;
         missing.quota_windows.clear();
         apply_result(&mut snapshot, JobKey::CodexQuota, Collected::Quota(missing));
         assert!(snapshot.providers[0].quota_windows.is_empty());
+    }
+    #[tokio::test]
+    async fn paused_monitor_waits_until_resumed_and_updates_on_resume() {
+        let dir = tempfile::tempdir().unwrap();
+        let fixture: AppSnapshot = serde_json::from_str(include_str!(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/fixtures/snapshot.json")
+        ))
+        .unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let live = start_monitor(
+            &tokio::runtime::Handle::current(),
+            dir.path().into(),
+            tx,
+            Some(fixture),
+            std::time::Duration::from_secs(300),
+            true,
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+        let mut saw_fresh = false;
+        while let Ok(snapshot) = rx.try_recv() {
+            saw_fresh |= snapshot.providers.iter().any(|p| p.status == SnapshotStatus::Fresh);
+        }
+        assert!(!saw_fresh);
+
+        live.commands.send(MonitorCommand::Resume).unwrap();
+        let started = std::time::Instant::now();
+        while started.elapsed() < std::time::Duration::from_millis(700) {
+            while let Ok(snapshot) = rx.try_recv() {
+                saw_fresh |= snapshot.providers.iter().any(|p| p.status == SnapshotStatus::Fresh);
+            }
+            if saw_fresh {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(saw_fresh);
+        live.commands.send(MonitorCommand::Stop).unwrap();
+        live.task.await.unwrap();
     }
 }

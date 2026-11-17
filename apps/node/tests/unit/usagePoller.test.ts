@@ -160,4 +160,76 @@ describe("usage polling", () => {
     await vi.advanceTimersByTimeAsync(POLLING_INTERVAL_MS * 2);
     expect(refresh).toHaveBeenCalledTimes(2);
   });
+
+  it("supports custom intervals and reschedules fresh providers immediately on change", async () => {
+    vi.useFakeTimers();
+    let currentTime = now.getTime();
+    const snapshot: AppSnapshot = {
+      schemaVersion: 1,
+      providers: [providerSnapshot("fresh")],
+      refreshing: [],
+      updatedAt: now.toISOString(),
+    };
+    const refresh = vi.fn(async () => undefined);
+    const poller = createUsagePoller({
+      store: { getState: () => snapshot, refresh },
+      providerIds: ["codex"],
+      clock: () => new Date(currentTime),
+      intervalMs: 300_000,
+    });
+
+    await poller.start();
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    // 90초 경과 후 주기를 1분(60_000ms)으로 줄이면 이미 지났으므로 즉시 실행됨
+    currentTime += 90_000;
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    poller.setIntervalMs(60_000);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(refresh).toHaveBeenCalledTimes(2);
+
+    // 다음 실행 후 주기를 5분으로 늘리면 60초 시점에는 실행되지 않고 5분 시점에 실행됨
+    poller.setIntervalMs(300_000);
+    currentTime += 60_000;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(refresh).toHaveBeenCalledTimes(2);
+
+    currentTime += 240_000;
+    await vi.advanceTimersByTimeAsync(240_000);
+    expect(refresh).toHaveBeenCalledTimes(3);
+
+    await poller.stop();
+  });
+
+  it("supports repeated stop and start cycles for pause/resume", async () => {
+    vi.useFakeTimers();
+    const refresh = vi.fn(async () => undefined);
+    const poller = createUsagePoller({
+      store: {
+        getState: () => ({
+          schemaVersion: 1,
+          providers: [providerSnapshot("fresh")],
+          refreshing: [],
+          updatedAt: now.toISOString(),
+        }),
+        refresh,
+      },
+      providerIds: ["codex"],
+      clock: () => now,
+      intervalMs: 120_000,
+    });
+
+    await poller.start();
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    await poller.stop();
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    await poller.start();
+    expect(refresh).toHaveBeenCalledTimes(2);
+    await poller.stop();
+  });
 });

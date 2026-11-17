@@ -9,7 +9,11 @@ import {
   createCodexInitialSnapshot,
   createAntigravityInitialSnapshot,
 } from "../providers/index";
-import type { AppSnapshot, ProviderId } from "../shared/index";
+import {
+  clampUpdateIntervalMinutes,
+  type AppSnapshot,
+  type ProviderId,
+} from "../shared/index";
 import {
   createLocalUsageCoordinator,
   createUsagePoller,
@@ -40,6 +44,7 @@ export interface UsageMonitorCoreOptions {
   useFakeProviders?: boolean;
   clock?: () => Date;
   sharedDataDir?: string;
+  updateIntervalMinutes?: number;
 }
 
 export class UsageMonitorCore {
@@ -59,7 +64,7 @@ export class UsageMonitorCore {
   private unsubscribeCache?: () => void;
   private unsubscribeSetup?: () => void;
   private setupReadyWritten = false;
-  private isStarted = false;
+  private isActive = false;
   private isStopped = false;
 
   private constructor(
@@ -130,6 +135,8 @@ export class UsageMonitorCore {
           store,
           providerIds: providers.map(({ id }) => id),
           clock: options.clock,
+          intervalMs:
+            clampUpdateIntervalMinutes(options.updateIntervalMinutes) * 60_000,
         });
 
     const checkpointStore = useFake
@@ -232,9 +239,14 @@ export class UsageMonitorCore {
     return operation;
   }
 
-  public async start(): Promise<void> {
-    if (this.isStarted || this.isStopped) return;
-    this.isStarted = true;
+  public setUpdateIntervalMinutes(minutes: number): void {
+    const clamped = clampUpdateIntervalMinutes(minutes);
+    this.poller?.setIntervalMs(clamped * 60_000);
+  }
+
+  public async resume(): Promise<void> {
+    if (this.isActive || this.isStopped) return;
+    this.isActive = true;
     await Promise.all([
       this.poller?.start(),
       this.localUsageCoordinator?.start(),
@@ -242,11 +254,28 @@ export class UsageMonitorCore {
     ]).catch(() => undefined);
   }
 
+  public async pause(): Promise<void> {
+    if (!this.isActive || this.isStopped) return;
+    this.isActive = false;
+    await Promise.allSettled([
+      this.poller?.stop(),
+      this.localUsageCoordinator?.stop(),
+      this.vendorHealthPoller?.stop(),
+    ]);
+  }
+
+  public async start(): Promise<void> {
+    await this.resume();
+  }
+
   public refresh(providerId?: ProviderId): Promise<void> {
     if (this.isStopped) return Promise.resolve();
+    const quotaRefresh = this.isActive
+      ? (this.poller?.refresh(providerId) ?? this.store.refresh(providerId))
+      : this.store.refresh(providerId);
     return this.trackBackground(
       Promise.all([
-        this.poller?.refresh(providerId) ?? this.store.refresh(providerId),
+        quotaRefresh,
         this.localUsageCoordinator?.refresh(providerId),
         this.vendorHealthPoller?.refresh(providerId),
       ]).then(() => undefined),
@@ -268,6 +297,7 @@ export class UsageMonitorCore {
   public async stop(): Promise<void> {
     if (this.isStopped) return;
     this.isStopped = true;
+    this.isActive = false;
 
     this.unsubscribeCache?.();
     this.unsubscribeSetup?.();

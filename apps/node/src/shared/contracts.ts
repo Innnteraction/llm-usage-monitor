@@ -160,10 +160,33 @@ export const appSnapshotSchema = z
   });
 export type AppSnapshot = z.infer<typeof appSnapshotSchema>;
 
+export const MIN_UPDATE_INTERVAL_MINUTES = 1;
+export const MAX_UPDATE_INTERVAL_MINUTES = 10;
+export const DEFAULT_UPDATE_INTERVAL_MINUTES = 1;
+export const DEFAULT_PAUSE_WHEN_HIDDEN = true;
+
+export const updateIntervalMinutesSchema = z
+  .number()
+  .int()
+  .min(MIN_UPDATE_INTERVAL_MINUTES)
+  .max(MAX_UPDATE_INTERVAL_MINUTES);
+
+export const clampUpdateIntervalMinutes = (value: unknown): number => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_UPDATE_INTERVAL_MINUTES;
+  }
+  return Math.min(
+    MAX_UPDATE_INTERVAL_MINUTES,
+    Math.max(MIN_UPDATE_INTERVAL_MINUTES, Math.round(value)),
+  );
+};
+
 export const userPreferencesSchema = z
   .object({
     launchAtLogin: z.boolean(),
     alwaysOnTop: z.boolean().optional(),
+    updateIntervalMinutes: updateIntervalMinutesSchema.optional(),
+    pauseWhenHidden: z.boolean().optional(),
   })
   .strict();
 export type UserPreferences = z.infer<typeof userPreferencesSchema>;

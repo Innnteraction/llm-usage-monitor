@@ -17,7 +17,9 @@ import {
   refreshResultSchema,
   setAlwaysOnTopPayloadSchema,
   setLaunchAtLoginPayloadSchema,
+  setPauseWhenHiddenPayloadSchema,
   setTokensVisiblePayloadSchema,
+  setUpdateIntervalPayloadSchema,
   userPreferencesSchema,
   type UsageMonitorAPI,
 } from "../shared/index";
@@ -56,6 +58,30 @@ const api: UsageMonitorAPI = {
     return userPreferencesSchema.parse(
       await ipcRenderer.invoke(IPC_CHANNELS.setLaunchAtLogin, payload),
     );
+  },
+  async setUpdateInterval(minutes) {
+    const payload = setUpdateIntervalPayloadSchema.parse({ minutes });
+    return userPreferencesSchema.parse(
+      await ipcRenderer.invoke(IPC_CHANNELS.setUpdateInterval, payload),
+    );
+  },
+  async setPauseWhenHidden(enabled) {
+    const payload = setPauseWhenHiddenPayloadSchema.parse({ enabled });
+    return userPreferencesSchema.parse(
+      await ipcRenderer.invoke(IPC_CHANNELS.setPauseWhenHidden, payload),
+    );
+  },
+  subscribePreferences(listener) {
+    const wrapped = (_event: IpcRendererEvent, payload: unknown): void => {
+      const result = userPreferencesSchema.safeParse(payload);
+      if (result.success) {
+        listener(result.data);
+      }
+    };
+    ipcRenderer.on(IPC_CHANNELS.preferencesChanged, wrapped);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.preferencesChanged, wrapped);
+    };
   },
   async setTokensVisible(visible, contentHeight) {
     const payload = setTokensVisiblePayloadSchema.parse({ visible, contentHeight });

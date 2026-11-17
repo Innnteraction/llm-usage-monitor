@@ -55,6 +55,11 @@ struct AppState {
     refresh_started: Option<Instant>,
     refresh_requested: bool,
     preferences_path: PathBuf,
+    update_interval_minutes: u64,
+    pause_when_hidden: bool,
+    interval_menu_open: bool,
+    tray_sync_needed: bool,
+    live_commands: Option<tokio::sync::mpsc::UnboundedSender<MonitorCommand>>,
     tray_bounds: Option<WindowRect>,
     fixed_now: Option<chrono::DateTime<chrono::Utc>>,
     expanded: std::collections::HashSet<ProviderId>,
@@ -124,8 +129,45 @@ impl AppState {
         }
     }
     fn save_preferences(&self) {
-        let value = serde_json::json!({"pinned": self.pinned});
+        let value = serde_json::json!({
+            "pinned": self.pinned,
+            "update_interval_minutes": self.update_interval_minutes,
+            "pause_when_hidden": self.pause_when_hidden,
+        });
         let _ = std::fs::write(&self.preferences_path, value.to_string());
+    }
+    fn set_update_interval(&mut self, minutes: u64) {
+        let clamped = engine::clamp_update_interval_minutes(minutes);
+        self.update_interval_minutes = clamped;
+        self.tray_sync_needed = true;
+        self.save_preferences();
+        if let Some(commands) = &self.live_commands {
+            let _ = commands.send(MonitorCommand::SetQuotaInterval(Duration::from_secs(clamped * 60)));
+        }
+    }
+    fn set_pause_when_hidden(&mut self, enabled: bool) {
+        self.pause_when_hidden = enabled;
+        self.tray_sync_needed = true;
+        self.save_preferences();
+        if self.window_handle.is_none() && !self.pinned {
+            if let Some(commands) = &self.live_commands {
+                let _ = commands.send(if enabled { MonitorCommand::Pause } else { MonitorCommand::Resume });
+            }
+        }
+    }
+    fn pause_if_hidden(&self) {
+        if self.pause_when_hidden && !self.pinned {
+            if let Some(commands) = &self.live_commands {
+                let _ = commands.send(MonitorCommand::Pause);
+            }
+        }
+    }
+    fn resume_on_show(&mut self) {
+        if let Some(commands) = &self.live_commands {
+            let _ = commands.send(MonitorCommand::Resume);
+        } else if self.demo && self.snapshot.is_some() {
+            self.refresh_requested = true;
+        }
     }
 }
 // GPUI Windows는 마지막 창 제거 시 PostQuitMessage를 보낸다.
@@ -147,7 +189,7 @@ impl Render for PopoverView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         static FIRST_RENDER: std::sync::Once = std::sync::Once::new();
         FIRST_RENDER.call_once(|| startup_mark("first-render"));
-        let (pinned, compact, theme, snapshot, refreshing, now, expanded, errors) = {
+        let (pinned, compact, theme, snapshot, refreshing, now, expanded, errors, update_interval_minutes, pause_when_hidden, interval_menu_open) = {
             let s = self.state.lock().unwrap();
             (
                 s.pinned,
@@ -158,6 +200,9 @@ impl Render for PopoverView {
                 s.fixed_now.unwrap_or_else(chrono::Utc::now),
                 s.expanded.clone(),
                 s.expanded_errors.clone(),
+                s.update_interval_minutes,
+                s.pause_when_hidden,
+                s.interval_menu_open,
             )
         };
         let palette = theme.palette(window.appearance());
@@ -271,10 +316,16 @@ impl Render for PopoverView {
                 }
                 if key.key == "escape" {
                     let mut s = this.state.lock().unwrap();
+                    if s.interval_menu_open {
+                        s.interval_menu_open = false;
+                        cx.notify();
+                        return;
+                    }
                     if !s.pinned {
                         s.window_handle = None;
                         s.opened_at = None;
                         s.hidden_since = Some(Instant::now());
+                        s.pause_if_hidden();
                         drop(s);
                         window.remove_window();
                     }
@@ -311,6 +362,18 @@ impl Render for PopoverView {
                     .on_mouse_down(gpui::MouseButton::Left, |_,_,cx|cx.stop_propagation())
                     )
                 .child(div().occlude().flex().items_center().gap(px(10.))
+                    .child(div().id("interval-toggle").focusable().tab_index(0).cursor_pointer()
+                        .px(px(6.)).py(px(2.)).rounded(px(4.)).border_1().border_color(if interval_menu_open { palette.text } else { palette.border })
+                        .text_size(px(11.)).font_weight(gpui::FontWeight::SEMIBOLD)
+                        .text_color(if interval_menu_open { palette.text } else { palette.muted })
+                        .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            let mut s = this.state.lock().unwrap();
+                            s.interval_menu_open = !s.interval_menu_open;
+                            cx.notify();
+                        }))
+                        .child(format!("{update_interval_minutes}m"))
+                    )
                     .child(action_button("compact",UiAction::Compact,events.clone()).size(px(16.)).child(llm_usage_monitor_core::ui::icons::header_icon(if compact {"AddSquare"} else {"MinusSquare"},compact,palette))
                         .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
                         .tooltip(move |_,cx|llm_usage_monitor_core::ui::tooltip::tooltip(if compact {"Expand to detailed mode"} else {"Collapse to compact mode"}.into(),palette,cx))
@@ -323,7 +386,55 @@ impl Render for PopoverView {
                     )
                     .child(div().id("help").cursor_pointer().size(px(16.)).child(llm_usage_monitor_core::ui::icons::header_icon("Help",false,palette))
                         .on_mouse_down(gpui::MouseButton::Left,|_,_,cx|cx.stop_propagation())
-                        .tooltip(move |_,cx|llm_usage_monitor_core::ui::tooltip::tooltip("LLM Usage Monitor v0.13.4\nquota: account · tokens: this PC\nCtrl/⌘+Shift+C  Toggle compact mode\nCtrl/⌘+Shift+L  Toggle theme (dark/light)\nCtrl/⌘+Shift+P  Toggle pin (always on top)\nEsc  Close popover (stay in tray)".into(),palette,cx)))))
+                        .tooltip(move |_,cx|llm_usage_monitor_core::ui::tooltip::tooltip("LLM Usage Monitor v0.14.0\nquota: account · tokens: this PC\nCtrl/⌘+Shift+C  Toggle compact mode\nCtrl/⌘+Shift+L  Toggle theme (dark/light)\nCtrl/⌘+Shift+P  Toggle pin (always on top)\nEsc  Close popover (stay in tray)".into(),palette,cx)))))
+            .children(if interval_menu_open {
+                let mut rows = Vec::new();
+                for row_start in [1_u64, 6_u64] {
+                    let mut row = div().flex().items_center().gap(px(4.));
+                    for minutes in row_start..(row_start + 5) {
+                        let selected = minutes == update_interval_minutes;
+                        row = row.child(
+                            div().id(("interval-opt", minutes)).cursor_pointer().flex_1().py(px(3.)).rounded(px(4.))
+                                .border_1().border_color(if selected { palette.text } else { palette.border })
+                                .bg(if selected { palette.text } else { palette.surface })
+                                .text_color(if selected { palette.background } else { palette.text })
+                                .text_size(px(11.)).font_weight(if selected { gpui::FontWeight::BOLD } else { gpui::FontWeight::NORMAL })
+                                .flex().items_center().justify_center()
+                                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    let mut s = this.state.lock().unwrap();
+                                    s.set_update_interval(minutes);
+                                    s.interval_menu_open = false;
+                                    cx.notify();
+                                }))
+                                .child(format!("{minutes}m")),
+                        );
+                    }
+                    rows.push(row);
+                }
+                Some(
+                    div().mt(px(6.)).p(px(8.)).rounded(px(6.)).border_1().border_color(palette.border).bg(palette.surface)
+                        .flex().flex_col().gap(px(6.))
+                        .child(div().text_size(px(11.)).font_weight(gpui::FontWeight::SEMIBOLD).text_color(palette.muted).child("Update interval"))
+                        .children(rows)
+                        .child(
+                            div().id("pause-when-hidden-toggle").cursor_pointer().pt(px(4.)).border_t_1().border_color(palette.border)
+                                .flex().items_center().justify_between().text_size(px(11.)).text_color(palette.text)
+                                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    let mut s = this.state.lock().unwrap();
+                                    let next = !s.pause_when_hidden;
+                                    s.set_pause_when_hidden(next);
+                                    cx.notify();
+                                }))
+                                .child("Pause when hidden")
+                                .child(div().font_weight(gpui::FontWeight::BOLD).text_color(if pause_when_hidden { palette.text } else { palette.muted })
+                                    .child(if pause_when_hidden { "ON" } else { "OFF" }))
+                        )
+                )
+            } else {
+                None
+            })
             .children(self.state.lock().unwrap().ui_error.clone().map(|message|div().text_size(px(11.968)).text_color(palette.high).child(message)))
             .child(div().id("content").flex_1().min_h_0().overflow_y_scroll().track_scroll(&scroll).mt(px(if compact {8.} else {12.}))
                 .child(div().flex().flex_col().gap(px(7.)).flex_shrink_0().w_full()
@@ -362,7 +473,9 @@ fn close_popover(state: &Arc<Mutex<AppState>>, cx: &mut App) {
     let handle = {
         let mut s = state.lock().unwrap();
         s.opened_at = None;
+        s.interval_menu_open = false;
         s.hidden_since = Some(Instant::now());
+        s.pause_if_hidden();
         s.window_handle.take()
     };
     if let Some(handle) = handle {
@@ -383,7 +496,11 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
         state.lock().unwrap().window_handle = None;
     }
     let displays = cx.displays();
-    state.lock().unwrap().restore_visible_session();
+    {
+        let mut s = state.lock().unwrap();
+        s.restore_visible_session();
+        s.resume_on_show();
+    }
     #[cfg(target_os = "windows")]
     let tray_bounds = state.lock().unwrap().tray_bounds;
     #[cfg(target_os = "windows")]
@@ -478,7 +595,9 @@ fn open_popover(state: Arc<Mutex<AppState>>, cx: &mut App) {
                 if s.should_close_on_deactivate(window.is_window_active(), Instant::now()) {
                     s.window_handle = None;
                     s.opened_at = None;
+                    s.interval_menu_open = false;
                     s.hidden_since = Some(Instant::now());
+                    s.pause_if_hidden();
                     drop(s);
                     window.remove_window();
                 }
@@ -628,9 +747,45 @@ fn main() {
         .expect("collector runtime");
     let runtime_handle = runtime.handle().clone();
     startup_mark("runtime-ready");
+    let data_dir = if demo {
+        std::env::temp_dir().join(format!("llm-monitor-demo-{}", std::process::id()))
+    } else {
+        dirs::data_local_dir()
+            .unwrap_or_else(std::env::temp_dir)
+            .join("llm-usage-monitor-native")
+    };
+    let _ = std::fs::create_dir_all(&data_dir);
+    let preferences_path = data_dir.join("preferences.json");
+    let preferences: serde_json::Value = std::fs::read(&preferences_path)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default();
+    let initial_pinned = preferences["pinned"].as_bool().unwrap_or(demo);
+    let initial_interval_minutes = engine::clamp_update_interval_minutes(
+        preferences["update_interval_minutes"].as_u64().unwrap_or(
+            engine::DEFAULT_UPDATE_INTERVAL_MINUTES,
+        ),
+    );
+    let initial_pause_when_hidden = preferences["pause_when_hidden"].as_bool().unwrap_or(true);
     let (tx, rx) = mpsc::channel();
-    let live = if !demo { Some(engine::start_live(&runtime_handle, engine::cache::directory(), tx.clone())) }
-        else if args.iter().any(|a|a=="--demo-progress") {Some(engine::start_fixture(&runtime_handle, std::env::temp_dir().join(format!("llm-monitor-progress-{}", std::process::id())), tx.clone(), fixture.clone().unwrap_or_else(demo_snapshot)))} else {None};
+    let live = if !demo {
+        Some(engine::start_live_with_options(
+            &runtime_handle,
+            engine::cache::directory(),
+            tx.clone(),
+            Duration::from_secs(initial_interval_minutes * 60),
+            hidden && initial_pause_when_hidden,
+        ))
+    } else if args.iter().any(|a| a == "--demo-progress") {
+        Some(engine::start_fixture(
+            &runtime_handle,
+            std::env::temp_dir().join(format!("llm-monitor-progress-{}", std::process::id())),
+            tx.clone(),
+            fixture.clone().unwrap_or_else(demo_snapshot),
+        ))
+    } else {
+        None
+    };
     let live_commands = live.as_ref().map(|l| l.commands.clone());
     let startup_failed = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let startup_status = startup_failed.clone();
@@ -638,22 +793,9 @@ fn main() {
     startup_mark("platform-ready");
     application.run(move |cx| {
         startup_mark("application-ready");
-        let data_dir = if demo {
-            std::env::temp_dir().join(format!("llm-monitor-demo-{}", std::process::id()))
-        } else {
-            dirs::data_local_dir()
-                .unwrap_or_else(std::env::temp_dir)
-                .join("llm-usage-monitor-native")
-        };
-        let _ = std::fs::create_dir_all(&data_dir);
-        let preferences_path = data_dir.join("preferences.json");
-        let preferences: serde_json::Value = std::fs::read(&preferences_path)
-            .ok()
-            .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_default();
         let state = Arc::new(Mutex::new(AppState {
             window_handle: None,
-            pinned: preferences["pinned"].as_bool().unwrap_or(demo),
+            pinned: initial_pinned,
             compact: false,
             theme: ThemeMode::System,
             snapshot: Some(if live_commands.is_some() {engine::initial_snapshot()} else {fixture.clone().unwrap_or_else(demo_snapshot)}),
@@ -661,6 +803,11 @@ fn main() {
             refresh_started: None,
             refresh_requested: false,
             preferences_path,
+            update_interval_minutes: initial_interval_minutes,
+            pause_when_hidden: initial_pause_when_hidden,
+            interval_menu_open: false,
+            tray_sync_needed: false,
+            live_commands: live_commands.clone(),
             tray_bounds: None,
             fixed_now,
             expanded: Default::default(),
@@ -679,7 +826,7 @@ fn main() {
         }));
         startup_mark("state-ready");
         startup_mark("collector-background-started");
-        let tray = match SystemTrayManager::new() {
+        let tray = match SystemTrayManager::new(initial_interval_minutes, initial_pause_when_hidden) {
             Ok(t) => t,
             Err(_) => {
                 eprintln!("Could not initialize the tray.");
@@ -848,6 +995,15 @@ fn main() {
                                 let tx=startup_tx.clone();
                                 std::thread::spawn(move || {let result=llm_usage_monitor_core::shell::desktop::set_launch_at_login(requested).map_err(|_|!requested);let _=tx.send(result);});
                             }
+                        } else if event.id == *tray.pause_when_hidden_item.id() {
+                            let enabled = tray.pause_when_hidden_item.is_checked();
+                            state.lock().unwrap().set_pause_when_hidden(enabled);
+                            let _ = async_cx.refresh();
+                        } else if let Some((minutes, _)) = tray.interval_items.iter().find(|(_, item)| event.id == *item.id()) {
+                            let minutes = *minutes;
+                            tray.set_interval_checked(minutes);
+                            state.lock().unwrap().set_update_interval(minutes);
+                            let _ = async_cx.refresh();
                         } else if event.id == tray.quit_id {
                             let _ = async_cx.update(|cx| cx.quit());
                             return;
@@ -866,6 +1022,21 @@ fn main() {
                                 }
                                 open_popover(state, cx);
                             });
+                        }
+                    }
+                    {
+                        let sync = {
+                            let mut s = state.lock().unwrap();
+                            if s.tray_sync_needed {
+                                s.tray_sync_needed = false;
+                                Some((s.update_interval_minutes, s.pause_when_hidden))
+                            } else {
+                                None
+                            }
+                        };
+                        if let Some((minutes, pause_when_hidden)) = sync {
+                            tray.set_interval_checked(minutes);
+                            tray.pause_when_hidden_item.set_checked(pause_when_hidden);
                         }
                     }
                     let mut latest=None;
@@ -888,7 +1059,9 @@ fn main() {
                     }
                     let should_collect = {
                         let mut s = state.lock().unwrap();
-                        if s.refresh_requested || (demo && !s.refreshing && last_poll.elapsed() >= Duration::from_secs(60))
+                        let demo_visible = !s.pause_when_hidden || s.window_handle.is_some();
+                        let interval = Duration::from_secs(s.update_interval_minutes * 60);
+                        if s.refresh_requested || (demo && demo_visible && !s.refreshing && last_poll.elapsed() >= interval)
                         {
                             s.refresh_requested = false;
                             s.refreshing = true;
@@ -963,6 +1136,11 @@ mod tests {
             refresh_started: None,
             refresh_requested: false,
             preferences_path: PathBuf::new(),
+            update_interval_minutes: 1,
+            pause_when_hidden: true,
+            interval_menu_open: false,
+            tray_sync_needed: false,
+            live_commands: None,
             tray_bounds: None,
             fixed_now: None,
             expanded: Default::default(),
@@ -1012,5 +1190,13 @@ mod tests {
         assert!(state.should_ignore_tray_toggle_open(now));
         state.hidden_since = Some(now - TRAY_BLUR_COOLDOWN);
         assert!(!state.should_ignore_tray_toggle_open(now));
+    }
+    #[test]
+    fn clamp_update_interval_enforces_one_to_ten_minutes() {
+        assert_eq!(engine::clamp_update_interval_minutes(0), 1);
+        assert_eq!(engine::clamp_update_interval_minutes(1), 1);
+        assert_eq!(engine::clamp_update_interval_minutes(5), 5);
+        assert_eq!(engine::clamp_update_interval_minutes(10), 10);
+        assert_eq!(engine::clamp_update_interval_minutes(42), 10);
     }
 }

@@ -4,6 +4,9 @@ export const en: I18nMessages = {
   tray: {
     open: "Open",
     refresh: "Refresh",
+    updateInterval: "Update interval",
+    intervalMinutes: (minutes: number) => `${minutes} min`,
+    pauseWhenHidden: "Pause when hidden",
     resetPosition: "Reset Position",
     launchAtLoginWin: "Start on Windows login",
     launchAtLoginMac: "Start at login",
@@ -29,6 +32,8 @@ export const en: I18nMessages = {
     collapseCompact: "Collapse to compact mode",
     alwaysOnTop: "Always on top",
     toggleTheme: "Toggle theme",
+    updateInterval: "Update interval",
+    pauseWhenHidden: "Pause when hidden",
     localSessionTokens: "Local session tokens",
     additionalLimits: (count: number) => `+${count} additional limits`,
     lastSuccessful: (time: string) => ` Last successful ${time}.`,

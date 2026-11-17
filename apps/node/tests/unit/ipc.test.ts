@@ -47,6 +47,16 @@ const createHarness = () => {
     setLaunchAtLogin: vi.fn(async (enabled: boolean) => ({
       launchAtLogin: enabled,
     })),
+    setUpdateInterval: vi.fn(async (minutes: number) => ({
+      launchAtLogin: false,
+      updateIntervalMinutes: minutes,
+      pauseWhenHidden: true,
+    })),
+    setPauseWhenHidden: vi.fn(async (enabled: boolean) => ({
+      launchAtLogin: false,
+      updateIntervalMinutes: 1,
+      pauseWhenHidden: enabled,
+    })),
     setTokensVisible: vi.fn(async () => undefined),
     openClaudeSetup: vi.fn(async () => ({ opened: true })),
     openAntigravitySetup: vi.fn(async () => ({ opened: true })),
@@ -249,5 +259,36 @@ describe("restricted IPC handlers", () => {
     visible = true;
     controller.publishState(snapshot);
     expect(webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.stateChanged, snapshot);
+  });
+
+  it("validates update interval and pause-when-hidden payloads and publishes preferences", async () => {
+    const { controller, dependencies, handlers, trustedEvent, webContents } = createHarness();
+    const intervalHandler = handlers.get(IPC_CHANNELS.setUpdateInterval);
+    const pauseHandler = handlers.get(IPC_CHANNELS.setPauseWhenHidden);
+
+    await expect(intervalHandler?.(trustedEvent, { minutes: 5 })).resolves.toMatchObject({
+      updateIntervalMinutes: 5,
+    });
+    expect(dependencies.setUpdateInterval).toHaveBeenCalledWith(5);
+
+    await expect(intervalHandler?.(trustedEvent, { minutes: 0 })).rejects.toThrow();
+    await expect(intervalHandler?.(trustedEvent, { minutes: 11 })).rejects.toThrow();
+    await expect(intervalHandler?.(trustedEvent, { minutes: 2.5 })).rejects.toThrow();
+
+    await expect(pauseHandler?.(trustedEvent, { enabled: false })).resolves.toMatchObject({
+      pauseWhenHidden: false,
+    });
+    expect(dependencies.setPauseWhenHidden).toHaveBeenCalledWith(false);
+
+    controller.publishPreferences({
+      launchAtLogin: false,
+      updateIntervalMinutes: 5,
+      pauseWhenHidden: false,
+    });
+    expect(webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.preferencesChanged, {
+      launchAtLogin: false,
+      updateIntervalMinutes: 5,
+      pauseWhenHidden: false,
+    });
   });
 });

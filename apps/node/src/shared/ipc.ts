@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   appSnapshotSchema,
   providerIdSchema,
+  updateIntervalMinutesSchema,
   userPreferencesSchema,
   type AppSnapshot,
   type ProviderId,
@@ -20,6 +21,9 @@ export const IPC_CHANNELS = {
   stateChanged: "usage-monitor:state-changed",
   getPreferences: "usage-monitor:get-preferences",
   setLaunchAtLogin: "usage-monitor:set-launch-at-login",
+  setUpdateInterval: "usage-monitor:set-update-interval",
+  setPauseWhenHidden: "usage-monitor:set-pause-when-hidden",
+  preferencesChanged: "usage-monitor:preferences-changed",
   setTokensVisible: "usage-monitor:set-tokens-visible",
   openClaudeSetup: "usage-monitor:open-claude-setup",
   openAntigravitySetup: "usage-monitor:open-antigravity-setup",
@@ -35,6 +39,16 @@ export const refreshPayloadSchema = z
   })
   .strict();
 export const setLaunchAtLoginPayloadSchema = z
+  .object({
+    enabled: z.boolean(),
+  })
+  .strict();
+export const setUpdateIntervalPayloadSchema = z
+  .object({
+    minutes: updateIntervalMinutesSchema,
+  })
+  .strict();
+export const setPauseWhenHiddenPayloadSchema = z
   .object({
     enabled: z.boolean(),
   })
@@ -87,6 +101,9 @@ export interface UsageMonitorAPI {
   subscribe(listener: (state: AppSnapshot) => void): () => void;
   getPreferences(): Promise<UserPreferences>;
   setLaunchAtLogin(enabled: boolean): Promise<UserPreferences>;
+  setUpdateInterval(minutes: number): Promise<UserPreferences>;
+  setPauseWhenHidden(enabled: boolean): Promise<UserPreferences>;
+  subscribePreferences(listener: (preferences: UserPreferences) => void): () => void;
   setTokensVisible(visible: boolean, contentHeight?: number): Promise<void>;
   openClaudeSetup(action: ClaudeSetupAction): Promise<{ opened: boolean }>;
   openAntigravitySetup(action: AntigravitySetupAction): Promise<{ opened: boolean }>;

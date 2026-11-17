@@ -11,8 +11,13 @@ pub mod cache;
 mod jobs;
 mod monitor;
 mod reducer;
+pub use jobs::{
+    clamp_update_interval_minutes, DEFAULT_UPDATE_INTERVAL_MINUTES, MAX_UPDATE_INTERVAL_MINUTES,
+    MIN_UPDATE_INTERVAL_MINUTES,
+};
 pub use monitor::{
-    initial_snapshot, start_fixture, start_live, LiveMonitor, MonitorCommand, PROVIDERS,
+    initial_snapshot, start_fixture, start_live, start_live_with_options, LiveMonitor,
+    MonitorCommand, PROVIDERS,
 };
 
 pub struct UsageMonitorEngine {

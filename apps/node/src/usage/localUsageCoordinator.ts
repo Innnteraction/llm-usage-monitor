@@ -145,7 +145,11 @@ export function createLocalUsageCoordinator({
       for (const entry of scans.values()) entry.controller.abort();
       stopPromise = Promise.all(
         [...scans.values()].map(({ promise }) => promise),
-      ).then(() => undefined);
+      )
+        .then(() => undefined)
+        .finally(() => {
+          stopPromise = undefined;
+        });
       return stopPromise;
     },
   };

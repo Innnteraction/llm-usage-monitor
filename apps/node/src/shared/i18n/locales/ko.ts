@@ -4,6 +4,9 @@ export const ko: I18nMessages = {
   tray: {
     open: "열기",
     refresh: "새로고침",
+    updateInterval: "업데이트 주기",
+    intervalMinutes: (minutes: number) => `${minutes}분`,
+    pauseWhenHidden: "숨김 시 추적 중단",
     resetPosition: "기본 위치로 재설정",
     launchAtLoginWin: "Windows 로그인 시 시작",
     launchAtLoginMac: "로그인 시 시작",
@@ -29,6 +32,8 @@ export const ko: I18nMessages = {
     collapseCompact: "컴팩트 모드로 접기",
     alwaysOnTop: "항상 위에 표시",
     toggleTheme: "테마 전환",
+    updateInterval: "업데이트 주기",
+    pauseWhenHidden: "숨김 시 추적 중단",
     localSessionTokens: "로컬 세션 토큰",
     additionalLimits: (count: number) => `+${count}개 추가 한도`,
     lastSuccessful: (time: string) => ` 마지막 정상 수집: ${time}.`,

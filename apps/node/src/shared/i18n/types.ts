@@ -3,6 +3,9 @@ export type Locale = "en" | "ko";
 export interface TrayMessages {
   open: string;
   refresh: string;
+  updateInterval: string;
+  intervalMinutes: (minutes: number) => string;
+  pauseWhenHidden: string;
   resetPosition: string;
   launchAtLoginWin: string;
   launchAtLoginMac: string;
@@ -30,6 +33,8 @@ export interface UiMessages {
   collapseCompact: string;
   alwaysOnTop: string;
   toggleTheme: string;
+  updateInterval: string;
+  pauseWhenHidden: string;
   localSessionTokens: string;
   additionalLimits: (count: number) => string;
   lastSuccessful: (time: string) => string;

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FC, type RefObject } from "react";
+import { useEffect, useRef, useState, type FC, type RefObject } from "react";
 import { HelpTrigger } from "./HelpTrigger";
 import {
   IconAddSquare,
@@ -11,6 +11,10 @@ import {
 import {
   APP_NAME,
   APP_VERSION,
+  DEFAULT_PAUSE_WHEN_HIDDEN,
+  DEFAULT_UPDATE_INTERVAL_MINUTES,
+  MAX_UPDATE_INTERVAL_MINUTES,
+  MIN_UPDATE_INTERVAL_MINUTES,
   getModifierKeyLabel,
   isMacOS,
 } from "../../shared/index";
@@ -28,6 +32,10 @@ export interface HeaderProps {
   onToggleTheme: () => void;
   alwaysOnTop: boolean;
   onToggleAlwaysOnTop: () => void;
+  updateIntervalMinutes?: number;
+  onChangeUpdateInterval?: (minutes: number) => void;
+  pauseWhenHidden?: boolean;
+  onTogglePauseWhenHidden?: (enabled: boolean) => void;
 }
 
 export const Header: FC<HeaderProps> = ({
@@ -43,8 +51,38 @@ export const Header: FC<HeaderProps> = ({
   onToggleTheme,
   alwaysOnTop,
   onToggleAlwaysOnTop,
+  updateIntervalMinutes = DEFAULT_UPDATE_INTERVAL_MINUTES,
+  onChangeUpdateInterval,
+  pauseWhenHidden = DEFAULT_PAUSE_WHEN_HIDDEN,
+  onTogglePauseWhenHidden,
 }) => {
   const [dotCount, setDotCount] = useState(1);
+  const [intervalMenuOpen, setIntervalMenuOpen] = useState(false);
+  const intervalMenuRef = useRef<HTMLDivElement>(null);
+  const isIntervalPopoverOpen = intervalMenuOpen && !activeHelp;
+
+  useEffect(() => {
+    if (!isIntervalPopoverOpen) return;
+    const handlePointerDown = (event: MouseEvent): void => {
+      if (!intervalMenuRef.current?.contains(event.target as Node)) {
+        setIntervalMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        setIntervalMenuOpen(false);
+      }
+    };
+    const handleBlur = (): void => setIntervalMenuOpen(false);
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("blur", handleBlur);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [isIntervalPopoverOpen]);
 
   useEffect(() => {
     if (!refreshing) return;
@@ -82,6 +120,57 @@ export const Header: FC<HeaderProps> = ({
         </button>
       </h1>
       <div className="header-actions">
+        <div ref={intervalMenuRef} className="interval-settings">
+          <button
+            type="button"
+            className="interval-toggle-btn"
+            aria-label={`Update interval: ${updateIntervalMinutes}m`}
+            aria-expanded={isIntervalPopoverOpen}
+            title={`Update interval: ${updateIntervalMinutes}m`}
+            onClick={() => {
+              onActiveHelpChange(undefined);
+              setIntervalMenuOpen((prev) => !prev);
+            }}
+          >
+            {updateIntervalMinutes}m
+          </button>
+          {isIntervalPopoverOpen ? (
+            <div className="interval-popover" role="dialog" aria-label="Update settings">
+              <div className="interval-popover-title">Update interval</div>
+              <div className="interval-grid">
+                {Array.from(
+                  { length: MAX_UPDATE_INTERVAL_MINUTES - MIN_UPDATE_INTERVAL_MINUTES + 1 },
+                  (_, index) => {
+                    const minutes = MIN_UPDATE_INTERVAL_MINUTES + index;
+                    const selected = minutes === updateIntervalMinutes;
+                    return (
+                      <button
+                        key={minutes}
+                        type="button"
+                        className={`interval-option-btn${selected ? " is-selected" : ""}`}
+                        aria-pressed={selected}
+                        onClick={() => {
+                          onChangeUpdateInterval?.(minutes);
+                          setIntervalMenuOpen(false);
+                        }}
+                      >
+                        {minutes}m
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+              <label className="interval-pause-row">
+                <input
+                  type="checkbox"
+                  checked={pauseWhenHidden}
+                  onChange={(event) => onTogglePauseWhenHidden?.(event.target.checked)}
+                />
+                <span>Pause when hidden</span>
+              </label>
+            </div>
+          ) : null}
+        </div>
         <HelpTrigger
           id="compact-mode-toggle"
           label={compactMode ? <IconAddSquare /> : <IconMinusSquare />}

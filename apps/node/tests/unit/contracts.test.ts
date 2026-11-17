@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   appSnapshotSchema,
+  clampUpdateIntervalMinutes,
   localTokenUsageSchema,
   quotaWindowSchema,
   setTokensVisiblePayloadSchema,
+  userPreferencesSchema,
 } from "../../src/shared/index";
 
 describe("public snapshot contracts", () => {
@@ -87,5 +89,34 @@ describe("public snapshot contracts", () => {
       expect(() => setTokensVisiblePayloadSchema.parse({ visible: false, contentHeight }))
         .toThrow();
     }
+  });
+
+  it("clamps update interval minutes to 1..10 and validates user preferences", () => {
+    expect(clampUpdateIntervalMinutes(undefined)).toBe(1);
+    expect(clampUpdateIntervalMinutes(0)).toBe(1);
+    expect(clampUpdateIntervalMinutes(-5)).toBe(1);
+    expect(clampUpdateIntervalMinutes(3.6)).toBe(4);
+    expect(clampUpdateIntervalMinutes(11)).toBe(10);
+    expect(clampUpdateIntervalMinutes(Number.NaN)).toBe(1);
+
+    expect(
+      userPreferencesSchema.parse({
+        launchAtLogin: true,
+        alwaysOnTop: false,
+        updateIntervalMinutes: 5,
+        pauseWhenHidden: true,
+      }),
+    ).toEqual({
+      launchAtLogin: true,
+      alwaysOnTop: false,
+      updateIntervalMinutes: 5,
+      pauseWhenHidden: true,
+    });
+    expect(() =>
+      userPreferencesSchema.parse({
+        launchAtLogin: true,
+        updateIntervalMinutes: 11,
+      }),
+    ).toThrow();
   });
 });

@@ -13,7 +13,14 @@ import { launchAtLogin } from "./launchAtLogin";
 import { handleInstanceConnection, instanceFailureMessage, isHiddenLaunch, requestExistingInstance } from "./instance";
 import { UsageMonitorCore } from "../core/index";
 import { acquireSharedLock, sharedCacheDirectory } from "../storage/index";
-import type { AppSnapshot, ProviderId } from "../shared/index";
+import {
+  DEFAULT_PAUSE_WHEN_HIDDEN,
+  DEFAULT_UPDATE_INTERVAL_MINUTES,
+  clampUpdateIntervalMinutes,
+  type AppSnapshot,
+  type ProviderId,
+  type UserPreferences,
+} from "../shared/index";
 import { openAntigravitySetup } from "./antigravitySetup";
 import { openClaudeSetup } from "./claudeSetup";
 import { registerIpcHandlers } from "./ipc";
@@ -38,6 +45,8 @@ const MINI_WINDOW_HEIGHT = 124;
 
 interface StoredPreferences {
   alwaysOnTop?: boolean;
+  updateIntervalMinutes?: number;
+  pauseWhenHidden?: boolean;
 }
 
 const loadStoredPreferences = async (filePath: string): Promise<StoredPreferences> => {
@@ -141,6 +150,8 @@ export const startApplication = (): void => {
   let tokensVisible = true;
   let requestedContentHeight: number | undefined;
   let isAlwaysOnTop = false;
+  let updateIntervalMinutes = DEFAULT_UPDATE_INTERVAL_MINUTES;
+  let pauseWhenHidden = DEFAULT_PAUSE_WHEN_HIDDEN;
   let customPosition: { x: number; y: number } | undefined;
   let idleUnloadTimer: ReturnType<typeof setTimeout> | undefined;
   let ipcController: ReturnType<typeof registerIpcHandlers> | undefined;
@@ -163,6 +174,14 @@ export const startApplication = (): void => {
     if (idleUnloadTimer) {
       clearTimeout(idleUnloadTimer);
       idleUnloadTimer = undefined;
+    }
+  };
+
+  const hideWindowAndPause = (window: BrowserWindow, keepVisibleForTest = false): void => {
+    window.hide();
+    scheduleIdleUnload(keepVisibleForTest);
+    if (pauseWhenHidden && !isAlwaysOnTop && !keepVisibleForTest) {
+      void coreInstance?.pause();
     }
   };
 
@@ -229,8 +248,7 @@ export const startApplication = (): void => {
     window.webContents.on("before-input-event", (_event, input) => {
       if (input.type === "keyDown" && input.key === "Escape") {
         if (!isAlwaysOnTop) {
-          window.hide();
-          scheduleIdleUnload(keepVisibleForTest);
+          hideWindowAndPause(window, keepVisibleForTest);
         }
       }
     });
@@ -240,8 +258,7 @@ export const startApplication = (): void => {
     window.on("close", (event) => {
       if (!isQuitting) {
         event.preventDefault();
-        window.hide();
-        scheduleIdleUnload(keepVisibleForTest);
+        hideWindowAndPause(window, keepVisibleForTest);
       }
     });
     window.on("moved", () => {
@@ -255,8 +272,7 @@ export const startApplication = (): void => {
     });
     window.on("blur", () => {
       if (!keepVisibleForTest && !isAlwaysOnTop) {
-        window.hide();
-        scheduleIdleUnload(keepVisibleForTest);
+        hideWindowAndPause(window, keepVisibleForTest);
       }
     });
     window.on("closed", () => {
@@ -289,6 +305,7 @@ export const startApplication = (): void => {
     if (coreInstance && ipcController) {
       ipcController.publishState(coreInstance.getState());
     }
+    void coreInstance?.resume().catch(() => undefined);
   };
 
   let instanceReady = false;
@@ -333,21 +350,68 @@ export const startApplication = (): void => {
       useFakeProviders &&
       process.env.LLM_USAGE_MONITOR_E2E_KEEP_VISIBLE !== "0";
 
-    const core = await UsageMonitorCore.create({
-      userDataDir: app.getPath("userData"),
-      useFakeProviders,
-    });
-    coreInstance = core;
-    const setupWasReady = await core.isClaudeSetupReady();
-
     const preferencesPath = path.join(
       app.getPath("userData"),
       "preferences-v1.json",
     );
     const storedPrefs = await loadStoredPreferences(preferencesPath);
     isAlwaysOnTop = storedPrefs.alwaysOnTop ?? false;
+    updateIntervalMinutes = clampUpdateIntervalMinutes(
+      storedPrefs.updateIntervalMinutes,
+    );
+    pauseWhenHidden =
+      storedPrefs.pauseWhenHidden ?? DEFAULT_PAUSE_WHEN_HIDDEN;
+
+    const core = await UsageMonitorCore.create({
+      userDataDir: app.getPath("userData"),
+      useFakeProviders,
+      updateIntervalMinutes,
+    });
+    coreInstance = core;
+    const setupWasReady = await core.isClaudeSetupReady();
 
     mainWindow = await createMainWindow(keepVisibleForTest);
+
+    const currentPreferences = (): UserPreferences => ({
+      launchAtLogin: loginStartup,
+      alwaysOnTop: isAlwaysOnTop,
+      updateIntervalMinutes,
+      pauseWhenHidden,
+    });
+
+    const persistPreferences = (): void => {
+      void saveStoredPreferences(preferencesPath, {
+        alwaysOnTop: isAlwaysOnTop,
+        updateIntervalMinutes,
+        pauseWhenHidden,
+      });
+    };
+
+    const applyUpdateInterval = (minutes: number): UserPreferences => {
+      updateIntervalMinutes = clampUpdateIntervalMinutes(minutes);
+      core.setUpdateIntervalMinutes(updateIntervalMinutes);
+      persistPreferences();
+      const prefs = currentPreferences();
+      ipcController?.publishPreferences(prefs);
+      return prefs;
+    };
+
+    const applyPauseWhenHidden = (enabled: boolean): UserPreferences => {
+      pauseWhenHidden = enabled;
+      persistPreferences();
+      const windowHidden =
+        !mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible();
+      if (windowHidden && !isAlwaysOnTop && !keepVisibleForTest) {
+        if (enabled) {
+          void core.pause().catch(() => undefined);
+        } else {
+          void core.resume().catch(() => undefined);
+        }
+      }
+      const prefs = currentPreferences();
+      ipcController?.publishPreferences(prefs);
+      return prefs;
+    };
 
     const refreshUsage = (providerId?: ProviderId): Promise<void> =>
       core.refresh(providerId);
@@ -358,22 +422,25 @@ export const startApplication = (): void => {
         if (isQuitting) return;
         await refreshUsage(providerId);
       },
-      getPreferences: async () => ({
-        launchAtLogin: loginStartup,
-        alwaysOnTop: isAlwaysOnTop,
-      }),
+      getPreferences: async () => currentPreferences(),
       setLaunchAtLogin: async (enabled) => {
         if (isQuitting) {
-          return {
-            launchAtLogin: loginStartup,
-            alwaysOnTop: isAlwaysOnTop,
-          };
+          return currentPreferences();
         }
         loginStartup = await launchAtLogin(enabled ? "on" : "off");
-        return {
-          launchAtLogin: loginStartup,
-          alwaysOnTop: isAlwaysOnTop,
-        };
+        return currentPreferences();
+      },
+      setUpdateInterval: async (minutes) => {
+        if (isQuitting) {
+          return currentPreferences();
+        }
+        return applyUpdateInterval(minutes);
+      },
+      setPauseWhenHidden: async (enabled) => {
+        if (isQuitting) {
+          return currentPreferences();
+        }
+        return applyPauseWhenHidden(enabled);
       },
       setTokensVisible: async (visible, contentHeight) => {
         if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return;
@@ -388,13 +455,17 @@ export const startApplication = (): void => {
         isAlwaysOnTop = enabled;
         if (enabled) {
           cancelIdleUnload();
+          void core.resume().catch(() => undefined);
         } else if (mainWindow && !mainWindow.isVisible()) {
           scheduleIdleUnload(keepVisibleForTest);
+          if (pauseWhenHidden && !keepVisibleForTest) {
+            void core.pause().catch(() => undefined);
+          }
         }
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.setAlwaysOnTop(enabled, getAlwaysOnTopLevel());
         }
-        void saveStoredPreferences(preferencesPath, { alwaysOnTop: enabled });
+        persistPreferences();
         return isAlwaysOnTop;
       },
     });
@@ -451,8 +522,6 @@ export const startApplication = (): void => {
       quit: () => app.quit(),
     });
 
-    void core.start().catch(() => undefined);
-
     const refreshAll = (): void => {
       if (isQuitting) return;
       void refreshUsage().catch(() => undefined);
@@ -479,6 +548,8 @@ export const startApplication = (): void => {
             open: () => { void showWindow(keepVisibleForTest); },
             refresh: refreshAll,
             setLaunchAtLogin: updateLaunchAtLogin,
+            setUpdateInterval: (minutes) => { applyUpdateInterval(minutes); },
+            setPauseWhenHidden: (enabled) => { applyPauseWhenHidden(enabled); },
             resetPosition: () => {
               customPosition = undefined;
               void showWindow(keepVisibleForTest);
@@ -487,6 +558,12 @@ export const startApplication = (): void => {
               isQuitting = true;
               app.quit();
             },
+          },
+          process.platform,
+          "en",
+          {
+            getUpdateIntervalMinutes: () => updateIntervalMinutes,
+            getPauseWhenHidden: () => pauseWhenHidden,
           },
         ),
       );
@@ -499,8 +576,7 @@ export const startApplication = (): void => {
         if (isAlwaysOnTop) {
           mainWindow.focus();
         } else {
-          mainWindow.hide();
-          scheduleIdleUnload(keepVisibleForTest);
+          hideWindowAndPause(mainWindow, keepVisibleForTest);
         }
       } else {
         void showWindow(keepVisibleForTest);
@@ -517,6 +593,9 @@ export const startApplication = (): void => {
     if (shouldShowInitially || pendingShowRequest) {
       void showWindow(keepVisibleForTest);
     } else {
+      if (!pauseWhenHidden) {
+        void core.start().catch(() => undefined);
+      }
       scheduleIdleUnload(keepVisibleForTest);
     }
   }).catch(async () => {

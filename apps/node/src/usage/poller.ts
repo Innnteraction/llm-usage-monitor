@@ -22,15 +22,17 @@ export interface UsagePollerOptions {
   store: PollingStore;
   providerIds: ProviderId[];
   clock?: () => Date;
+  intervalMs?: number;
 }
 
 export function calculatePollingDelay(
   snapshot: ProviderSnapshot | undefined,
   failureCount: number,
   now: Date,
+  intervalMs: number = POLLING_INTERVAL_MS,
 ): number {
   if (snapshot?.status === "fresh") {
-    return POLLING_INTERVAL_MS;
+    return intervalMs;
   }
 
   const retryAt = snapshot?.error?.retryAt;
@@ -52,10 +54,13 @@ export function createUsagePoller({
   store,
   providerIds,
   clock = () => new Date(),
+  intervalMs = POLLING_INTERVAL_MS,
 }: UsagePollerOptions) {
   const timers = new Map<ProviderId, ReturnType<typeof setTimeout>>();
   const failureCounts = new Map<ProviderId, number>();
+  const scheduledAt = new Map<ProviderId, number>();
   const inFlight = new Map<ProviderId, Promise<void>>();
+  let pollingIntervalMs = intervalMs;
   let running = false;
   let stopped = false;
   let stopPromise: Promise<void> | undefined;
@@ -77,11 +82,14 @@ export function createUsagePoller({
       .providers.find(({ providerId: current }) => current === providerId);
     const failed = providerSnapshot?.status !== "fresh";
     const failureCount = failed ? (failureCounts.get(providerId) ?? 0) : 0;
+    const now = clock();
     const delay = calculatePollingDelay(
       providerSnapshot,
       failureCount,
-      clock(),
+      now,
+      pollingIntervalMs,
     );
+    scheduledAt.set(providerId, now.getTime());
     failureCounts.set(providerId, failed ? failureCount + 1 : 0);
     timers.set(
       providerId,
@@ -89,6 +97,32 @@ export function createUsagePoller({
         void refreshProvider(providerId);
       }, delay),
     );
+  };
+
+  const setIntervalMs = (nextIntervalMs: number): void => {
+    pollingIntervalMs = nextIntervalMs;
+    if (!running || stopped) return;
+    const nowMs = clock().getTime();
+    for (const providerId of providerIds) {
+      if (inFlight.has(providerId)) continue;
+      const providerSnapshot = store
+        .getState()
+        .providers.find(({ providerId: current }) => current === providerId);
+      if (providerSnapshot?.status !== "fresh") continue;
+      clearTimer(providerId);
+      const base = scheduledAt.get(providerId) ?? nowMs;
+      const remaining = Math.max(0, pollingIntervalMs - (nowMs - base));
+      if (remaining === 0) {
+        void refreshProvider(providerId);
+      } else {
+        timers.set(
+          providerId,
+          setTimeout(() => {
+            void refreshProvider(providerId);
+          }, remaining),
+        );
+      }
+    }
   };
 
   const refreshProvider = async (providerId: ProviderId): Promise<void> => {
@@ -139,6 +173,7 @@ export function createUsagePoller({
       return startPromise;
     },
     refresh,
+    setIntervalMs,
     async stop(): Promise<void> {
       if (stopPromise) return stopPromise;
       running = false;
@@ -147,7 +182,11 @@ export function createUsagePoller({
         clearTimer(providerId);
       }
       stopPromise = Promise.all([...inFlight.values()]).then(() => undefined);
-      await stopPromise;
+      try {
+        await stopPromise;
+      } finally {
+        stopPromise = undefined;
+      }
     },
   };
 }
